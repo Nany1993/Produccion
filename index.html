@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balanceo - Panel Industrial</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="toast-container"></div>
+
+    <div id="modal-overlay">
+        <div class="modal-box">
+            <h3 class="modal-title" id="modal-title">Confirmar</h3>
+            <p class="modal-message" id="modal-message"></p>
+            <div class="modal-actions">
+                <button id="modal-cancel">Cancelar</button>
+                <button id="modal-confirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    PROYECTO <span>BALANCEO</span>
+                </div>
+                <div class="brand-subtitle">Gestión de Producción</div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section expanded" id="nav-config">
+                    <div class="nav-section-header" onclick="toggleNavSection('nav-config')">
+                        <div>
+                            <div class="nav-section-title">CONFIGURACIÓN</div>
+                            <div class="nav-section-desc">Datos maestros</div>
+                        </div>
+                        <span class="nav-chevron">▾</span>
+                    </div>
+<ul class="nav-list">
+                        <li><a href="#" class="nav-link active" onclick="showModule('mod-maquinaria')" id="link-maquinaria">Maquinaria</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-secciones')" id="link-secciones">Secciones</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-modulos')" id="link-modulos">Módulos</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-empleados')" id="link-empleados">Empleados</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-horas')" id="link-horas">Horas</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-paradas')" id="link-paradas">Paradas</a></li>
+                    </ul>
+                </div>
+
+                <div class="nav-section" id="nav-operaciones">
+                    <div class="nav-section-header" onclick="toggleNavSection('nav-operaciones')">
+                        <div>
+                            <div class="nav-section-title">OPERACIONES</div>
+                            <div class="nav-section-desc">Flujo diario</div>
+                        </div>
+                        <span class="nav-chevron">▾</span>
+                    </div>
+                    <ul class="nav-list">
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-operaciones')" id="link-operaciones">Operaciones Estándar</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-ingenieria')" id="link-ingenieria">Ingeniería de Producto</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-programacion')" id="link-programacion">Programación de Líneas</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-control-hora')" id="link-control-hora">Control Hora a Hora</a></li>
+                    </ul>
+                </div>
+
+                <div class="nav-section" id="nav-analisis">
+                    <div class="nav-section-header" onclick="toggleNavSection('nav-analisis')">
+                        <div>
+                            <div class="nav-section-title">ANÁLISIS</div>
+                            <div class="nav-section-desc">Reportes y simulación</div>
+                        </div>
+                        <span class="nav-chevron">▾</span>
+                    </div>
+                    <ul class="nav-list">
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-eficiencia')" id="link-eficiencia">Tablero Eficiencias</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-simulador')" id="link-simulador">Simulador Balanceo</a></li>
+                    </ul>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="version-info">v0.2 - Gorras</div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="content-wrapper">
+
+                <!-- MAQUINARIA -->
+                <div id="mod-maquinaria" class="module-section active">
+                    <div class="page-header">
+                        <h1 class="page-title">Catálogo de Maquinaria</h1>
+                        <p class="page-subtitle">Tipos de máquina disponibles en la planta</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nueva Máquina</h2>
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-maquina" placeholder="Ej: Fileteadora">
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción</label>
+                                <input type="text" id="input-maquina-desc" placeholder="Función de la máquina">
+                            </div>
+                            <div class="form-group">
+                                <label>Velocidad (uds/h)</label>
+                                <input type="number" id="input-maquina-vel" placeholder="120">
+                            </div>
+                            <div class="form-group">
+                                <label>Estado</label>
+                                <select id="input-maquina-estado">
+                                    <option value="Activa">Activa</option>
+                                    <option value="Inactiva">Inactiva</option>
+                                    <option value="Mantenimiento">Mantenimiento</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarMaquina()" style="margin-top: 12px; max-width: 250px;">Guardar Máquina</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Velocidad</th><th>Estado</th></tr></thead>
+                                <tbody id="lista-maquinaria"></tbody>
+                            </table>
+                            <div id="empty-maquinaria" class="empty-state" style="display: none;">No hay máquinas registradas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIONES -->
+                <div id="mod-secciones" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Catálogo de Secciones</h1>
+                        <p class="page-subtitle">Partes o secciones de la prenda</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nueva Sección</h2>
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-seccion" placeholder="Ej: Corona">
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción</label>
+                                <input type="text" id="input-seccion-desc" placeholder="Parte de la gorra">
+                            </div>
+                            <div class="form-group">
+                                <label>Orden</label>
+                                <input type="number" id="input-seccion-orden" placeholder="1">
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarSeccion()" style="margin-top: 12px; max-width: 250px;">Guardar Sección</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Orden</th><th>Nombre</th><th>Descripción</th></tr></thead>
+                                <tbody id="lista-secciones"></tbody>
+                            </table>
+                            <div id="empty-secciones" class="empty-state" style="display: none;">No hay secciones registradas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MÓDULOS -->
+                <div id="mod-modulos" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Catálogo de Módulos</h1>
+                        <p class="page-subtitle">Líneas de producción físicas</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nuevo Módulo</h2>
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-modulo" placeholder="Ej: Línea 1">
+                            </div>
+                            <div class="form-group">
+                                <label>Capacidad (op.)</label>
+                                <input type="number" id="input-modulo-cap" placeholder="8">
+                            </div>
+                            <div class="form-group">
+                                <label>Ubicación</label>
+                                <input type="text" id="input-modulo-ubic" placeholder="Nave A - Piso 1">
+                            </div>
+                            <div class="form-group">
+                                <label>Supervisor</label>
+                                <input type="text" id="input-modulo-sup" placeholder="Nombre">
+                            </div>
+                            <div class="form-group">
+                                <label>Estado</label>
+                                <select id="input-modulo-estado">
+                                    <option value="Activo">Activo</option>
+                                    <option value="Inactivo">Inactivo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarModulo()" style="margin-top: 12px; max-width: 250px;">Guardar Módulo</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Capacidad</th><th>Ubicación</th><th>Supervisor</th><th>Estado</th></tr></thead>
+                                <tbody id="lista-modulos"></tbody>
+                            </table>
+                            <div id="empty-modulos" class="empty-state" style="display: none;">No hay módulos registrados.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EMPLEADOS -->
+                <div id="mod-empleados" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Gestión de Empleados</h1>
+                        <p class="page-subtitle">Registro de operarios y personal de la planta</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nuevo Empleado</h2>
+                        <input type="hidden" id="empleado-id-edicion">
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre completo *</label>
+                                <input type="text" id="input-emp-nombre" placeholder="Nombre y apellido">
+                            </div>
+                            <div class="form-group">
+                                <label>N° Documento *</label>
+                                <input type="text" id="input-emp-doc" placeholder="12345678">
+                            </div>
+                            <div class="form-group">
+                                <label>Cargo *</label>
+                                <select id="input-emp-cargo">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Operario">Operario</option>
+                                    <option value="Supervisor">Supervisor</option>
+                                    <option value="Auxiliar">Auxiliar</option>
+                                    <option value="Técnico de Calidad">Técnico de Calidad</option>
+                                    <option value="Digitalizador">Digitalizador</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Especialidad</label>
+                                <select id="input-emp-especialidad">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Plana">Plana</option>
+                                    <option value="Fileteadora">Fileteadora</option>
+                                    <option value="Bordadora">Bordadora</option>
+                                    <option value="Ojetera">Ojetera</option>
+                                    <option value="Botonera">Botonera</option>
+                                    <option value="Ribeteadora">Ribeteadora</option>
+                                    <option value="Prensa Térmica">Prensa Térmica</option>
+                                    <option value="Cortadora">Cortadora</option>
+                                    <option value="Múltiple">Múltiple</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Turno</label>
+                                <select id="input-emp-turno">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Mañana">Mañana</option>
+                                    <option value="Tarde">Tarde</option>
+                                    <option value="Noche">Noche</option>
+                                    <option value="Mixto">Mixto</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de ingreso</label>
+                                <input type="date" id="input-emp-fecha">
+                            </div>
+                            <div class="form-group">
+                                <label>Estado</label>
+                                <select id="input-emp-estado">
+                                    <option value="Activo">Activo</option>
+                                    <option value="Inactivo">Inactivo</option>
+                                    <option value="Vacaciones">Vacaciones</option>
+                                    <option value="Incapacidad">Incapacidad</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <input type="text" id="input-emp-tel" placeholder="3001234567">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="text" id="input-emp-email" placeholder="correo@empresa.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Módulo asignado</label>
+                                <select id="input-emp-modulo">
+                                    <option value="">Sin asignar</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-primary" id="btn-empleado" onclick="procesarEmpleado()" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>N° Doc</th>
+                                        <th>Nombre</th>
+                                        <th>Cargo</th>
+                                        <th>Especialidad</th>
+                                        <th>Turno</th>
+                                        <th>Módulo</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-empleados"></tbody>
+                            </table>
+                            <div id="empty-empleados" class="empty-state" style="display: none;">No hay empleados registrados.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HORAS -->
+                <div id="mod-horas" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Catálogo de Horas</h1>
+                        <p class="page-subtitle">Horas operativas del día</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nueva Hora</h2>
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-hora" placeholder="Ej: Hora 1">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora inicio</label>
+                                <input type="time" id="input-hora-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Hora fin</label>
+                                <input type="time" id="input-hora-fin">
+                            </div>
+                            <div class="form-group">
+                                <label>Turno</label>
+                                <select id="input-hora-turno">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Mañana">Mañana</option>
+                                    <option value="Tarde">Tarde</option>
+                                    <option value="Noche">Noche</option>
+                                    <option value="Extra">Extra</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarHora()" style="margin-top: 12px; max-width: 250px;">Guardar Hora</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Inicio</th><th>Fin</th><th>Turno</th></tr></thead>
+                                <tbody id="lista-horas"></tbody>
+                            </table>
+                            <div id="empty-horas" class="empty-state" style="display: none;">No hay horas registradas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PARADAS -->
+                <div id="mod-paradas" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Catálogo de Paradas Programadas</h1>
+                        <p class="page-subtitle">Paradas planificadas con duración</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nueva Parada</h2>
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Descripción *</label>
+                                <input type="text" id="input-parada-nombre" placeholder="Ej: Pausa Activa">
+                            </div>
+                            <div class="form-group">
+                                <label>Tiempo (seg) *</label>
+                                <input type="number" id="input-parada-tiempo" placeholder="300">
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo</label>
+                                <select id="input-parada-tipo">
+                                    <option value="Obligatoria">Obligatoria</option>
+                                    <option value="Opcional">Opcional</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Frecuencia</label>
+                                <select id="input-parada-frec">
+                                    <option value="Diaria">Diaria</option>
+                                    <option value="Por cambio de ref">Por cambio de ref</option>
+                                    <option value="Semanal">Semanal</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarParada()" style="margin-top: 12px; max-width: 250px;">Guardar Parada</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>ID</th><th>Descripción</th><th>Tiempo</th><th>Tipo</th><th>Frecuencia</th></tr></thead>
+                                <tbody id="lista-paradas"></tbody>
+                            </table>
+                            <div id="empty-paradas" class="empty-state" style="display: none;">No hay paradas registradas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EMPLEADOS -->
+                <div id="mod-empleados" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Catálogo de Empleados</h1>
+                        <p class="page-subtitle">Gestión de operarios y personal de planta</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nuevo Empleado</h2>
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-empleado-nombre" placeholder="Nombre completo">
+                            </div>
+                            <div class="form-group">
+                                <label>N° Documento *</label>
+                                <input type="text" id="input-empleado-doc" placeholder="12345678">
+                            </div>
+                            <div class="form-group">
+                                <label>Cargo *</label>
+                                <select id="input-empleado-cargo">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Operario">Operario</option>
+                                    <option value="Supervisor">Supervisor</option>
+                                    <option value="Auxiliar">Auxiliar</option>
+                                    <option value="Mecánico">Mecánico</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Especialidad</label>
+                                <select id="input-empleado-especialidad">
+                                    <option value="">Seleccione...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Turno</label>
+                                <select id="input-empleado-turno">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Mañana">Mañana</option>
+                                    <option value="Tarde">Tarde</option>
+                                    <option value="Noche">Noche</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Módulo Asignado</label>
+                                <select id="input-empleado-modulo">
+                                    <option value="">Sin asignar</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha Ingreso</label>
+                                <input type="date" id="input-empleado-fecha">
+                            </div>
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <input type="text" id="input-empleado-tel" placeholder="123-456-7890">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="text" id="input-empleado-email" placeholder="correo@ejemplo.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Estado</label>
+                                <select id="input-empleado-estado">
+                                    <option value="Activo">Activo</option>
+                                    <option value="Inactivo">Inactivo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarEmpleado()" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Documento</th>
+                                        <th>Cargo</th>
+                                        <th>Especialidad</th>
+                                        <th>Turno</th>
+                                        <th>Módulo</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-empleados"></tbody>
+                            </table>
+                            <div id="empty-empleados" class="empty-state" style="display: none;">No hay empleados registrados.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OPERACIONES -->
+                <div id="mod-operaciones" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Operaciones Estándar</h1>
+                        <p class="page-subtitle">Registro de operaciones de confección con tiempos y máquinas</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nueva Operación</h2>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; width: 100%;">
+                            <div class="form-group">
+                                <label>Nombre de la Operación</label>
+                                <input type="text" id="op-nombre" placeholder="Ej: Unir paneles...">
+                            </div>
+                            <div class="form-group">
+                                <label>Tiempo Estándar (Segundos)</label>
+                                <input type="number" id="op-tiempo" placeholder="Ej: 45">
+                            </div>
+                            <div class="form-group">
+                                <label>Máquina Requerida</label>
+                                <select id="op-maquina">
+                                    <option value="">Seleccione una máquina...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Sección de la Prenda</label>
+                                <select id="op-seccion">
+                                    <option value="">Seleccione una sección...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="btn-operacion" class="btn-primary" onclick="procesarOperacion()" style="margin-top: 12px; max-width: 300px;">Guardar Operación</button>
+
+                        <div class="data-table-container" style="margin-top: 24px;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre Operación</th>
+                                        <th>Máquina</th>
+                                        <th>Sección</th>
+                                        <th>Tiempo</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-operaciones"></tbody>
+                            </table>
+                            <div id="empty-operaciones" class="empty-state" style="display: none;">No hay operaciones registradas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INGENIERÍA -->
+                <div id="mod-ingenieria" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Ingeniería de Producto</h1>
+                        <p class="page-subtitle">Referencias (modelos) y secuencia de operaciones</p>
+                    </div>
+
+                    <div class="master-detail-container">
+                        <div class="catalog-card" style="margin-top: 0; align-self: start;">
+                            <h2 class="form-title">Referencias</h2>
+                            <div class="form-group">
+                                <label>Nombre de Referencia</label>
+                                <input type="text" id="input-ref-nombre" placeholder="Ej: Gorra Snapback">
+                                <label style="margin-top: 10px;">Cantidad Lote</label>
+                                <input type="number" id="input-ref-cantidad" placeholder="Ej: 1000" style="margin-top: 0;">
+                                <button class="btn-primary" onclick="crearReferencia()" style="margin-top: 10px;">Crear Referencia</button>
+                            </div>
+                            <div id="lista-referencias" style="width: 100%; display: flex; flex-direction: column;"></div>
+                        </div>
+
+                        <div class="catalog-card" style="margin-top: 0; display: none;" id="panel-secuencia">
+                            <h2 class="form-title" id="titulo-ref-activa">Secuencia de Operaciones</h2>
+
+                            <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end;">
+                                <div>
+                                    <label>Operación</label>
+                                    <select id="seq-operacion"></select>
+                                </div>
+                                <div>
+                                    <label>Letra</label>
+                                    <input type="text" id="seq-letra" placeholder="A, B...">
+                                </div>
+                                <div>
+                                    <label>Predec.</label>
+                                    <input type="text" id="seq-pred" placeholder="N/A o A,C">
+                                </div>
+                                <div>
+                                    <button class="btn-primary" onclick="agregarDetalle()">Agregar</button>
+                                </div>
+                            </div>
+
+                            <div class="data-table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Orden</th>
+                                            <th>Letra</th>
+                                            <th>Operación</th>
+                                            <th>Máquina</th>
+                                            <th>Tiempo</th>
+                                            <th>Pred.</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lista-secuencia"></tbody>
+                                </table>
+                            </div>
+
+                            <div style="margin-top: 24px; border-top: 1px solid var(--card-border); padding-top: 16px;">
+                                <button class="btn-primary" onclick="finalizarReferencia()" style="background: var(--accent-success);">Guardar Referencia</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROGRAMACIÓN -->
+                <div id="mod-programacion" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Programación de Líneas</h1>
+                        <p class="page-subtitle">Asignación de referencias a módulos de producción</p>
+                    </div>
+
+                    <div class="catalogo-grid">
+                        <div class="catalog-card">
+                            <h2 class="form-title">Nueva Asignación</h2>
+                            <div class="form-group">
+                                <label>Referencia</label>
+                                <select id="prog-referencia" onchange="verificarDisponibilidad()">
+                                    <option value="">Seleccione Referencia...</option>
+                                </select>
+                                <small id="prog-disponibilidad" style="color: var(--text-secondary); display:block; margin-top:5px;">Disponible: - / Total: -</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Módulo Destino</label>
+                                <select id="prog-modulo">
+                                    <option value="">Seleccione Módulo...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Cantidad a Asignar <span id="prog-cantidad-hint" style="color: var(--accent-success); font-weight: normal; margin-left: 5px;"></span></label>
+                                <input type="number" id="prog-cantidad" placeholder="Cantidad">
+                            </div>
+                            <button class="btn-primary" onclick="guardarAsignacion()" style="margin-top:15px;">Asignar</button>
+                        </div>
+
+                        <div class="catalog-card">
+                            <h2 class="form-title">Asignaciones Actuales</h2>
+                            <div class="data-table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Ref</th>
+                                            <th>Módulo</th>
+                                            <th>Cant.</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lista-asignaciones"></tbody>
+                                </table>
+                                <div id="empty-asignaciones" class="empty-state" style="display: none;">No hay asignaciones.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTROL HORA A HORA -->
+                <div id="mod-control-hora" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Control Hora a Hora</h1>
+                        <p class="page-subtitle">Registro de producción y paradas por hora operativa</p>
+                    </div>
+
+                    <div class="programacion-grid">
+                        <div class="catalog-card">
+                            <h2 class="form-title">Registro de Producción</h2>
+                            <input type="hidden" id="ctrl-id-edicion">
+
+                            <div class="form-group">
+                                <label>Fecha del Registro</label>
+                                <input type="date" id="ctrl-fecha">
+                            </div>
+                            <div class="form-group">
+                                <label>Módulo de Producción</label>
+                                <select id="ctrl-modulo" onchange="cargarReferenciasPorModulo()"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Cantidad de Operarios</label>
+                                <input type="number" step="1" id="ctrl-operarios" placeholder="Ej: 5" oninput="actualizarOpcionesCiclo()">
+                            </div>
+                            <div class="form-group">
+                                <label>Referencia (Lote)</label>
+                                <select id="ctrl-referencia" disabled onchange="actualizarOpcionesCiclo()">
+                                    <option value="">Seleccione Módulo primero...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Tiempo de ciclo</label>
+                                <select id="ctrl-ciclo">
+                                    <option value="">Calculando...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Hora Operativa</label>
+                                <select id="ctrl-hora"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Porción de Tiempo</label>
+                                <select id="ctrl-porcion">
+                                    <option value="0.1">0.1</option>
+                                    <option value="0.2">0.2</option>
+                                    <option value="0.3">0.3</option>
+                                    <option value="0.4">0.4</option>
+                                    <option value="0.5">0.5</option>
+                                    <option value="0.6">0.6</option>
+                                    <option value="0.7">0.7</option>
+                                    <option value="0.8">0.8</option>
+                                    <option value="0.9">0.9</option>
+                                    <option value="1.0">1.0</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Cantidad Producida</label>
+                                <input type="number" id="ctrl-cantidad" placeholder="Unidades">
+                            </div>
+                            <div class="form-group">
+                                <label>Parada Programada</label>
+                                <select id="ctrl-parada-p" onchange="actualizarTiempoParadaP()"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Tiempo Parada Programada (Segundos)</label>
+                                <input type="number" id="ctrl-tiempo-p" readonly style="background-color: var(--bg-card); opacity: 0.7;">
+                            </div>
+                            <div class="form-group">
+                                <label>Parada NO Programada (Opcional)</label>
+                                <input type="text" id="ctrl-parada-np" placeholder="Descripción de la causa">
+                            </div>
+                            <div class="form-group">
+                                <label>Tiempo Parada No Programada (Segundos)</label>
+                                <input type="number" id="ctrl-tiempo-np" placeholder="0">
+                            </div>
+                            <button class="btn-primary" onclick="guardarControlHora()" style="margin-top:20px;">Guardar Registro</button>
+                        </div>
+
+                        <div class="catalog-card">
+                            <h2 class="form-title">Producción de Hoy</h2>
+                            <div class="table-container" id="container-lista-controles">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>HORA</th>
+                                            <th>MOD.</th>
+                                            <th>REF.</th>
+                                            <th>TC</th>
+                                            <th>CANT.</th>
+                                            <th>T.P. PROG</th>
+                                            <th>T.P. N/PROG</th>
+                                            <th>ACC.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lista-controles"></tbody>
+                                </table>
+                                <div id="empty-controles" class="empty-state" style="display: none;">No hay registros para hoy.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TABLERO DE EFICIENCIAS -->
+                <div id="mod-eficiencia" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Tablero de Eficiencias</h1>
+                        <p class="page-subtitle">Monitoreo de cumplimiento y metas por módulo y hora</p>
+                    </div>
+
+                    <div class="report-controls">
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Fecha Inicio</label>
+                            <input type="date" id="eff-fecha-inicio" style="margin-bottom:0;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Fecha Fin</label>
+                            <input type="date" id="eff-fecha-fin" style="margin-bottom:0;">
+                        </div>
+                        <button class="btn-primary" onclick="consultarEficiencia()" style="width:auto; padding: 12px 32px;">Consultar</button>
+                    </div>
+
+                    <div class="report-table-container" id="eff-reporte-container">
+                        <div class="empty-state" style="text-align:center; padding: 40px;">
+                            Seleccione un rango de fechas y presione 'Consultar' para generar el tablero.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SIMULADOR -->
+                <div id="mod-simulador" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Simulador de Balanceo</h1>
+                        <p class="page-subtitle">Cálculo de asignación óptima de carga de trabajo</p>
+                    </div>
+
+                    <div class="catalog-card">
+                        <h2 class="form-title">Configuración del Cálculo</h2>
+                        <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 24px; align-items: end;">
+                            <div>
+                                <label>Seleccionar Referencia</label>
+                                <select id="sim-referencia"></select>
+                            </div>
+                            <div>
+                                <label>N° Operarios</label>
+                                <input type="number" id="sim-operarios" value="5" min="1">
+                            </div>
+                            <div>
+                                <button class="btn-primary" onclick="ejecutarSimulacion()">Calcular Balanceo</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="sim-scenario-controls" style="display:none; justify-content:center; gap:20px; margin:20px 0;">
+                        <button class="scenario-btn active" id="btn-scen-sec" onclick="cambiarEscenario('secuencial')">
+                            Balanceo Secuencial (Estricto)
+                        </button>
+                        <button class="scenario-btn" id="btn-scen-eff" onclick="cambiarEscenario('eficiencia')">
+                            Máxima Eficiencia (Sin Secuencia)
+                        </button>
+                    </div>
+
+                    <div id="sim-resultados" style="display: none; margin-top: 24px;">
+                        <div class="kpi-container">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Eficiencia Teórica</div>
+                                <div class="kpi-value" id="kpi-eficiencia">0%</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Unidades / Hora</div>
+                                <div class="kpi-value" id="kpi-produccion">0</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Ciclo (Botella)</div>
+                                <div class="kpi-value" id="kpi-ciclo">0s</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Ciclo Total</div>
+                                <div class="kpi-value" id="kpi-ciclo-total">0s</div>
+                            </div>
+                        </div>
+
+                        <h2 class="form-title" style="margin-bottom: 24px;">Detalle por Operario</h2>
+                        <div class="operator-grid" id="grid-operarios"></div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

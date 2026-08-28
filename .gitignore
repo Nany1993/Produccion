@@ -1,0 +1,23 @@
+# Base de datos (se regenera con seed_data.py)
+balanceo_produccion.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
