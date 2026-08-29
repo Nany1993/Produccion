@@ -525,11 +525,19 @@ async function cargarModulos() {
     empty.style.display = 'none';
     datos.forEach(m => {
       const estadoClass = m.estado === 'Activo' ? 'badge-module' : 'badge-machine';
+      let capCell = '<td>-</td>';
+      if (m.capacidad_maxima) {
+        const actual = m.operadores_actuales || 0;
+        const cap = m.capacidad_maxima;
+        const pct = actual / cap;
+        const color = pct >= 1 ? '#dc3545' : (pct >= 0.8 ? '#e6a23c' : '#2ea367');
+        capCell = `<td><span style="color:${color};font-weight:600;">${actual}</span>/<span style="font-weight:600;">${cap}</span> op.</td>`;
+      }
       tbody.innerHTML += `
         <tr>
           <td>${m.id}</td>
           <td><strong>${m.nombre}</strong></td>
-          <td>${m.capacidad_maxima ? m.capacidad_maxima + ' op.' : '-'}</td>
+          ${capCell}
           <td>${m.ubicacion || '-'}</td>
           <td><span class="badge ${estadoClass}">${m.estado}</span></td>
         </tr>
@@ -2349,8 +2357,10 @@ async function cargarReferenciasPorModulo() {
 async function cargarOpcionesActividad() {
   const selRef = document.getElementById('ctrl-referencia');
   const selAct = document.getElementById('ctrl-actividad');
+  const selMod = document.getElementById('ctrl-modulo');
   const optRef = selRef.options[selRef.selectedIndex];
   const idReferencia = optRef ? optRef.getAttribute('data-ref-id') : null;
+  const idModulo = parseInt(selMod.value) || 0;
 
   if (!idReferencia) {
     selAct.innerHTML = '<option value="">Seleccione la orden primero...</option>';
@@ -2361,11 +2371,35 @@ async function cargarOpcionesActividad() {
   const detalles = await api(`/api/referencias/${idReferencia}/detalles`);
   if (!detalles) { selAct.disabled = true; return; }
 
+  // Filtrar actividades cuyas máquinas pertenecen al módulo seleccionado
+  // (las que no tienen módulo definido se muestran para permitir su registro)
+  const disponibles = detalles.filter(d => !d.id_modulo_maquina || d.id_modulo_maquina === idModulo);
+
   selAct.innerHTML = '<option value="">Seleccione actividad...</option>';
-  detalles.forEach(d => {
-    selAct.innerHTML += `<option value="${d.id_operacion}" data-letra="${d.letra}">${d.letra} - ${d.nombre_operacion}</option>`;
+  disponibles.forEach(d => {
+    selAct.innerHTML += `<option value="${d.id_operacion}" data-letra="${d.letra}" data-tc="${d.tiempo || 0}">${d.letra} - ${d.nombre_operacion}</option>`;
   });
+  if (disponibles.length === 0) {
+    selAct.innerHTML = '<option value="">Este módulo no tiene actividades para esta referencia...</option>';
+  }
   selAct.disabled = false;
+  actualizarTiempoCiclo();
+}
+
+function actualizarTiempoCiclo() {
+  // Muestra el TIEMPO de la actividad seleccionada en el campo ctrl-ciclo (antes manejado por actualizarOpcionesCiclo, que no existía)
+  const selAct = document.getElementById('ctrl-actividad');
+  const ctrlCiclo = document.getElementById('ctrl-ciclo');
+  if (!ctrlCiclo) return;
+  const opt = selAct.options[selAct.selectedIndex];
+  const tc = opt ? (parseInt(opt.getAttribute('data-tc')) || 0) : 0;
+  if (tc > 0) {
+    const mm = Math.floor(tc / 60);
+    const ss = tc % 60;
+    ctrlCiclo.innerHTML = `<option value="${tc}" selected>${tc}s (${mm}min ${String(ss).padStart(2, '0')}s)</option>`;
+  } else {
+    ctrlCiclo.innerHTML = '<option value="" selected>-</option>';
+  }
 }
 
 async function guardarControlHora(btn = null) {
@@ -2413,13 +2447,13 @@ async function guardarControlHora(btn = null) {
   }
   paradasNP.forEach(p => paradas.push(p));
 
-  // VALIDACIÓN: aviso si ya hay registro en esta hora
-  const resumen = await api(`/api/produccion/resumen?fecha=${fecha}&id_modulo=${idMod}&id_hora=${idHora}`);
+  // VALIDACIÓN: aviso si ya hay registro en esta hora+actividad
+  const resumen = await api(`/api/produccion/resumen?fecha=${fecha}&id_modulo=${idMod}&id_hora=${idHora}&id_operacion=${idOperacion}`);
   let continuar = true;
   if (resumen && resumen.hora > 0) {
     continuar = await Modal.confirm(
       'Ya hay registro en esta hora',
-      `Tienes un registro en esta hora de ${resumen.hora} unidades.\nEn el día llevas ${resumen.dia} unidades registradas.\n¿Deseas continuar?`
+      `Ya registraste ${resumen.hora} unidades de esta actividad en esta hora.\nEn el día llevas ${resumen.dia} unidades registradas.\n¿Deseas continuar?`
     );
   }
   if (!continuar) return;

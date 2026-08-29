@@ -42,13 +42,6 @@ from database import (
     calcular_materiales_orden,
     obtener_modulos,
     insertar_modulo,
-    obtener_referencias_por_modulo,
-    insertar_control_hora,
-    obtener_controles_hoy,
-    eliminar_control_hora,
-    actualizar_control_hora,
-    obtener_controles_rango,
-    obtener_tiempo_ciclo_referencia,
     verificar_login,
     obtener_usuarios,
     crear_usuario,
@@ -532,41 +525,6 @@ def delete_referencia_detalle(id_detalle):
     eliminar_detalle(id_detalle)
     return jsonify({"mensaje": "Detalle eliminado"}), 200
 
-# --- ENDPOINTS CONTROL HORA A HORA ---
-
-@app.route('/api/modulos/<int:id_mod>/referencias-asignadas', methods=['GET'])
-def get_referencias_asignadas(id_mod):
-    return jsonify(obtener_referencias_por_modulo(id_mod))
-
-@app.route('/api/control-hora', methods=['POST'])
-def save_control_hora():
-    datos = request.json
-    res = insertar_control_hora(datos)
-    if "error" in res:
-        return jsonify(res), 400
-    return jsonify(res), 201
-
-@app.route('/api/control-hora/hoy', methods=['GET'])
-def get_control_hoy():
-    fecha = request.args.get('fecha') # O se puede automatizar con date.today()
-    if not fecha:
-        from datetime import date
-        fecha = date.today().isoformat()
-    return jsonify(obtener_controles_hoy(fecha))
-
-@app.route('/api/control-hora/<int:id_control>', methods=['DELETE'])
-def delete_control_hora(id_control):
-    eliminar_control_hora(id_control)
-    return jsonify({"mensaje": "Registro eliminado"}), 200
-
-@app.route('/api/control-hora/<int:id_control>', methods=['PUT'])
-def update_control_hora(id_control):
-    datos = request.json
-    res = actualizar_control_hora(id_control, datos)
-    if "error" in res:
-        return jsonify(res), 400
-    return jsonify(res)
-
 # --- REPORTE TABLERO DE EFICIENCIAS ---
 
 @app.route('/api/reportes/eficiencia', methods=['GET'])
@@ -589,24 +547,17 @@ def get_reporte_eficiencia():
     # 1. Identificar módulos y horas presentes
     modulos_set = set()
     horas_dict = {} # {hora_nombre: {modulo_nombre: {cantidad:0, meta:0, defectos:0}}}
-    
-    # Cache para tiempos de ciclo
-    tc_cache = {}
 
     for c in controles:
-        id_ref = c['id_referencia']
-        if id_ref not in tc_cache:
-            tc_cache[id_ref] = obtener_tiempo_ciclo_referencia(id_ref)
-        
-        tc = tc_cache[id_ref]
+        # Meta por ACTIVIDAD: el tiempo de la operación registrada.
+        # Una unidad de esa actividad se hace en 'tiempo_operacion' segundos.
+        tc_actividad = c.get('tiempo_operacion') or 0
         num_op = c['cantidad_operarios'] or 0
         porcion = c['porcion_tiempo'] or 1.0
         p_total = c.get('tiempo_total_parada') or 0
-        # Paradas programadas afectan a todos los operarios; no programadas solo al módulo.
-        # Como no distinguimos por tipo aquí, usamos tiempo total como no programada para no penalizar doble.
         # Fórmula: TD = (Num_Op * 3600 * Porcion) - Paradas
         td = (num_op * 3600 * porcion) - p_total
-        meta = int(td / tc) if tc > 0 else 0
+        meta = int(td / tc_actividad) if tc_actividad and tc_actividad > 0 else 0
         
         hora = c['hora']
         modulo = c['modulo']
@@ -830,9 +781,10 @@ def get_resumen_produccion():
     fecha = request.args.get('fecha')
     id_modulo = request.args.get('id_modulo', type=int)
     id_hora = request.args.get('id_hora', type=int)
+    id_operacion = request.args.get('id_operacion', type=int)
     if not fecha or not id_modulo or not id_hora:
         return jsonify({"error": "Faltan parámetros"}), 400
-    return jsonify(resumen_registros_hora(fecha, id_modulo, id_hora))
+    return jsonify(resumen_registros_hora(fecha, id_modulo, id_hora, id_operacion))
 
 @app.route('/api/produccion', methods=['POST'])
 def add_produccion():

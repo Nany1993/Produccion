@@ -225,35 +225,6 @@ def inicializar_base_de_datos():
         """)
         print("- Tabla 'AsignacionModulo' lista.")
 
-        # 2g. Tabla ControlHoraHora [NEW]
-        cursor.execute('''CREATE TABLE IF NOT EXISTS ControlHoraHora (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha TEXT NOT NULL,
-            id_modulo INTEGER NOT NULL,
-            id_asignacion INTEGER NOT NULL,
-            id_hora INTEGER NOT NULL,
-            porcion_tiempo REAL NOT NULL,
-            cantidad_operarios REAL,
-            cantidad_producida INTEGER NOT NULL,
-            id_parada_programada INTEGER NOT NULL,
-            tiempo_parada_programada INTEGER NOT NULL,
-            descripcion_parada_no_programada TEXT,
-            tiempo_parada_no_programada INTEGER,
-            FOREIGN KEY (id_modulo) REFERENCES ModuloConfeccion(id),
-            FOREIGN KEY (id_asignacion) REFERENCES AsignacionModulo(id),
-            FOREIGN KEY (id_hora) REFERENCES HorasProduccion(id),
-            FOREIGN KEY (id_parada_programada) REFERENCES ParadasProgramadas(id)
-        )''')
-        
-        # MIGRACIÓN: Agregar cantidad_operarios si no existe
-        try:
-            cursor.execute("ALTER TABLE ControlHoraHora ADD COLUMN cantidad_operarios REAL")
-            print("- Columna 'cantidad_operarios' agregada.")
-        except sqlite3.OperationalError:
-            pass # Ya existe
-            
-        print("- Tabla 'ControlHoraHora' lista.")
-
         # 3. Tabla Operacion
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Operacion (
@@ -718,29 +689,65 @@ def eliminar_referencia(id_ref):
 
 # --- ORDENES DE PRODUCCIÓN (LOTES) ---
 
+def _obtener_operaciones_referencia(cursor, id_referencia):
+    """Operaciones (actividades) de la referencia."""
+    cursor.execute("SELECT id_operacion FROM ReferenciaDetalle WHERE id_referencia = ?", (id_referencia,))
+    return [r[0] for r in cursor.fetchall()]
+
 def _calcular_gorras_completas(cursor, id_orden):
     """Gorras TERMINADAS de una orden: el mínimo de producción entre TODAS sus actividades.
     Una gorra está completa solo si pasó por cada actividad (A..Q) del diagrama de la referencia."""
-    # Referencia de la orden
     cursor.execute("SELECT id_referencia FROM OrdenProduccion WHERE id = ?", (id_orden,))
     fila = cursor.fetchone()
     if not fila:
         return 0
     id_referencia = fila[0]
-
-    # Operaciones (actividades) de la referencia
-    cursor.execute("SELECT id_operacion FROM ReferenciaDetalle WHERE id_referencia = ?", (id_referencia,))
-    ops = [r[0] for r in cursor.fetchall()]
+    ops = _obtener_operaciones_referencia(cursor, id_referencia)
     if not ops:
         return 0
 
-    # Producción por cada actividad de esta orden
-    producido_por_actividad = []
-    for op in ops:
-        cursor.execute("SELECT COALESCE(SUM(cantidad_producida),0) FROM RegistroProduccion WHERE id_orden = ? AND id_operacion = ?", (id_orden, op))
-        producido_por_actividad.append(cursor.fetchone()[0])
+    # Producción por cada actividad de esta orden en UNA sola consulta
+    cursor.execute("""
+        SELECT id_operacion, COALESCE(SUM(cantidad_producida),0)
+        FROM RegistroProduccion
+        WHERE id_orden = ? AND id_operacion IN (%s)
+        GROUP BY id_operacion
+    """ % ",".join("?" * len(ops)), [id_orden] + ops)
+    producido = dict(cursor.fetchall())
 
-    return min(producido_por_actividad)
+    return min([producido.get(op, 0) for op in ops])
+
+def _calcular_gorras_completas_por_orden(cursor, ids_orden):
+    """Gorras completas para varias órdenes en una sola consulta (sin N+1)."""
+    if not ids_orden:
+        return {}
+    cursor.execute("SELECT id, id_referencia FROM OrdenProduccion WHERE id IN (%s)" % ",".join("?" * len(ids_orden)), ids_orden)
+    orden_ref = dict(cursor.fetchall())
+
+    cursor.execute("SELECT id_referencia, id_operacion FROM ReferenciaDetalle WHERE id_referencia IN (%s)" % ",".join("?" * len(set(orden_ref.values()))), list(set(orden_ref.values())))
+    ops_por_ref = {}
+    for id_ref, id_op in cursor.fetchall():
+        ops_por_ref.setdefault(id_ref, []).append(id_op)
+
+    cursor.execute("""
+        SELECT id_orden, id_operacion, COALESCE(SUM(cantidad_producida),0)
+        FROM RegistroProduccion
+        WHERE id_orden IN (%s)
+        GROUP BY id_orden, id_operacion
+    """ % ",".join("?" * len(ids_orden)), ids_orden)
+    producido = {}
+    for id_orden, id_operacion, cant in cursor.fetchall():
+        producido.setdefault(id_orden, {})[id_operacion] = cant
+
+    resultado = {}
+    for id_orden in ids_orden:
+        id_ref = orden_ref.get(id_orden)
+        ops = ops_por_ref.get(id_ref, [])
+        if not ops:
+            resultado[id_orden] = 0
+        else:
+            resultado[id_orden] = min([producido.get(id_orden, {}).get(op, 0) for op in ops])
+    return resultado
 
 def obtener_ordenes():
     conexion = _conexion()
@@ -754,12 +761,14 @@ def obtener_ordenes():
     """
     cursor.execute(query)
     filas = cursor.fetchall()
+    ids = [f[0] for f in filas]
+    completas = _calcular_gorras_completas_por_orden(cursor, ids)
 
     resultado = []
     for f in filas:
         id_orden = f[0]
         cantidad_lote = f[3]
-        completas = _calcular_gorras_completas(cursor, id_orden)
+        comp = completas.get(id_orden, 0)
         resultado.append({
             "id": id_orden,
             "nombre_orden": f[1],
@@ -768,9 +777,9 @@ def obtener_ordenes():
             "estado": f[4],
             "fecha_creacion": f[5],
             "id_referencia": f[6],
-            "gorras_completas": completas,
+            "gorras_completas": comp,
             "produccion_total": 0,
-            "porcentaje_cumplimiento": round(completas / cantidad_lote * 100, 1) if cantidad_lote and cantidad_lote > 0 else 0
+            "porcentaje_cumplimiento": round(comp / cantidad_lote * 100, 1) if cantidad_lote and cantidad_lote > 0 else 0
         })
     conexion.close()
     return resultado
@@ -1013,7 +1022,8 @@ def obtener_detalles_referencia(id_ref):
             o.tiempo_segundos, 
             rd.predecesoras,
             rd.orden_fila,
-            o.id as id_operacion
+            o.id as id_operacion,
+            tm.id_modulo as id_modulo_maquina
         FROM ReferenciaDetalle rd
         INNER JOIN Operacion o ON rd.id_operacion = o.id
         LEFT JOIN TipoMaquinaria tm ON o.id_maquina = tm.id
@@ -1032,7 +1042,8 @@ def obtener_detalles_referencia(id_ref):
             "tiempo": f[4], 
             "predecesoras": f[5],
             "orden": f[6],
-            "id_operacion": f[7]
+            "id_operacion": f[7],
+            "id_modulo_maquina": f[8]
         } for f in filas
     ]
 
@@ -1048,8 +1059,14 @@ def obtener_modulos():
     cursor = conexion.cursor()
     cursor.execute("SELECT id, nombre, capacidad_maxima, ubicacion, supervisor, estado FROM ModuloConfeccion")
     filas = cursor.fetchall()
+    cursor.execute("SELECT modulo_asignado, COUNT(*) FROM Empleados WHERE rol='Operador' AND estado='Activo' AND modulo_asignado IS NOT NULL GROUP BY modulo_asignado")
+    conteo_operadores = dict(cursor.fetchall())
     conexion.close()
-    return [{"id": f[0], "nombre": f[1], "capacidad_maxima": f[2], "ubicacion": f[3], "supervisor": f[4], "estado": f[5] or 'Activo'} for f in filas]
+    return [{
+        "id": f[0], "nombre": f[1], "capacidad_maxima": f[2], "ubicacion": f[3],
+        "supervisor": f[4], "estado": f[5] or 'Activo',
+        "operadores_actuales": conteo_operadores.get(f[0], 0)
+    } for f in filas]
 
 def insertar_modulo(nombre, capacidad_maxima=None, ubicacion=None, supervisor=None, estado='Activo'):
     conexion = _conexion()
@@ -1078,264 +1095,6 @@ def obtener_referencias_por_modulo(id_modulo):
     filas = cursor.fetchall()
     conexion.close()
     return [{"id": f[0], "nombre": f[1], "id_referencia": f[2], "id_orden": f[3], "nombre_orden": f[4]} for f in filas]
-
-def validar_porcion_tiempo(cursor, id_modulo, id_hora, fecha, nueva_porcion, id_control_ignorar=None):
-    """
-    Verifica si la suma de las porciones de tiempo (existentes + nueva) excede 1.0 para un módulo y hora específicos.
-    Retorna True si es válido, False si excede.
-    """
-    query = "SELECT SUM(porcion_tiempo) FROM ControlHoraHora WHERE id_modulo = ? AND id_hora = ? AND fecha = ?"
-    params = [id_modulo, id_hora, fecha]
-    
-    if id_control_ignorar:
-        query += " AND id != ?"
-        params.append(id_control_ignorar)
-        
-    cursor.execute(query, params)
-    suma_existente = cursor.fetchone()[0] or 0.0
-    
-    # Tolerancia pequeña para errores de punto flotante
-    return (suma_existente + nueva_porcion) <= 1.0001
-    
-
-def insertar_control_hora(datos):
-    """
-    Inserta un registro de producción hora a hora con validación de saldo.
-    """
-    conexion = _conexion()
-    cursor = conexion.cursor()
-    
-    id_asignacion = datos['id_asignacion']
-    cantidad_nueva = datos['cantidad_producida']
-    
-    # 1. Obtener cantidad total asignada
-    cursor.execute("SELECT cantidad_asignada FROM AsignacionModulo WHERE id = ?", (id_asignacion,))
-    res_asig = cursor.fetchone()
-    if not res_asig:
-        conexion.close()
-        return {"error": "No se encontró la asignación (lote/módulo)"}
-    total_asignado = res_asig[0]
-    
-    # 2. Sumar producción histórica para esta asignación
-    cursor.execute("SELECT SUM(cantidad_producida) FROM ControlHoraHora WHERE id_asignacion = ?", (id_asignacion,))
-    producido_actual = cursor.fetchone()[0] or 0
-    
-    # 3. Validar Regla de Negocio (Cantidad)
-    if (producido_actual + cantidad_nueva) > total_asignado:
-        conexion.close()
-        return {"error": "La cantidad supera el saldo del lote asignado a este módulo"}
-
-    # 4. Validar Regla de Negocio (Porción de Tiempo)
-    if not validar_porcion_tiempo(cursor, datos['id_modulo'], datos['id_hora'], datos['fecha'], datos['porcion_tiempo']):
-        conexion.close()
-        return {"error": "La suma de las porciones de tiempo para este módulo y hora excede 1.0 (100%)"}
-        
-    # 5. Insertar
-    query = """
-        INSERT INTO ControlHoraHora (
-            fecha, id_modulo, id_asignacion, id_hora, porcion_tiempo, cantidad_operarios,
-            cantidad_producida, id_parada_programada, tiempo_parada_programada,
-            descripcion_parada_no_programada, tiempo_parada_no_programada
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
-    params = (
-        datos['fecha'], datos['id_modulo'], id_asignacion, datos['id_hora'], datos['porcion_tiempo'],
-        datos.get('cantidad_operarios', 0),
-        cantidad_nueva, datos['id_parada_programada'], datos['tiempo_parada_programada'],
-        datos.get('descripcion_parada_no_programada', ''), datos.get('tiempo_parada_no_programada', 0)
-    )
-    
-    cursor.execute(query, params)
-    conexion.commit()
-    conexion.close()
-    return {"mensaje": "Registro guardado con éxito"}
-
-def obtener_controles_hoy(fecha_hoy):
-    """
-    Retorna los registros de producción del día actual.
-    """
-    conexion = _conexion()
-    cursor = conexion.cursor()
-    query = """
-        SELECT c.id, c.fecha, m.nombre as modulo, r.nombre_referencia as referencia, 
-               h.nombre as hora, c.cantidad_producida, p.nombre as parada_p, 
-               c.tiempo_parada_programada, c.tiempo_parada_no_programada,
-               c.id_modulo, c.id_asignacion, c.id_hora, c.porcion_tiempo,
-               c.id_parada_programada, c.descripcion_parada_no_programada,
-               c.cantidad_operarios,
-               (SELECT SUM(o.tiempo_segundos) 
-                FROM ReferenciaDetalle rd 
-                JOIN Operacion o ON rd.id_operacion = o.id 
-                WHERE rd.id_referencia = r.id) as tc
-        FROM ControlHoraHora c
-        JOIN ModuloConfeccion m ON c.id_modulo = m.id
-        JOIN AsignacionModulo a ON c.id_asignacion = a.id
-        JOIN OrdenProduccion o ON a.id_orden = o.id
-        JOIN ReferenciaProducto r ON o.id_referencia = r.id
-        JOIN HorasProduccion h ON c.id_hora = h.id
-        JOIN ParadasProgramadas p ON c.id_parada_programada = p.id
-        WHERE c.fecha = ?
-        ORDER BY c.id DESC
-    """
-    cursor.execute(query, (fecha_hoy,))
-    filas = cursor.fetchall()
-    conexion.close()
-    
-    return [{
-        "id": f[0], "fecha": f[1], "modulo": f[2], "referencia": f[3],
-        "hora": f[4], "cantidad": f[5], "parada": f[6], 
-        "tiempo_p": f[7], "tiempo_np": f[8],
-        # Raw Data for Edit
-        "id_modulo": f[9], "id_asignacion": f[10], "id_hora": f[11],
-        "porcion_tiempo": f[12], "id_parada_programada": f[13],
-        "descripcion_parada_no_programada": f[14],
-        "cantidad_operarios": f[15],
-        "tc": f[16] or 0
-    } for f in filas]
-
-def eliminar_control_hora(id_control):
-    conexion = _conexion()
-    cursor = conexion.cursor()
-    cursor.execute("DELETE FROM ControlHoraHora WHERE id = ?", (id_control,))
-    conexion.commit()
-    conexion.close()
-
-def actualizar_control_hora(id_control, datos):
-    conexion = _conexion()
-    cursor = conexion.cursor()
-    
-    # 1. Obtener datos antiguos del registro
-    cursor.execute("SELECT id_asignacion, cantidad_producida FROM ControlHoraHora WHERE id = ?", (id_control,))
-    registro_anterior = cursor.fetchone()
-    if not registro_anterior:
-        conexion.close()
-        return {"error": "Registro no encontrado"}
-    
-    id_asignacion, cantidad_anterior = registro_anterior
-    
-    # Manejar caso de que no venga la cantidad (actualización parcial) -> usar anterior
-    nueva_cantidad = int(datos.get('cantidad_producida', cantidad_anterior))
-    
-    # 2. Validar Regla de Negocio (solo si cambia la cantidad)
-    if nueva_cantidad != cantidad_anterior:
-        # Obtener total asignado
-        cursor.execute("SELECT cantidad_asignada FROM AsignacionModulo WHERE id = ?", (id_asignacion,))
-        total_asignado = cursor.fetchone()[0]
-        
-        # Obtener producido total y restar el anterior
-        cursor.execute("SELECT SUM(cantidad_producida) FROM ControlHoraHora WHERE id_asignacion = ?", (id_asignacion,))
-        producido_total_actual = cursor.fetchone()[0] or 0
-        producido_otros = producido_total_actual - cantidad_anterior
-        
-        if (producido_otros + nueva_cantidad) > total_asignado:
-            conexion.close()
-            return {"error": f"La nueva cantidad excede el saldo. Máximo posible: {total_asignado - producido_otros}"}
-
-    # Validar Porción de Tiempo si cambia o siempre (para asegurar consistencia)
-    nueva_porcion = datos.get('porcion_tiempo')
-    if nueva_porcion is not None:
-        # Obtenemos datos necesarios para validar (si no vienen en el payload, los buscamos del registro anterior)
-        # Pero id_modulo, id_hora y fecha suelen ser consistentes. Consultémoslos por si acaso.
-        cursor.execute("SELECT id_modulo, id_hora, fecha FROM ControlHoraHora WHERE id = ?", (id_control,))
-        mod, hora, fecha = cursor.fetchone()
-        
-        # Validar usando los datos que se pretenden guardar (o los existentes si no cambian, pero aquí nueva_porcion viene)
-        # Nota: Si el usuario cambia el módulo/hora, deberíamos usar el NUEVO modulo/hora.
-        # Asumimos que id_modulo, id_hora, fecha vienen en 'datos' o se mantienen.
-        
-        check_mod = datos.get('id_modulo', mod)
-        check_hora = datos.get('id_hora', hora)
-        check_fecha = datos.get('fecha', fecha)
-        
-        if not validar_porcion_tiempo(cursor, check_mod, check_hora, check_fecha, float(nueva_porcion), id_control_ignorar=id_control):
-             conexion.close()
-             return {"error": "La suma de las porciones de tiempo excede el límite de 1.0 para este módulo y hora"}
-
-    # 3. Construir Update Dinámico
-    campos = []
-    valores = []
-    
-    keys_map = {
-        'fecha': 'fecha', 
-        'id_modulo': 'id_modulo', 
-        'id_hora': 'id_hora', 
-        'porcion_tiempo': 'porcion_tiempo',
-        'cantidad_operarios': 'cantidad_operarios',
-        'cantidad_producida': 'cantidad_producida',
-        'id_parada_programada': 'id_parada_programada',
-        'tiempo_parada_programada': 'tiempo_parada_programada',
-        'descripcion_parada_no_programada': 'descripcion_parada_no_programada',
-        'tiempo_parada_no_programada': 'tiempo_parada_no_programada'
-    }
-
-    for key, col in keys_map.items():
-        if key in datos:
-            campos.append(f"{col} = ?")
-            valores.append(datos[key])
-            
-    if not campos:
-        conexion.close()
-        return {"mensaje": "Nada que actualizar"}
-        
-    valores.append(id_control)
-    query = f"UPDATE ControlHoraHora SET {', '.join(campos)} WHERE id = ?"
-    
-    try:
-        cursor.execute(query, valores)
-        conexion.commit()
-        conexion.close()
-        return {"mensaje": "Registro actualizado correctamente"}
-    except Exception as e:
-        conexion.close()
-        return {"error": str(e)}
-
-def obtener_controles_rango(fecha_inicio, fecha_fin):
-    """
-    Retorna los registros de producción en un rango de fechas.
-    """
-    conexion = _conexion()
-    cursor = conexion.cursor()
-    query = """
-        SELECT c.id, c.fecha, m.nombre as modulo, r.nombre_referencia as referencia, 
-               h.nombre as hora, c.cantidad_producida, c.tiempo_parada_programada, 
-               c.tiempo_parada_no_programada, c.porcion_tiempo, c.cantidad_operarios,
-               r.id as id_referencia
-        FROM ControlHoraHora c
-        JOIN ModuloConfeccion m ON c.id_modulo = m.id
-        JOIN AsignacionModulo a ON c.id_asignacion = a.id
-        JOIN OrdenProduccion o ON a.id_orden = o.id
-        JOIN ReferenciaProducto r ON o.id_referencia = r.id
-        JOIN HorasProduccion h ON c.id_hora = h.id
-        WHERE c.fecha BETWEEN ? AND ?
-        ORDER BY h.id ASC, m.id ASC
-    """
-    cursor.execute(query, (fecha_inicio, fecha_fin))
-    filas = cursor.fetchall()
-    conexion.close()
-    
-    return [{
-        "id": f[0], "fecha": f[1], "modulo": f[2], "referencia": f[3],
-        "hora": f[4], "cantidad": f[5], "tiempo_p": f[6], "tiempo_np": f[7],
-        "porcion_tiempo": f[8], "cantidad_operarios": f[9], "id_referencia": f[10]
-    } for f in filas]
-
-def obtener_tiempo_ciclo_referencia(id_ref):
-    """
-    Calcula el tiempo total de ciclo (TC) sumando los tiempos de todas las operaciones de una referencia.
-    """
-    conexion = _conexion()
-    cursor = conexion.cursor()
-    query = """
-        SELECT SUM(o.tiempo_segundos) 
-        FROM ReferenciaDetalle rd
-        INNER JOIN Operacion o ON rd.id_operacion = o.id
-        WHERE rd.id_referencia = ?
-    """
-    cursor.execute(query, (id_ref,))
-    res = cursor.fetchone()
-    conexion.close()
-    return res[0] if res[0] else 0
-
 
 # ============================================================
 # EMPLEADOS
@@ -1447,6 +1206,30 @@ def _sincronizar_modulos_supervisor(conexion, cursor, id_empleado, lista_modulos
         cursor.execute("INSERT INTO AsignacionUsuarioLinea (id_usuario, id_modulo) VALUES (?, ?)", (id_usuario, mid))
 
 
+def _verificar_capacidad_modulo(cursor, id_modulo, id_empleado_excluir=None):
+    """Cuenta operadores ACTIVOS del módulo y valida contra 'capacidad_maxima'.
+    Retorna None si hay cupo, o un dict de error. Excluye id_empleado_excluir (para updates)."""
+    cursor.execute("SELECT capacidad_maxima FROM ModuloConfeccion WHERE id = ?", (id_modulo,))
+    fila = cursor.fetchone()
+    if not fila:
+        return {"error": "El módulo no existe"}
+    capacidad = fila[0]
+    if not capacidad:
+        return None  # Sin límite definido → no validar
+
+    query = "SELECT COUNT(*) FROM Empleados WHERE rol = 'Operador' AND estado = 'Activo' AND modulo_asignado = ?"
+    params = [id_modulo]
+    if id_empleado_excluir:
+        query += " AND id != ?"
+        params.append(id_empleado_excluir)
+    cursor.execute(query, params)
+    ocupados = cursor.fetchone()[0]
+
+    if ocupados >= capacidad:
+        return {"error": f"El módulo está completo ({ocupados}/{capacidad} operadores). No puede asignar más operadores."}
+    return None
+
+
 def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=None,
                       fecha_ingreso=None, estado='Activo', telefono=None, email=None,
                       modulo_asignado=None, id_maquina=None, id_modulos_supervisor=None):
@@ -1471,6 +1254,13 @@ def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=Non
             if not modulo_asignado:
                 conexion.close()
                 return {"error": "La máquina del operador no está asignada a ninguna línea."}
+
+        # Capacidad del módulo (solo operadores con módulo)
+        if rol == 'Operador' and modulo_asignado:
+            err_cap = _verificar_capacidad_modulo(cursor, modulo_asignado)
+            if err_cap:
+                conexion.close()
+                return err_cap
 
         cursor.execute("""
             INSERT INTO Empleados (nombre, numero_documento, cargo, rol, turno,
@@ -1513,6 +1303,13 @@ def actualizar_empleado(id_empleado, nombre, numero_documento, cargo, rol='Opera
             if not modulo_asignado:
                 conexion.close()
                 return {"error": "La máquina del operador no está asignada a ninguna línea."}
+
+        # Capacidad del módulo (solo operadores con módulo), excluyendo al propio empleado en updates
+        if rol == 'Operador' and modulo_asignado:
+            err_cap = _verificar_capacidad_modulo(cursor, modulo_asignado, id_empleado_excluir=id_empleado)
+            if err_cap:
+                conexion.close()
+                return err_cap
 
         cursor.execute("""
             UPDATE Empleados
@@ -1764,14 +1561,19 @@ def obtener_registros_dia(fecha, id_usuario=None):
         "paradas": paradas_dict.get(f[0], [])
     } for f in filas]
 
-def resumen_registros_hora(fecha, id_modulo, id_hora):
-    """Devuelve la cantidad de esa hora y el total del día para la advertencia."""
+def resumen_registros_hora(fecha, id_modulo, id_hora, id_operacion=None):
+    """Devuelve la cantidad de esa hora/actividad y el total del día para la advertencia."""
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("""
+    params = [fecha, id_modulo, id_hora]
+    query = """
         SELECT COALESCE(SUM(cantidad_producida), 0) FROM RegistroProduccion
         WHERE fecha = ? AND id_modulo = ? AND id_hora = ?
-    """, (fecha, id_modulo, id_hora))
+    """
+    if id_operacion:
+        query += " AND id_operacion = ?"
+        params.append(id_operacion)
+    cursor.execute(query, params)
     hora = cursor.fetchone()[0]
     cursor.execute("""
         SELECT COALESCE(SUM(cantidad_producida), 0) FROM RegistroProduccion
@@ -1781,9 +1583,37 @@ def resumen_registros_hora(fecha, id_modulo, id_hora):
     conexion.close()
     return {"hora": hora, "dia": dia}
 
+def _validar_operacion_en_modulo(cursor, id_operacion, id_modulo):
+    """Valida que la máquina de la operación pertenezca al módulo de registro.
+    Retorna None si es válido, o un dict de error si no coincide."""
+    if not id_operacion:
+        return {"error": "Debe seleccionar una actividad (operación)"}
+    cursor.execute("""
+        SELECT tm.id_modulo, tm.nombre
+        FROM Operacion o
+        LEFT JOIN TipoMaquinaria tm ON o.id_maquina = tm.id
+        WHERE o.id = ?
+    """, (id_operacion,))
+    fila = cursor.fetchone()
+    if not fila:
+        return {"error": "La actividad seleccionada no existe"}
+    modulo_maquina = fila[0]
+    nombre_maquina = fila[1]
+    # Permite registrar operaciones cuya máquina NO tiene módulo asignado (especial)
+    if modulo_maquina and modulo_maquina != int(id_modulo):
+        return {"error": f"La actividad usa '{nombre_maquina}' que pertenece a otro módulo. Verifique que la línea de registro coincida con la actividad."}
+    return None
+
 def insertar_registro_produccion(datos, id_usuario):
     conexion = _conexion()
     cursor = conexion.cursor()
+
+    # Validar que la operación (actividad) corresponde al módulo de registro
+    err_op = _validar_operacion_en_modulo(cursor, datos.get('id_operacion'), datos.get('id_modulo'))
+    if err_op:
+        conexion.close()
+        return err_op
+
     cursor.execute("""
         INSERT INTO RegistroProduccion (
             fecha, id_modulo, id_hora, id_orden, id_operacion, porcion_tiempo,
@@ -1826,11 +1656,34 @@ def insertar_registro_produccion(datos, id_usuario):
 def eliminar_registro_produccion(id_registro):
     conexion = _conexion()
     cursor = conexion.cursor()
+    cursor.execute("SELECT id_orden FROM RegistroProduccion WHERE id = ?", (id_registro,))
+    fila = cursor.fetchone()
+    id_orden = fila[0] if fila else None
+
     cursor.execute("PRAGMA foreign_keys = ON;")
     cursor.execute("DELETE FROM RegistroProduccion WHERE id = ?", (id_registro,))
+    cursor.execute("DELETE FROM ParadaRegistro WHERE id_registro = ?", (id_registro,))
+
+    # Re-evaluar la orden eliminada: si ya no cumple el lote, reabrirla
+    if id_orden:
+        _reabrir_orden_si_incompleta(cursor, id_orden)
+
     conexion.commit()
     conexion.close()
     return {"mensaje": "Registro eliminado"}
+
+def _reabrir_orden_si_incompleta(cursor, id_orden):
+    """Si la orden está Cerrada pero ya no tiene gorras completas suficientes, la reabre."""
+    cursor.execute("SELECT estado, cantidad_lote FROM OrdenProduccion WHERE id = ?", (id_orden,))
+    fila = cursor.fetchone()
+    if not fila:
+        return
+    estado, cantidad_lote = fila
+    if estado != 'Cerrada':
+        return
+    completas = _calcular_gorras_completas(cursor, id_orden)
+    if completas < cantidad_lote:
+        cursor.execute("UPDATE OrdenProduccion SET estado = 'Abierta' WHERE id = ?", (id_orden,))
 
 def obtener_registros_rango(fecha_inicio, fecha_fin, id_orden=None):
     """Registros de producción en rango con paradas agregadas y defectos (para el tablero)."""
@@ -1840,12 +1693,14 @@ def obtener_registros_rango(fecha_inicio, fecha_fin, id_orden=None):
         SELECT r.id, r.fecha, m.nombre, o.nombre_orden, ref.nombre_referencia,
                h.nombre, r.porcion_tiempo, r.cantidad_operarios,
                r.cantidad_producida, r.cantidad_defectuosa,
-               ref.id as id_referencia, r.id_hora
+               ref.id as id_referencia, r.id_hora, r.id_operacion,
+               COALESCE(op.tiempo_segundos, 0) as tiempo_operacion
         FROM RegistroProduccion r
         JOIN ModuloConfeccion m ON r.id_modulo = m.id
         JOIN OrdenProduccion o ON r.id_orden = o.id
         JOIN ReferenciaProducto ref ON o.id_referencia = ref.id
         JOIN HorasProduccion h ON r.id_hora = h.id
+        LEFT JOIN Operacion op ON r.id_operacion = op.id
         WHERE r.fecha BETWEEN ? AND ?
     """
     params = [fecha_inicio, fecha_fin]
@@ -1856,19 +1711,23 @@ def obtener_registros_rango(fecha_inicio, fecha_fin, id_orden=None):
     cursor.execute(query, params)
     filas = cursor.fetchall()
 
-    # Paradas agregadas por registro
-    cursor.execute("SELECT id_registro, tiempo_segundos FROM ParadaRegistro")
+    # Paradas solo de los registros del rango (no de toda la tabla)
+    ids_registros = [f[0] for f in filas]
     paradas = {}
-    for id_reg, tiempo in cursor.fetchall():
-        paradas.setdefault(id_reg, 0)
-        paradas[id_reg] += tiempo
+    if ids_registros:
+        placeholders = ",".join("?" * len(ids_registros))
+        cursor.execute(f"SELECT id_registro, tiempo_segundos FROM ParadaRegistro WHERE id_registro IN ({placeholders})", ids_registros)
+        for id_reg, tiempo in cursor.fetchall():
+            paradas.setdefault(id_reg, 0)
+            paradas[id_reg] += tiempo
 
     conexion.close()
     return [{
         "id": f[0], "fecha": f[1], "modulo": f[2], "orden": f[3], "referencia": f[4],
         "hora": f[5], "porcion_tiempo": f[6] or 1.0, "cantidad_operarios": f[7] or 0,
         "cantidad": f[8], "cantidad_defectuosa": f[9] or 0,
-        "id_referencia": f[10], "tiempo_total_parada": paradas.get(f[0], 0)
+        "id_referencia": f[10], "id_operacion": f[12], "tiempo_operacion": f[13] or 0,
+        "tiempo_total_parada": paradas.get(f[0], 0)
     } for f in filas]
 
 def reporte_progreso_orden(id_orden):

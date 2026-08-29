@@ -20,7 +20,7 @@ def con():
 def limpiar(conn):
     cur = conn.cursor()
     tablas = ["ParadaRegistro", "RegistroProduccion", "AsignacionUsuarioLinea", "Usuario",
-              "ControlHoraHora", "Empleados", "AsignacionModulo", "OrdenProduccion",
+              "Empleados", "AsignacionModulo", "OrdenProduccion",
               "ReferenciaMaterial", "ReferenciaDetalle", "ReferenciaProducto", "Operacion",
               "TipoMaquinaria", "SeccionPrenda", "ModuloConfeccion", "HorasProduccion",
               "ParadasProgramadas", "Materiales", "CausaParada"]

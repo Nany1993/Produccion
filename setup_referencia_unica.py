@@ -17,7 +17,7 @@ def main():
 
     # Limpiar todo (menos catálogos maestros)
     for t in ["ParadaRegistro", "RegistroProduccion", "AsignacionUsuarioLinea", "Usuario",
-              "ControlHoraHora", "Empleados", "AsignacionModulo", "OrdenProduccion",
+              "Empleados", "AsignacionModulo", "OrdenProduccion",
               "ReferenciaMaterial", "ReferenciaDetalle", "ReferenciaProducto", "Operacion",
               "TipoMaquinaria", "SeccionPrenda", "ModuloConfeccion", "HorasProduccion",
               "ParadasProgramadas", "Materiales", "CausaParada"]:
