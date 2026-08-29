@@ -1009,6 +1009,201 @@ select:disabled {
     background: rgba(59, 130, 246, 0.08);
 }
 
+.progreso-header-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+}
+
+.progreso-ref-nombre {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.progreso-orden-nombre {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.progreso-total {
+    text-align: right;
+}
+
+.progreso-total-num {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--accent-blue);
+}
+
+.progreso-total-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+#progreso-total-bar {
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-success));
+    transition: width 0.6s ease;
+}
+
+.progreso-activity {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.progreso-activity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.progreso-activity-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.progreso-activity-letra {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: 0.8rem;
+    margin-right: 8px;
+}
+
+.progreso-activity-nums {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.progreso-bar-mini {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-deep);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progreso-bar-mini > div {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.progreso-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.progreso-kpi {
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+}
+
+.progreso-kpi-num {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.progreso-kpi-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+}
+
+.eff-tarjetas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 4px;
+}
+
+.eff-tarjeta {
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.eff-tarjeta-nombre {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.eff-tarjeta-num {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.eff-tarjeta-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+}
+
+.eff-tarjeta-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 6px;
+}
+
+.eff-tarjeta {
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+}
+
+.eff-tarjeta:hover {
+    border-color: var(--accent-blue);
+    transform: translateY(-2px);
+}
+
+.eff-tarjeta-ver {
+    margin-top: 10px;
+    font-size: 0.75rem;
+    color: var(--accent-blue);
+    opacity: 0;
+    transition: opacity 0.2s;
+    text-align: right;
+}
+
+.eff-tarjeta:hover .eff-tarjeta-ver {
+    opacity: 1;
+}
+
 /* ============================================================
    MODULE SECTIONS
    ============================================================ */
@@ -1265,4 +1460,288 @@ select:disabled {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
+}
+
+/* ============================================================
+   LOGIN
+   ============================================================ */
+
+#login-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-deep);
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#login-overlay.hidden {
+    display: none;
+}
+
+.login-box {
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 40px;
+    width: 90%;
+    max-width: 380px;
+    box-shadow: var(--shadow-lg);
+}
+
+.login-brand {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.login-brand span {
+    color: var(--accent-blue);
+}
+
+.login-subtitle {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 24px;
+}
+
+.login-error {
+    margin-top: 12px;
+    color: var(--accent-danger);
+    font-size: 0.85rem;
+}
+
+/* ============================================================
+   SESIÓN
+   ============================================================ */
+
+.session-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 8px 10px;
+    background: var(--bg-deep);
+    border-radius: 6px;
+    border: 1px solid var(--card-border);
+    font-size: 0.8rem;
+}
+
+.session-bar span {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ============================================================
+   USUARIOS
+   ============================================================ */
+
+.linea-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.linea-check input {
+    width: auto;
+    margin: 0;
+    accent-color: var(--accent-blue);
+}
+
+.lineas-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 4px 16px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+}
+
+/* Módulos a supervisar — listado horizontal */
+#emp-modulos-supervisor {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+}
+
+#emp-modulos-supervisor .linea-check {
+    padding: 8px 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+#emp-modulos-supervisor .linea-check:hover {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.06);
+}
+
+#emp-modulos-supervisor .linea-check:has(input:checked) {
+    border-color: var(--accent-success);
+    background: rgba(74, 222, 128, 0.08);
+}
+
+/* Líneas destino en programación — lista vertical con checkbox + cantidad */
+#prog-lineas-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+}
+
+#prog-lineas-checks .prog-linea-fila {
+    display: grid;
+    grid-template-columns: 24px 1fr 130px;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--bg-deep);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+#prog-lineas-checks .prog-linea-fila:hover {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.04);
+}
+
+#prog-lineas-checks .prog-linea-fila.sel {
+    border-color: var(--accent-success);
+    background: rgba(74, 222, 128, 0.06);
+}
+
+#prog-lineas-checks .prog-linea-nombre {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+#prog-lineas-checks .prog-linea-cantidad {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--bg-deep);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    margin: 0;
+    text-align: right;
+}
+
+#prog-lineas-checks .prog-linea-marca {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-success);
+    cursor: pointer;
+    margin: 0;
+}
+
+/* Select con buscador */
+.select-buscable {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.select-buscable-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+.select-buscable-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.select-buscable select {
+    margin-bottom: 0;
+}
+
+.select-buscable-vacio {
+    padding: 8px 12px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.ref-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 1100px) {
+    .ref-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .ref-grid-4 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================
+   REGISTRO DE PRODUCCIÓN
+   ============================================================ */
+
+.separator-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 18px 0 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--card-border);
+}
+
+.parada-np-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.parada-np-row select {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.parada-np-row input {
+    width: 110px;
+    margin-bottom: 0;
+}
+
+.parada-np-row .btn-icon {
+    flex-shrink: 0;
 }

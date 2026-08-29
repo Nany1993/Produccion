@@ -157,6 +157,159 @@ function resetButton(btnId, text, color) {
 }
 
 // ============================================================
+// SELECT CON BUSCADOR INTELIGENTE
+// ============================================================
+
+function hacerSelectBuscable(idSelect) {
+  const select = document.getElementById(idSelect);
+  if (!select || select.dataset.buscable) return;
+  select.dataset.buscable = '1';
+
+  // Contenedor nuevo que envuelve input + select
+  const wrapper = document.createElement('div');
+  wrapper.className = 'select-buscable';
+  select.parentNode.insertBefore(wrapper, select);
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'select-buscable-input';
+  input.placeholder = '🔎 Buscar...';
+  input.autocomplete = 'off';
+  wrapper.appendChild(input);
+  wrapper.appendChild(select);
+
+  const vacio = document.createElement('div');
+  vacio.className = 'select-buscable-vacio';
+  vacio.style.display = 'none';
+  vacio.textContent = 'Sin resultados';
+  wrapper.appendChild(vacio);
+
+  function filtrar() {
+    const q = input.value.toLowerCase().trim();
+    let visibles = 0;
+    Array.from(select.options).forEach(o => {
+      const match = !q || o.text.toLowerCase().includes(q);
+      o.hidden = !match;
+      if (match) visibles++;
+    });
+    vacio.style.display = visibles === 0 ? 'block' : 'none';
+    // Si solo hay una visible y hay query, seleccionarla
+    if (visibles === 1 && q) {
+      const opt = Array.from(select.options).find(o => !o.hidden);
+      if (opt && opt.value !== select.value) select.value = opt.value;
+    }
+  }
+
+  input.addEventListener('input', filtrar);
+  select.addEventListener('change', () => { input.value = ''; filtrar(); });
+  // El usuario puede resetear manualmente
+  input.addEventListener('focus', () => {
+    if (!input.value) { Array.from(select.options).forEach(o => o.hidden = false); vacio.style.display = 'none'; }
+  });
+}
+
+const SELECTS_BUSCABLES = [
+  'op-maquina', 'op-seccion',
+  'seq-operacion',
+  'bom-material',
+  'prog-referencia',
+  'input-usuario-empleado',
+  'input-emp-maquina',
+  'ctrl-modulo', 'ctrl-referencia',
+  'input-orden-ref',
+  'sim-referencia',
+  'eff-referencia', 'eff-orden',
+  'input-maquina-modulo'
+];
+
+function conectarBuscadores() {
+  SELECTS_BUSCABLES.forEach(id => hacerSelectBuscable(id));
+}
+
+// ============================================================
+// SESIÓN Y LOGIN
+// ============================================================
+
+let sesionActual = null;
+
+function guardarSesion(usuario) {
+  sesionActual = usuario;
+  localStorage.setItem('sesion', JSON.stringify(usuario));
+  document.getElementById('login-overlay').classList.add('hidden');
+  const bar = document.getElementById('session-bar');
+  bar.style.display = 'flex';
+  document.getElementById('session-info').innerText = `${usuario.nombre_empleado || usuario.nombre_usuario} · ${usuario.rol}`;
+  Toast.success(`Bienvenido, ${usuario.nombre_usuario}`);
+  initControlHora();
+  cargarControlesHoy();
+}
+
+function cerrarSesion() {
+  sesionActual = null;
+  localStorage.removeItem('sesion');
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('session-bar').style.display = 'none';
+}
+
+async function iniciarSesion() {
+  const nombre = document.getElementById('login-usuario').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+
+  if (!nombre || !password) {
+    errEl.textContent = 'Ingrese usuario y contraseña';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre_usuario: nombre, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Credenciales inválidas';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    guardarSesion(data);
+  } catch (e) {
+    errEl.textContent = 'Error de conexión';
+    errEl.style.display = 'block';
+  }
+}
+
+function ocultarSesionInicial() {
+  const guardada = localStorage.getItem('sesion');
+  if (guardada) {
+    try {
+      sesionActual = JSON.parse(guardada);
+      document.getElementById('login-overlay').classList.add('hidden');
+      document.getElementById('session-bar').style.display = 'flex';
+      document.getElementById('session-info').innerText = `${sesionActual.nombre_empleado || sesionActual.nombre_usuario} · ${sesionActual.rol}`;
+      return true;
+    } catch (e) { localStorage.removeItem('sesion'); }
+  }
+  return false;
+}
+
+function toggleFormColapsable(formId, btnId, textoCrear) {
+  const form = document.getElementById(formId);
+  const btn = document.getElementById(btnId);
+  if (!form || !btn) return;
+  if (form.style.display === 'none') {
+    form.style.display = 'block';
+    btn.textContent = '− Cerrar';
+  } else {
+    form.style.display = 'none';
+    btn.textContent = textoCrear;
+  }
+}
+
+// ============================================================
 // NAVEGACIÓN
 // ============================================================
 
@@ -194,19 +347,44 @@ function showModule(moduleId) {
     cargarSelectOrdenesRef();
   }
   if (moduleId === 'mod-materiales') cargarMateriales();
+  if (moduleId === 'mod-usuarios') {
+    cargarUsuarios();
+    cargarSelectUsuarioEmpleado();
+  }
+  if (moduleId === 'mod-causas') cargarCausas();
   if (moduleId === 'mod-control-hora') initControlHora();
+  if (moduleId === 'mod-progreso') cargarOrdenesReporte();
   if (moduleId === 'mod-eficiencia') {
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = new Date();
     const fi = document.getElementById('eff-fecha-inicio');
     const ff = document.getElementById('eff-fecha-fin');
-    if (!fi.value) fi.value = hoy;
-    if (!ff.value) ff.value = hoy;
+    if (!fi.value || !ff.value) {
+      const mes = hoy.getMonth();
+      const anio = hoy.getFullYear();
+      const primero = new Date(anio, mes, 1);
+      const ultimo = new Date(anio, mes + 1, 0);
+      const iso = d => d.toISOString().split('T')[0];
+      if (!fi.value) fi.value = iso(primero);
+      if (!ff.value) ff.value = iso(ultimo);
+      consultarEficiencia();
+    }
+    cargarFiltrosEficiencia();
   }
 }
 
 // ============================================================
 // CATÁLOGOS
 // ============================================================
+
+async function cargarSelectMaquinaModulo() {
+  const mods = await api('/api/modulos');
+  if (!mods) return;
+  const select = document.getElementById('input-maquina-modulo');
+  const val = select.value;
+  select.innerHTML = '<option value="">Seleccione línea...</option>';
+  mods.forEach(m => select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`);
+  if (val) select.value = val;
+}
 
 async function cargarMaquinaria() {
   const datos = await api('/api/maquinaria');
@@ -228,9 +406,9 @@ async function cargarMaquinaria() {
       const estadoClass = m.estado === 'Activa' ? 'badge-module' : (m.estado === 'Mantenimiento' ? 'badge-hour' : 'badge-machine');
       tbody.innerHTML += `
         <tr>
-          <td>${m.id}</td>
           <td><strong>${m.nombre}</strong></td>
           <td>${m.descripcion || '-'}</td>
+          <td>${m.nombre_modulo ? `<span class="badge badge-module">${m.nombre_modulo}</span>` : '<span style="color:var(--text-muted);">Sin línea</span>'}</td>
           <td>${m.velocidad_tipica ? m.velocidad_tipica + ' uds/h' : '-'}</td>
           <td><span class="badge ${estadoClass}">${m.estado}</span></td>
         </tr>
@@ -244,17 +422,21 @@ async function cargarMaquinaria() {
 async function guardarMaquina() {
   const nombre = document.getElementById('input-maquina').value.trim();
   const descripcion = document.getElementById('input-maquina-desc').value.trim();
+  const idModulo = document.getElementById('input-maquina-modulo').value;
   const velocidad = document.getElementById('input-maquina-vel').value;
   const estado = document.getElementById('input-maquina-estado').value;
 
   if (!nombre) { showFieldError('input-maquina', 'Ingrese un nombre'); return; }
   clearFieldErrors('input-maquina');
+  if (!idModulo) { showFieldError('input-maquina-modulo', 'Seleccione la línea'); return; }
+  clearFieldErrors('input-maquina-modulo');
 
   const data = await api('/api/maquinaria', {
     method: 'POST',
     body: JSON.stringify({
       nombre,
       descripcion: descripcion || null,
+      id_modulo: parseInt(idModulo),
       velocidad_tipica: velocidad ? parseInt(velocidad) : null,
       estado
     }),
@@ -264,6 +446,7 @@ async function guardarMaquina() {
   if (data) {
     document.getElementById('input-maquina').value = '';
     document.getElementById('input-maquina-desc').value = '';
+    document.getElementById('input-maquina-modulo').value = '';
     document.getElementById('input-maquina-vel').value = '';
     document.getElementById('input-maquina-estado').value = 'Activa';
     Toast.success(data.mensaje || 'Máquina guardada');
@@ -348,7 +531,6 @@ async function cargarModulos() {
           <td><strong>${m.nombre}</strong></td>
           <td>${m.capacidad_maxima ? m.capacidad_maxima + ' op.' : '-'}</td>
           <td>${m.ubicacion || '-'}</td>
-          <td>${m.supervisor || '-'}</td>
           <td><span class="badge ${estadoClass}">${m.estado}</span></td>
         </tr>
       `;
@@ -360,7 +542,6 @@ async function guardarModulo() {
   const nombre = document.getElementById('input-modulo').value.trim();
   const capacidad = document.getElementById('input-modulo-cap').value;
   const ubicacion = document.getElementById('input-modulo-ubic').value.trim();
-  const supervisor = document.getElementById('input-modulo-sup').value.trim();
   const estado = document.getElementById('input-modulo-estado').value;
 
   if (!nombre) { showFieldError('input-modulo', 'Ingrese un nombre'); return; }
@@ -372,7 +553,6 @@ async function guardarModulo() {
       nombre,
       capacidad_maxima: capacidad ? parseInt(capacidad) : null,
       ubicacion: ubicacion || null,
-      supervisor: supervisor || null,
       estado
     }),
     _btn: event.target
@@ -382,7 +562,6 @@ async function guardarModulo() {
     document.getElementById('input-modulo').value = '';
     document.getElementById('input-modulo-cap').value = '';
     document.getElementById('input-modulo-ubic').value = '';
-    document.getElementById('input-modulo-sup').value = '';
     document.getElementById('input-modulo-estado').value = 'Activo';
     Toast.success(data.mensaje || 'Módulo guardado');
     cargarModulos();
@@ -529,14 +708,15 @@ async function cargarEmpleados() {
     datos.forEach(e => {
       const objStr = JSON.stringify(e).replace(/'/g, "\\'").replace(/"/g, '&quot;');
       const estadoClass = e.estado === 'Activo' ? 'badge-module' : (e.estado === 'Vacaciones' || e.estado === 'Incapacidad' ? 'badge-hour' : 'badge-machine');
+      const rolClass = e.rol === 'Supervisor' ? 'badge-hour' : 'badge-machine';
       tbody.innerHTML += `
         <tr>
           <td>${e.numero_documento}</td>
           <td><strong>${e.nombre}</strong></td>
+          <td><span class="badge ${rolClass}">${e.rol || 'Operador'}</span></td>
           <td>${e.cargo}</td>
-          <td>${e.especialidad || '-'}</td>
+          <td>${e.nombre_maquina ? `<span class="badge badge-machine">${e.nombre_maquina}</span>` : (e.rol === 'Supervisor' ? '<span style="color:var(--text-muted);">Supervisa</span>' : '-')}</td>
           <td>${e.turno || '-'}</td>
-          <td>${e.nombre_modulo ? `<span class="badge badge-module">${e.nombre_modulo}</span>` : 'Sin asignar'}</td>
           <td><span class="badge ${estadoClass}">${e.estado}</span></td>
           <td class="action-buttons">
             <button class="btn-icon btn-edit" onclick="iniciarEdicionEmpleado(${objStr})">Editar</button>
@@ -548,17 +728,53 @@ async function cargarEmpleados() {
   }
 }
 
-async function cargarSelectModulos() {
-  const datos = await api('/api/modulos');
-  if (!datos) return;
+async function cargarSelectMaquinaEmpleado() {
+  const maq = await api('/api/maquinaria');
+  if (!maq) return;
+  const select = document.getElementById('input-emp-maquina');
+  const val = select.value;
+  select.innerHTML = '<option value="">Seleccione máquina...</option>';
+  maq.forEach(m => select.innerHTML += `<option value="${m.id}">${m.nombre} (${m.nombre_modulo || 'sin línea'})</option>`);
+  if (val) select.value = val;
+}
 
-  const select = document.getElementById('input-emp-modulo');
-  const valActual = select.value;
-  select.innerHTML = '<option value="">Sin asignar</option>';
-  datos.forEach(m => {
-    select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
+async function cargarCheckboxModulosSupervisor() {
+  const mods = await api('/api/modulos');
+  if (!mods) return;
+  const cont = document.getElementById('emp-modulos-supervisor');
+  cont.innerHTML = '';
+  mods.forEach(m => {
+    cont.innerHTML += `
+      <label class="linea-check">
+        <input type="checkbox" value="${m.id}"> ${m.nombre}
+      </label>`;
   });
-  if (valActual) select.value = valActual;
+}
+
+async function cargarLineasUsuarioEmpleado(idEmpleado) {
+  // Líneas del usuario ligado al empleado (para precargar módulos del supervisor)
+  const usuarios = await api('/api/usuarios');
+  if (!usuarios) return [];
+  const u = usuarios.find(x => x.id_empleado === idEmpleado);
+  if (!u) return [];
+  // Puede que lineas no venga en lista simple; buscamos por endpoint de usuario
+  if (u && u.id) {
+    const lineas = await api(`/api/usuarios/${u.id}/lineas`);
+    if (lineas) return lineas;
+  }
+  return [];
+}
+
+function leerModulosSupervisor() {
+  return Array.from(document.querySelectorAll('#emp-modulos-supervisor input:checked')).map(i => parseInt(i.value));
+}
+
+function toggleRolEmpleado() {
+  const rol = document.getElementById('input-emp-rol').value;
+  const esSup = rol === 'Supervisor';
+  document.getElementById('form-emp-maquina').style.display = esSup ? 'none' : 'block';
+  document.getElementById('form-emp-modulos-sup').style.display = esSup ? 'block' : 'none';
+  if (!esSup) document.getElementById('emp-modulos-supervisor').querySelectorAll('input').forEach(i => i.checked = false);
 }
 
 function limpiarFormEmpleado() {
@@ -567,13 +783,15 @@ function limpiarFormEmpleado() {
   document.getElementById('input-emp-nombre').value = '';
   document.getElementById('input-emp-doc').value = '';
   document.getElementById('input-emp-cargo').value = '';
-  document.getElementById('input-emp-especialidad').value = '';
+  document.getElementById('input-emp-rol').value = 'Operador';
+  document.getElementById('input-emp-maquina').value = '';
   document.getElementById('input-emp-turno').value = '';
   document.getElementById('input-emp-fecha').value = '';
   document.getElementById('input-emp-estado').value = 'Activo';
   document.getElementById('input-emp-tel').value = '';
   document.getElementById('input-emp-email').value = '';
-  document.getElementById('input-emp-modulo').value = '';
+  document.getElementById('emp-modulos-supervisor').querySelectorAll('input').forEach(i => i.checked = false);
+  toggleRolEmpleado();
   const btn = document.getElementById('btn-empleado');
   btn.textContent = 'Guardar Empleado';
   btn.style.background = '';
@@ -582,14 +800,15 @@ function limpiarFormEmpleado() {
 async function procesarEmpleado() {
   const nombre = document.getElementById('input-emp-nombre').value.trim();
   const numero_documento = document.getElementById('input-emp-doc').value.trim();
-  const cargo = document.getElementById('input-emp-cargo').value;
-  const especialidad = document.getElementById('input-emp-especialidad').value;
+  const cargo = document.getElementById('input-emp-cargo').value.trim();
+  const rol = document.getElementById('input-emp-rol').value;
   const turno = document.getElementById('input-emp-turno').value;
   const fecha_ingreso = document.getElementById('input-emp-fecha').value;
   const estado = document.getElementById('input-emp-estado').value;
   const telefono = document.getElementById('input-emp-tel').value.trim();
   const email = document.getElementById('input-emp-email').value.trim();
-  const modulo_asignado = document.getElementById('input-emp-modulo').value;
+  const id_maquina = document.getElementById('input-emp-maquina').value;
+  const id_modulos_supervisor = leerModulosSupervisor();
 
   let valid = true;
   if (!nombre) { showFieldError('input-emp-nombre', 'Campo requerido'); valid = false; }
@@ -598,8 +817,17 @@ async function procesarEmpleado() {
   if (!numero_documento) { showFieldError('input-emp-doc', 'Campo requerido'); valid = false; }
   else { clearFieldErrors('input-emp-doc'); }
 
-  if (!cargo) { showFieldError('input-emp-cargo', 'Seleccione un cargo'); valid = false; }
+  if (!cargo) { showFieldError('input-emp-cargo', 'Ingrese un cargo'); valid = false; }
   else { clearFieldErrors('input-emp-cargo'); }
+
+  if (rol === 'Operador' && !id_maquina) {
+    showFieldError('input-emp-maquina', 'Un operador debe tener máquina'); valid = false;
+  } else { clearFieldErrors('input-emp-maquina'); }
+
+  if (rol === 'Supervisor' && id_modulos_supervisor.length === 0) {
+    Toast.warning('Un supervisor debe marcar al menos un módulo a supervisar');
+    valid = false;
+  }
 
   if (!valid) return;
 
@@ -607,13 +835,14 @@ async function procesarEmpleado() {
     nombre,
     numero_documento,
     cargo,
-    especialidad: especialidad || null,
+    rol,
     turno: turno || null,
     fecha_ingreso: fecha_ingreso || null,
     estado,
     telefono: telefono || null,
     email: email || null,
-    modulo_asignado: modulo_asignado ? parseInt(modulo_asignado) : null
+    id_maquina: rol === 'Operador' && id_maquina ? parseInt(id_maquina) : null,
+    id_modulos_supervisor: rol === 'Supervisor' ? id_modulos_supervisor : []
   };
 
   let url = '/api/empleados';
@@ -633,6 +862,8 @@ async function procesarEmpleado() {
     Toast.success(data.mensaje || 'Empleado guardado');
     limpiarFormEmpleado();
     cargarEmpleados();
+    cargarUsuarios();
+    cargarSelectUsuarioEmpleado();
   }
 }
 
@@ -642,13 +873,24 @@ function iniciarEdicionEmpleado(e) {
   document.getElementById('input-emp-nombre').value = e.nombre;
   document.getElementById('input-emp-doc').value = e.numero_documento;
   document.getElementById('input-emp-cargo').value = e.cargo;
-  document.getElementById('input-emp-especialidad').value = e.especialidad || '';
+  document.getElementById('input-emp-rol').value = (e.rol || 'Operador') === 'Supervisor' ? 'Supervisor' : 'Operador';
+  document.getElementById('input-emp-maquina').value = e.id_maquina || '';
   document.getElementById('input-emp-turno').value = e.turno || '';
   document.getElementById('input-emp-fecha').value = e.fecha_ingreso || '';
   document.getElementById('input-emp-estado').value = e.estado || 'Activo';
   document.getElementById('input-emp-tel').value = e.telefono || '';
   document.getElementById('input-emp-email').value = e.email || '';
-  document.getElementById('input-emp-modulo').value = e.modulo_asignado || '';
+
+  toggleRolEmpleado();
+
+  // Cargar módulos del supervisor desde las líneas del usuario ligado
+  if ((e.rol || 'Operador') === 'Supervisor') {
+    cargarLineasUsuarioEmpleado(e.id).then(lineas => {
+      document.getElementById('emp-modulos-supervisor').querySelectorAll('input').forEach(i => {
+        i.checked = lineas.includes(parseInt(i.value));
+      });
+    });
+  }
 
   const btn = document.getElementById('btn-empleado');
   btn.textContent = 'Actualizar Empleado';
@@ -665,6 +907,202 @@ async function eliminarEmpleado(id) {
   if (data) {
     Toast.success('Empleado eliminado');
     cargarEmpleados();
+  }
+}
+
+// ============================================================
+// USUARIOS Y ACCESOS
+// ============================================================
+
+let idUsuarioEnEdicion = null;
+
+function toggleFormNuevoUsuario() {
+  const form = document.getElementById('form-nuevo-usuario');
+  const btn = document.getElementById('btn-nuevo-usuario');
+  if (form.style.display === 'none') {
+    form.style.display = 'block';
+    btn.textContent = '− Cerrar';
+  } else {
+    form.style.display = 'none';
+    btn.textContent = '+ Nuevo Usuario';
+    limpiarFormUsuario();
+  }
+}
+
+async function cargarSelectUsuarioEmpleado() {
+  const emp = await api('/api/empleados');
+  if (!emp) return;
+  const select = document.getElementById('input-usuario-empleado');
+  select.innerHTML = '<option value="">Seleccione empleado...</option>';
+  emp.forEach(e => {
+    select.innerHTML += `<option value="${e.id}">${e.nombre} (${e.numero_documento})</option>`;
+  });
+}
+
+async function cargarUsuarios() {
+  const data = await api('/api/usuarios');
+  if (!data) return;
+
+  const tbody = document.getElementById('lista-usuarios');
+  const empty = document.getElementById('empty-usuarios');
+  tbody.innerHTML = '';
+  if (data.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    data.forEach(u => {
+      const objStr = JSON.stringify(u).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const rolClass = u.rol === 'Administrador' ? 'badge-module' : (u.rol === 'Supervisor' ? 'badge-hour' : 'badge-machine');
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${u.nombre_usuario}</strong></td>
+          <td><span class="badge ${rolClass}">${u.rol}</span></td>
+          <td>${u.nombre_empleado || '-'}</td>
+          <td class="action-buttons">
+            <button class="btn-icon btn-edit" onclick="iniciarEdicionUsuario(${objStr})">Editar</button>
+            <button class="btn-icon btn-delete" onclick="eliminarUsuarioData(${u.id})">Eliminar</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+}
+
+function limpiarFormUsuario() {
+  idUsuarioEnEdicion = null;
+  document.getElementById('usuario-id-edicion').value = '';
+  document.getElementById('input-usuario-nombre').value = '';
+  document.getElementById('input-usuario-pass').value = '';
+  document.getElementById('input-usuario-rol').value = 'Supervisor';
+  document.getElementById('input-usuario-empleado').value = '';
+  const btn = document.getElementById('btn-usuario');
+  if (btn) { btn.textContent = 'Crear Usuario'; btn.style.background = ''; }
+}
+
+async function sincronizarLineasUsuario(idUsuario, idEmpleado) {
+  // Las líneas del usuario vienen del empleado:
+  //   - Supervisor → módulos a supervisar (AsignacionUsuarioLinea ya se sincroniza desde Empleados)
+  //   - Operador → módulo de su máquina
+  const emp = await api('/api/empleados');
+  if (!emp) return;
+  const e = emp.find(x => x.id === idEmpleado);
+  if (!e) return;
+  let modulos = [];
+  if (e.rol === 'Supervisor') {
+    const usuarios = await api('/api/usuarios');
+    const u = usuarios ? usuarios.find(x => x.id === idUsuario) : null;
+    // los módulos del supervisor ya se sincronizaron desde Empleados
+    if (u) {
+      const lineas = await api(`/api/usuarios/${u.id}/lineas`);
+      if (lineas) modulos = lineas;
+    }
+  } else if (e.id_maquina) {
+    const maq = await api('/api/maquinaria');
+    const m = maq ? maq.find(x => x.id === e.id_maquina) : null;
+    if (m && m.id_modulo) modulos = [m.id_modulo];
+  }
+  if (modulos.length > 0) {
+    await api(`/api/usuarios/${idUsuario}/lineas`, {
+      method: 'POST',
+      body: JSON.stringify({ id_modulos: modulos })
+    });
+  }
+}
+
+async function procesarUsuario() {
+  const nombre = document.getElementById('input-usuario-nombre').value.trim();
+  const password = document.getElementById('input-usuario-pass').value;
+  const rol = document.getElementById('input-usuario-rol').value;
+  const idEmpleado = document.getElementById('input-usuario-empleado').value;
+
+  let valid = true;
+  if (!nombre) { showFieldError('input-usuario-nombre', 'Requerido'); valid = false; }
+  else clearFieldErrors('input-usuario-nombre');
+  if (!password) { showFieldError('input-usuario-pass', 'Requerido'); valid = false; }
+  else clearFieldErrors('input-usuario-pass');
+  if (!idEmpleado) { showFieldError('input-usuario-empleado', 'Seleccione empleado'); valid = false; }
+  else clearFieldErrors('input-usuario-empleado');
+  if (!valid) return;
+
+  const payload = { nombre_usuario: nombre, password, rol, id_empleado: parseInt(idEmpleado) };
+
+  let url = '/api/usuarios';
+  let method = 'POST';
+  if (idUsuarioEnEdicion) {
+    url = `/api/usuarios/${idUsuarioEnEdicion}`;
+    method = 'PUT';
+  }
+
+  const data = await api(url, { method, body: JSON.stringify(payload), _btn: event.target });
+  if (data) {
+    const nuevoId = data.id || idUsuarioEnEdicion;
+    if (nuevoId) await sincronizarLineasUsuario(nuevoId, parseInt(idEmpleado));
+    Toast.success(data.mensaje || 'Usuario guardado');
+    limpiarFormUsuario();
+    cargarUsuarios();
+  }
+}
+
+async function iniciarEdicionUsuario(u) {
+  idUsuarioEnEdicion = u.id;
+  document.getElementById('usuario-id-edicion').value = u.id;
+  document.getElementById('input-usuario-nombre').value = u.nombre_usuario;
+  document.getElementById('input-usuario-pass').value = 'cambiar';
+  document.getElementById('input-usuario-rol').value = u.rol;
+  document.getElementById('input-usuario-empleado').value = u.id_empleado || '';
+
+  const btn = document.getElementById('btn-usuario');
+  btn.textContent = 'Actualizar Usuario';
+  btn.style.background = 'var(--accent-blue)';
+}
+
+async function eliminarUsuarioData(id) {
+  const ok = await Modal.confirm('Eliminar Usuario', '¿Eliminar este usuario?');
+  if (!ok) return;
+  const data = await api(`/api/usuarios/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Usuario eliminado');
+    cargarUsuarios();
+  }
+}
+
+async function cargarCausas() {
+  const data = await api('/api/causas-parada');
+  if (!data) return;
+  const tbody = document.getElementById('lista-causas');
+  tbody.innerHTML = '';
+  data.forEach(c => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${c.id}</td>
+        <td>${c.nombre}</td>
+        <td><button class="btn-icon btn-delete" onclick="eliminarCausaData(${c.id})">✕</button></td>
+      </tr>`;
+  });
+}
+
+async function guardarCausa() {
+  const input = document.getElementById('input-causa-nombre');
+  const nombre = input.value.trim();
+  if (!nombre) { Toast.warning('Ingrese una causa'); return; }
+  const data = await api('/api/causas-parada', {
+    method: 'POST',
+    body: JSON.stringify({ nombre })
+  });
+  if (data) {
+    input.value = '';
+    Toast.success('Causa guardada');
+    cargarCausas();
+  }
+}
+
+async function eliminarCausaData(id) {
+  const ok = await Modal.confirm('Eliminar Causa', '¿Eliminar esta causa?');
+  if (!ok) return;
+  const data = await api(`/api/causas-parada/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Causa eliminada');
+    cargarCausas();
   }
 }
 
@@ -936,7 +1374,7 @@ function limpiarFormularioReferencia() {
 }
 
 async function eliminarReferencia(id) {
-  const ok = await Modal.confirm('Eliminar Referencia', '¿Eliminar esta referencia y toda su secuencia de operaciones?');
+  const ok = await Modal.confirm('Eliminar Referencia', '¿Eliminar esta referencia y toda su secuencia de operaciones?\n\nNota: no podrás eliminarla si tiene órdenes de producción asociadas.');
   if (!ok) return;
 
   const data = await api(`/api/referencias/${id}`, { method: 'DELETE' });
@@ -1184,12 +1622,24 @@ async function cargarOrdenes() {
     empty.style.display = 'none';
     data.forEach(o => {
       const objStr = JSON.stringify(o).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const estadoClass = o.estado === 'Abierta' ? 'badge-module' : (o.estado === 'Cerrada' ? 'badge-machine' : 'badge-hour');
+      const estadoClass = o.estado === 'Abierta' ? 'badge-module' : 'badge-machine';
+      const completas = o.gorras_completas || 0;
+      const pct = Math.min(100, o.porcentaje_cumplimiento || 0);
+      const pctColor = pct >= 100 ? 'var(--eff-super)' : pct >= 80 ? 'var(--accent-success)' : pct >= 50 ? 'var(--eff-warn)' : 'var(--accent-danger)';
       tbody.innerHTML += `
         <tr>
           <td><strong>${o.nombre_orden}</strong></td>
           <td>${o.referencia}</td>
           <td class="text-accent">${o.cantidad_lote}</td>
+          <td style="min-width:140px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="progress-bar-container" style="width:90px; margin:0; height:7px;">
+                <div class="progress-bar" style="width:${pct}%; background:${pctColor};"></div>
+              </div>
+              <span style="font-size:0.8rem; font-weight:700; color:${pctColor};">${o.porcentaje_cumplimiento || 0}%</span>
+            </div>
+            <div style="font-size:0.7rem; color:var(--text-muted);">${completas} completas / ${o.cantidad_lote}</div>
+          </td>
           <td><span class="badge ${estadoClass}">${o.estado}</span></td>
           <td class="action-buttons">
             <button class="btn-icon btn-edit" style="background:var(--accent-green);" onclick="verMaterialesOrden(${o.id})" title="Ver materiales calculados">📦</button>
@@ -1503,6 +1953,20 @@ async function verMaterialesOrden(idOrden) {
 
 let idAsignacionEnEdicion = null;
 
+function toggleFormNuevaAsignacion() {
+  const form = document.getElementById('form-nueva-asignacion');
+  const btn = document.getElementById('btn-nueva-asignacion');
+  if (form.style.display === 'none') {
+    form.style.display = 'block';
+    btn.textContent = '− Cerrar';
+    cargarDatosProgramacion();
+  } else {
+    form.style.display = 'none';
+    btn.textContent = '+ Nueva Asignación';
+    cancelarEdicionAsignacion();
+  }
+}
+
 async function cargarDatosProgramacion() {
   const dataRef = await api('/api/ordenes-disponibles');
   if (!dataRef) return;
@@ -1517,66 +1981,79 @@ async function cargarDatosProgramacion() {
   const dataMod = await api('/api/modulos');
   if (!dataMod) return;
 
-  const selMod = document.getElementById('prog-modulo');
-  const modActual = selMod.value;
-  selMod.innerHTML = '<option value="">Seleccione Módulo...</option>';
-  dataMod.forEach(m => {
-    selMod.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
-  });
+  // Reconstruir siempre la lista: refleja líneas nuevas/módulos creados posteriormente
+  const cont = document.getElementById('prog-lineas-checks');
+  if (cont) {
+    cont.innerHTML = '';
+    dataMod.forEach(m => {
+      cont.innerHTML += `
+        <div class="prog-linea-fila">
+          <input type="checkbox" class="prog-linea-marca" value="${m.id}" onchange="this.closest('.prog-linea-fila').classList.toggle('sel', this.checked)">
+          <span class="prog-linea-nombre">${m.nombre}</span>
+          <input type="number" class="prog-linea-cantidad" placeholder="Cantidad" min="0">
+        </div>`;
+    });
+  }
 
   if (valActual) selRef.value = valActual;
-  if (modActual) selMod.value = modActual;
+  if (selRef.onchange) verificarDisponibilidad();
+}
+
+function leerLineasAsignacion() {
+  // Devuelve [{id_modulo, cantidad}] solo de líneas marcadas con cantidad > 0
+  const res = [];
+  document.querySelectorAll('#prog-lineas-checks .prog-linea-fila').forEach(fila => {
+    const marca = fila.querySelector('.prog-linea-marca');
+    const cant = fila.querySelector('.prog-linea-cantidad');
+    if (marca && marca.checked && cant && parseInt(cant.value) > 0) {
+      res.push({ id_modulo: parseInt(marca.value), cantidad: parseInt(cant.value) });
+    }
+  });
+  return res;
 }
 
 async function verificarDisponibilidad() {
   const idOrden = document.getElementById('prog-referencia').value;
   const label = document.getElementById('prog-disponibilidad');
-  const hint = document.getElementById('prog-cantidad-hint');
 
   if (!idOrden || idOrden === '-1') {
     if (idOrden === '-1') return;
     label.innerText = 'Disponible: - / Total: -';
-    if (hint) hint.innerText = '';
     return;
   }
 
   const data = await api(`/api/ordenes/${idOrden}/disponibilidad`);
   if (data) {
     label.innerText = `Disponible: ${data.disponible} / Total: ${data.total}`;
-    if (hint) {
-      hint.innerText = `(Disp: ${data.disponible})`;
-      if (data.disponible <= 0) {
-        hint.style.color = 'var(--accent-danger)';
-        label.style.color = 'var(--accent-danger)';
-      } else {
-        hint.style.color = 'var(--accent-success)';
-        label.style.color = 'var(--text-secondary)';
-      }
+    if (data.disponible <= 0) {
+      label.style.color = 'var(--accent-danger)';
+    } else {
+      label.style.color = 'var(--text-secondary)';
     }
   }
 }
 
 async function guardarAsignacion() {
   const idOrden = document.getElementById('prog-referencia').value;
-  const idMod = document.getElementById('prog-modulo').value;
-  const cant = document.getElementById('prog-cantidad').value;
+  const lineas = leerLineasAsignacion();
 
   let valid = true;
   if (!idOrden) { showFieldError('prog-referencia', 'Seleccione una orden'); valid = false; }
   else { clearFieldErrors('prog-referencia'); }
 
-  if (!idMod) { showFieldError('prog-modulo', 'Seleccione módulo'); valid = false; }
-  else { clearFieldErrors('prog-modulo'); }
-
-  if (!cant || isNaN(cant) || Number(cant) <= 0) { showFieldError('prog-cantidad', 'Cantidad inválida'); valid = false; }
-  else { clearFieldErrors('prog-cantidad'); }
+  if (lineas.length === 0) {
+    showFieldError('prog-lineas-checks', 'Marque al menos una línea y ponga su cantidad');
+    valid = false;
+  } else {
+    clearFieldErrors('prog-lineas-checks');
+  }
 
   if (!valid) return;
 
   if (idAsignacionEnEdicion) {
     const data = await api(`/api/asignaciones/${idAsignacionEnEdicion}`, {
       method: 'PUT',
-      body: JSON.stringify({ cantidad: parseInt(cant) }),
+      body: JSON.stringify({ cantidad: lineas[0].cantidad }),
       _btn: event.target
     });
     if (data) {
@@ -1589,23 +2066,45 @@ async function guardarAsignacion() {
     return;
   }
 
-  const data = await api('/api/asignaciones', {
-    method: 'POST',
-    body: JSON.stringify({
-      id_orden: parseInt(idOrden),
-      id_modulo: parseInt(idMod),
-      cantidad: parseInt(cant)
-    }),
-    _btn: event.target
+  let errores = [];
+  let totalAsignado = 0;
+
+  for (const l of lineas) {
+    const data = await api('/api/asignaciones', {
+      method: 'POST',
+      body: JSON.stringify({
+        id_orden: parseInt(idOrden),
+        id_modulo: l.id_modulo,
+        cantidad: l.cantidad
+      })
+    });
+    if (data) {
+      totalAsignado += l.cantidad;
+    } else {
+      errores.push(`Línea ${l.id_modulo}`);
+    }
+  }
+
+  // Limpiar filas marcadas
+  document.querySelectorAll('#prog-lineas-checks .prog-linea-fila').forEach(f => {
+    f.querySelector('.prog-linea-marca').checked = false;
+    f.querySelector('.prog-linea-cantidad').value = '';
+    f.classList.remove('sel');
   });
 
-  if (data) {
-    document.getElementById('prog-cantidad').value = '';
-    Toast.success(data.mensaje || 'Asignación guardada');
-    verificarDisponibilidad();
-    cargarAsignaciones();
-    cargarDatosProgramacion();
+  if (errores.length === 0) {
+    Toast.success(`Asignado ${totalAsignado} unidades en ${lineas.length} líneas`);
+    // Cerrar el formulario para ver las asignaciones a pantalla completa
+    const form = document.getElementById('form-nueva-asignacion');
+    const btn = document.getElementById('btn-nueva-asignacion');
+    if (form) form.style.display = 'none';
+    if (btn) btn.textContent = '+ Nueva Asignación';
+  } else {
+    Toast.error(`Hubo líneas sin asignar: ${errores.join(', ')}`);
   }
+  verificarDisponibilidad();
+  cargarAsignaciones();
+  cargarDatosProgramacion();
 }
 
 async function cargarAsignaciones() {
@@ -1661,12 +2160,28 @@ function iniciarEdicionAsignacion(id, cantidad, idOrden, nombreOrden, nombreMod)
   btn.textContent = 'Actualizar Asignación';
   btn.style.backgroundColor = 'var(--accent-blue)';
 
-  document.getElementById('prog-cantidad').value = cantidad;
-
   const selRef = document.getElementById('prog-referencia');
-  const selMod = document.getElementById('prog-modulo');
   selRef.disabled = true;
-  selMod.disabled = true;
+
+  // Habilitar filas y limpiar
+  document.querySelectorAll('#prog-lineas-checks .prog-linea-fila').forEach(f => {
+    const marca = f.querySelector('.prog-linea-marca');
+    const cant = f.querySelector('.prog-linea-cantidad');
+    if (marca) marca.disabled = false;
+    if (cant) cant.disabled = false;
+    f.classList.remove('sel');
+  });
+
+  // Marcar la fila del módulo y poner su cantidad
+  document.querySelectorAll('#prog-lineas-checks .prog-linea-fila').forEach(f => {
+    const nombre = f.querySelector('.prog-linea-nombre').textContent.trim();
+    if (nombre === nombreMod) {
+      const marca = f.querySelector('.prog-linea-marca');
+      const cant = f.querySelector('.prog-linea-cantidad');
+      if (marca) { marca.checked = true; f.classList.add('sel'); }
+      if (cant) cant.value = cantidad;
+    }
+  });
 
   // Seleccionar la orden por id (puede ser un placeholder -1 si ya no está disponible)
   let foundRef = false;
@@ -1679,18 +2194,6 @@ function iniciarEdicionAsignacion(id, cantidad, idOrden, nombreOrden, nombreMod)
     opt.value = '-1';
     opt.selected = true;
     selRef.add(opt);
-  }
-
-  let foundMod = false;
-  for (let op of selMod.options) {
-    if (op.text === nombreMod) { selMod.value = op.value; foundMod = true; break; }
-  }
-  if (!foundMod) {
-    const opt = document.createElement('option');
-    opt.text = nombreMod;
-    opt.value = '-1';
-    opt.selected = true;
-    selMod.add(opt);
   }
 
   if (!document.getElementById('btn-cancel-assign')) {
@@ -1706,9 +2209,14 @@ function iniciarEdicionAsignacion(id, cantidad, idOrden, nombreOrden, nombreMod)
 
 function cancelarEdicionAsignacion() {
   idAsignacionEnEdicion = null;
-  document.getElementById('prog-cantidad').value = '';
   document.getElementById('prog-referencia').disabled = false;
-  document.getElementById('prog-modulo').disabled = false;
+  document.querySelectorAll('#prog-lineas-checks .prog-linea-fila').forEach(f => {
+    const marca = f.querySelector('.prog-linea-marca');
+    const cant = f.querySelector('.prog-linea-cantidad');
+    if (marca) marca.disabled = false;
+    if (cant) { cant.disabled = false; cant.value = ''; }
+    f.classList.remove('sel');
+  });
 
   const btn = document.querySelector('#mod-programacion .btn-primary');
   btn.textContent = 'Asignar';
@@ -1731,8 +2239,16 @@ let catalogoParadasCache = [
   { id: 3, nombre: 'Ninguna', tiempo: 0 }
 ];
 
+let causasParadaCache = [];
+
 async function initControlHora() {
-  const mods = await api('/api/modulos');
+  // Usar líneas del usuario logueado; si no hay sesión, todas
+  let mods = null;
+  if (sesionActual && sesionActual.lineas && sesionActual.lineas.length > 0) {
+    mods = sesionActual.lineas;
+  } else {
+    mods = await api('/api/modulos');
+  }
   if (!mods) return;
 
   const selMod = document.getElementById('ctrl-modulo');
@@ -1747,14 +2263,60 @@ async function initControlHora() {
     selHora.innerHTML += `<option value="${i + 1}">${h}</option>`;
   });
 
-  const selParada = document.getElementById('ctrl-parada-p');
-  selParada.innerHTML = '';
-  catalogoParadasCache.forEach(p => {
-    selParada.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
-  });
-  actualizarTiempoParadaP();
+  const paradas = catalogoParadasCache;
+  actualizarSelectParadas(paradas);
+
+  const causas = await api('/api/causas-parada');
+  causasParadaCache = causas || [];
+  document.querySelectorAll('.parada-np-causa').forEach(sel => llenarSelectCausas(sel));
 
   cargarControlesHoy();
+}
+
+function llenarSelectCausas(select) {
+  const val = select.value;
+  select.innerHTML = '<option value="">Seleccione causa...</option>';
+  causasParadaCache.forEach(c => {
+    select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+  });
+  if (val) select.value = val;
+}
+
+function toggleDescripcionParada(select) {
+  const fila = select.closest('.parada-np-row');
+  const desc = fila ? fila.querySelector('.parada-np-desc') : null;
+  if (!desc) return;
+  const esOtro = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text === 'Otro' : false;
+  desc.style.display = esOtro ? 'block' : 'none';
+}
+
+function actualizarSelectParadas(paradas) {
+  const selParada = document.getElementById('ctrl-parada-p');
+  selParada.innerHTML = '';
+  paradas.forEach(p => {
+    selParada.innerHTML += `<option value="${p.id}" data-tiempo="${p.tiempo}">${p.nombre}</option>`;
+  });
+  actualizarTiempoParadaP();
+}
+
+function actualizarTiempoParadaP() {
+  const sel = document.getElementById('ctrl-parada-p');
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('ctrl-tiempo-p').value = opt ? opt.dataset.tiempo || 0 : 0;
+}
+
+function agregarFilaParadaNP() {
+  const cont = document.getElementById('lista-paradas-np');
+  const fila = document.createElement('div');
+  fila.className = 'parada-np-row';
+  fila.innerHTML = `
+    <select class="parada-np-causa" onchange="toggleDescripcionParada(this)"></select>
+    <input type="number" class="parada-np-tiempo" placeholder="Segundos" min="0">
+    <input type="text" class="parada-np-desc" placeholder="¿Qué pasó?" style="display:none;">
+    <button class="btn-icon btn-delete" onclick="this.parentElement.remove()">✕</button>
+  `;
+  cont.appendChild(fila);
+  llenarSelectCausas(fila.querySelector('.parada-np-causa'));
 }
 
 async function cargarReferenciasPorModulo() {
@@ -1764,6 +2326,8 @@ async function cargarReferenciasPorModulo() {
   if (!idMod) {
     selRef.innerHTML = '<option value="">Seleccione Módulo primero...</option>';
     selRef.disabled = true;
+    document.getElementById('ctrl-actividad').innerHTML = '<option value="">Seleccione la orden primero...</option>';
+    document.getElementById('ctrl-actividad').disabled = true;
     return;
   }
 
@@ -1773,72 +2337,112 @@ async function cargarReferenciasPorModulo() {
   selRef.innerHTML = '<option value="">Seleccione Asignación...</option>';
   refs.forEach(r => {
     const etiqueta = r.nombre_orden ? `${r.nombre_orden} - ${r.nombre}` : r.nombre;
-    selRef.innerHTML += `<option value="${r.id}" data-ref-id="${r.id_referencia}">${etiqueta}</option>`;
+    selRef.innerHTML += `<option value="${r.id}" data-ref-id="${r.id_referencia}" data-orden-id="${r.id_orden}">${etiqueta}</option>`;
   });
   selRef.disabled = false;
 
-  const prevVal = selRef.getAttribute('data-prev-val');
-  if (prevVal) {
-    selRef.value = prevVal;
-    selRef.removeAttribute('data-prev-val');
-    actualizarOpcionesCiclo();
+  document.getElementById('ctrl-actividad').innerHTML = '<option value="">Seleccione la orden primero...</option>';
+  document.getElementById('ctrl-actividad').disabled = true;
+  cargarOpcionesActividad();
+}
+
+async function cargarOpcionesActividad() {
+  const selRef = document.getElementById('ctrl-referencia');
+  const selAct = document.getElementById('ctrl-actividad');
+  const optRef = selRef.options[selRef.selectedIndex];
+  const idReferencia = optRef ? optRef.getAttribute('data-ref-id') : null;
+
+  if (!idReferencia) {
+    selAct.innerHTML = '<option value="">Seleccione la orden primero...</option>';
+    selAct.disabled = true;
+    return;
   }
+
+  const detalles = await api(`/api/referencias/${idReferencia}/detalles`);
+  if (!detalles) { selAct.disabled = true; return; }
+
+  selAct.innerHTML = '<option value="">Seleccione actividad...</option>';
+  detalles.forEach(d => {
+    selAct.innerHTML += `<option value="${d.id_operacion}" data-letra="${d.letra}">${d.letra} - ${d.nombre_operacion}</option>`;
+  });
+  selAct.disabled = false;
 }
 
-function actualizarTiempoParadaP() {
-  const idParada = parseInt(document.getElementById('ctrl-parada-p').value);
-  const parada = catalogoParadasCache.find(p => p.id === idParada);
-  document.getElementById('ctrl-tiempo-p').value = parada ? parada.tiempo : 0;
-}
-
-async function guardarControlHora() {
+async function guardarControlHora(btn = null) {
   const fecha = document.getElementById('ctrl-fecha').value;
   const idMod = document.getElementById('ctrl-modulo').value;
-  const operarios = document.getElementById('ctrl-operarios').value;
-  const idAsignacion = document.getElementById('ctrl-referencia').value;
+  const selRef = document.getElementById('ctrl-referencia');
+  const optRef = selRef.options[selRef.selectedIndex];
+  const idOrden = optRef ? optRef.getAttribute('data-orden-id') : null;
   const idHora = document.getElementById('ctrl-hora').value;
-  const porcion = document.getElementById('ctrl-porcion').value;
+  const idOperacion = document.getElementById('ctrl-actividad').value;
   const cantidad = document.getElementById('ctrl-cantidad').value;
-  const idParadaP = document.getElementById('ctrl-parada-p').value;
-  const tiempoP = document.getElementById('ctrl-tiempo-p').value;
-  const descNP = document.getElementById('ctrl-parada-np').value;
-  const tiempoNP = document.getElementById('ctrl-tiempo-np').value;
+  const defectuosas = document.getElementById('ctrl-defectuosas').value;
 
   let valid = true;
-  if (!fecha) { showFieldError('ctrl-fecha', 'Requerido'); valid = false; } else { clearFieldErrors('ctrl-fecha'); }
-  if (!idMod) { showFieldError('ctrl-modulo', 'Requerido'); valid = false; } else { clearFieldErrors('ctrl-modulo'); }
-  if (!idAsignacion) { showFieldError('ctrl-referencia', 'Requerido'); valid = false; } else { clearFieldErrors('ctrl-referencia'); }
-  if (!idHora) { showFieldError('ctrl-hora', 'Requerido'); valid = false; } else { clearFieldErrors('ctrl-hora'); }
-  if (!cantidad || isNaN(cantidad)) { showFieldError('ctrl-cantidad', 'Ingrese cantidad'); valid = false; } else { clearFieldErrors('ctrl-cantidad'); }
-
+  if (!fecha) { showFieldError('ctrl-fecha', 'Requerido'); valid = false; } else clearFieldErrors('ctrl-fecha');
+  if (!idMod) { showFieldError('ctrl-modulo', 'Requerido'); valid = false; } else clearFieldErrors('ctrl-modulo');
+  if (!idOrden || !optRef.value) { showFieldError('ctrl-referencia', 'Seleccione una orden'); valid = false; } else clearFieldErrors('ctrl-referencia');
+  if (!idOperacion) { showFieldError('ctrl-actividad', 'Seleccione la actividad'); valid = false; } else clearFieldErrors('ctrl-actividad');
+  if (!idHora) { showFieldError('ctrl-hora', 'Requerido'); valid = false; } else clearFieldErrors('ctrl-hora');
+  if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) { showFieldError('ctrl-cantidad', 'Ingrese cantidad'); valid = false; } else clearFieldErrors('ctrl-cantidad');
+  if (!sesionActual) { Toast.error('Debe iniciar sesión para registrar'); return; }
   if (!valid) return;
+
+  const paradasNP = [];
+  document.querySelectorAll('.parada-np-row').forEach(fila => {
+    const causa = fila.querySelector('.parada-np-causa').value;
+    const tiempo = fila.querySelector('.parada-np-tiempo').value;
+    const causaTexto = fila.querySelector('.parada-np-causa').options[fila.querySelector('.parada-np-causa').selectedIndex];
+    const esOtro = causaTexto && causaTexto.text === 'Otro';
+    const descripcion = fila.querySelector('.parada-np-desc').value.trim();
+    if (causa && tiempo) {
+      paradasNP.push({
+        id_causa: parseInt(causa),
+        tiempo_segundos: parseInt(tiempo),
+        descripcion: esOtro ? (descripcion || '') : null
+      });
+    }
+  });
+
+  const idParadaP = document.getElementById('ctrl-parada-p').value;
+  const tiempoP = document.getElementById('ctrl-tiempo-p').value;
+  const paradas = [];
+  if (idParadaP && parseInt(tiempoP) > 0) {
+    paradas.push({ id_parada_programada: parseInt(idParadaP), tiempo_segundos: parseInt(tiempoP) });
+  }
+  paradasNP.forEach(p => paradas.push(p));
+
+  // VALIDACIÓN: aviso si ya hay registro en esta hora
+  const resumen = await api(`/api/produccion/resumen?fecha=${fecha}&id_modulo=${idMod}&id_hora=${idHora}`);
+  let continuar = true;
+  if (resumen && resumen.hora > 0) {
+    continuar = await Modal.confirm(
+      'Ya hay registro en esta hora',
+      `Tienes un registro en esta hora de ${resumen.hora} unidades.\nEn el día llevas ${resumen.dia} unidades registradas.\n¿Deseas continuar?`
+    );
+  }
+  if (!continuar) return;
 
   const payload = {
     fecha,
     id_modulo: parseInt(idMod),
-    id_asignacion: parseInt(idAsignacion),
     id_hora: parseInt(idHora),
-    porcion_tiempo: parseFloat(porcion),
+    id_orden: parseInt(idOrden),
+    id_operacion: parseInt(idOperacion),
+    porcion_tiempo: parseFloat(document.getElementById('ctrl-porcion').value),
+    cantidad_operarios: parseInt(document.getElementById('ctrl-operarios').value || 0),
     cantidad_producida: parseInt(cantidad),
-    cantidad_operarios: operarios ? parseFloat(operarios) : 0,
-    id_parada_programada: parseInt(idParadaP),
-    tiempo_parada_programada: parseInt(tiempoP),
-    descripcion_parada_no_programada: descNP,
-    tiempo_parada_no_programada: tiempoNP ? parseInt(tiempoNP) : 0
+    cantidad_defectuosa: defectuosas ? parseInt(defectuosas) : 0,
+    observaciones: document.getElementById('ctrl-obs').value.trim(),
+    id_usuario: sesionActual.id,
+    paradas
   };
 
-  let url = '/api/control-hora';
-  let method = 'POST';
-  const idEdicion = document.getElementById('ctrl-id-edicion').value;
-  if (idEdicion) {
-    url = `/api/control-hora/${idEdicion}`;
-    method = 'PUT';
-  }
-
-  const data = await api(url, {
-    method,
+  const data = await api('/api/produccion', {
+    method: 'POST',
     body: JSON.stringify(payload),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -1850,7 +2454,8 @@ async function guardarControlHora() {
 
 async function cargarControlesHoy() {
   const fecha = document.getElementById('ctrl-fecha').value || new Date().toISOString().split('T')[0];
-  const data = await api(`/api/control-hora/hoy?fecha=${fecha}`);
+  const usr = sesionActual ? `&id_usuario=${sesionActual.id}` : '';
+  const data = await api(`/api/produccion/dia?fecha=${fecha}${usr}`);
   if (!data) return;
 
   const tbody = document.getElementById('lista-controles');
@@ -1858,17 +2463,27 @@ async function cargarControlesHoy() {
   document.getElementById('empty-controles').style.display = data.length === 0 ? 'block' : 'none';
 
   data.forEach(c => {
+    // Paradas resumen
+    const paradasTexto = (c.paradas || []).map(p => {
+      const n = p.parada_programada || p.causa;
+      let txt = n ? `${n} (${formatTime(p.tiempo)})` : null;
+      if (p.descripcion) txt += ` → ${p.descripcion}`;
+      return txt;
+    }).filter(Boolean).join(', ') || 'Sin paradas';
+
+    const defectClass = c.cantidad_defectuosa > 0 ? 'badge-machine' : 'badge-module';
+    const actividad = c.letra ? `<span class="badge badge-hour">${c.letra}</span> ${c.nombre_operacion || ''}` : '-';
     tbody.innerHTML += `
       <tr>
         <td><span class="badge badge-hour">${c.hora}</span></td>
         <td>${c.modulo}</td>
-        <td>${c.referencia}</td>
-        <td class="text-accent">${formatTime(c.tc)}</td>
-        <td>${c.cantidad}</td>
-        <td title="${c.parada}">${formatTime(c.tiempo_p)}</td>
-        <td title="${c.descripcion_parada_no_programada || 'Sin descripción'}">${formatTime(c.tiempo_np)}</td>
+        <td>${c.orden}</td>
+        <td>${actividad}</td>
+        <td class="text-accent">${c.cantidad_producida}</td>
+        <td><span class="badge ${defectClass}">${c.cantidad_defectuosa || 0}</span></td>
+        <td>${c.usuario}</td>
+        <td title="${paradasTexto}" style="max-width:140px;">${paradasTexto}</td>
         <td class="action-buttons">
-          <button class="btn-icon btn-edit" onclick='editarControlHora(${JSON.stringify(c)})'>✎</button>
           <button class="btn-icon btn-delete" onclick="eliminarControlHora(${c.id})">✕</button>
         </td>
       </tr>
@@ -1880,7 +2495,7 @@ async function eliminarControlHora(id) {
   const ok = await Modal.confirm('Eliminar Registro', '¿Eliminar este registro de producción?');
   if (!ok) return;
 
-  const data = await api(`/api/control-hora/${id}`, { method: 'DELETE' });
+  const data = await api(`/api/produccion/${id}`, { method: 'DELETE' });
   if (data) {
     Toast.success('Registro eliminado');
     cargarControlesHoy();
@@ -1888,16 +2503,23 @@ async function eliminarControlHora(id) {
 }
 
 function cancelarEdicionControl() {
-  document.getElementById('ctrl-id-edicion').value = '';
-  document.getElementById('ctrl-operarios').value = '';
   document.getElementById('ctrl-cantidad').value = '';
-  document.getElementById('ctrl-parada-np').value = '';
-  document.getElementById('ctrl-tiempo-np').value = '';
+  document.getElementById('ctrl-defectuosas').value = '0';
+  document.getElementById('ctrl-obs').value = '';
   document.getElementById('ctrl-modulo').value = '';
   document.getElementById('ctrl-hora').value = '';
+  document.getElementById('ctrl-operarios').value = '';
   document.getElementById('ctrl-porcion').value = '1.0';
-  document.getElementById('ctrl-parada-p').value = '';
-  document.getElementById('ctrl-tiempo-p').value = '';
+  document.getElementById('ctrl-parada-p').value = '1';
+  actualizarTiempoParadaP();
+  document.querySelectorAll('.parada-np-row:not(:first-child)').forEach(r => r.remove());
+  const fila1 = document.querySelector('.parada-np-row');
+  if (fila1) {
+    fila1.querySelector('.parada-np-causa').value = '';
+    fila1.querySelector('.parada-np-tiempo').value = '';
+    fila1.querySelector('.parada-np-desc').value = '';
+    fila1.querySelector('.parada-np-desc').style.display = 'none';
+  }
 
   const selRef = document.getElementById('ctrl-referencia');
   selRef.value = '';
@@ -1908,67 +2530,6 @@ function cancelarEdicionControl() {
   if (btn) btn.textContent = 'Guardar Registro';
 }
 
-async function editarControlHora(c) {
-  document.getElementById('ctrl-id-edicion').value = c.id;
-  document.getElementById('ctrl-fecha').value = c.fecha;
-  document.getElementById('ctrl-modulo').value = c.id_modulo;
-  await cargarReferenciasPorModulo();
-  document.getElementById('ctrl-referencia').value = c.id_asignacion;
-  document.getElementById('ctrl-hora').value = c.id_hora;
-  document.getElementById('ctrl-operarios').value = c.cantidad_operarios || '';
-  document.getElementById('ctrl-porcion').value = c.porcion_tiempo;
-  document.getElementById('ctrl-cantidad').value = c.cantidad_producida;
-  document.getElementById('ctrl-parada-p').value = c.id_parada_programada;
-  actualizarTiempoParadaP();
-  document.getElementById('ctrl-parada-np').value = c.descripcion_parada_no_programada || '';
-  document.getElementById('ctrl-tiempo-np').value = c.tiempo_parada_no_programada || '';
-
-  const btn = document.querySelector('#mod-control-hora .btn-primary');
-  if (btn) btn.textContent = 'Actualizar Registro';
-
-  document.getElementById('mod-control-hora').scrollIntoView({ behavior: 'smooth' });
-}
-
-async function actualizarOpcionesCiclo() {
-  const selRef = document.getElementById('ctrl-referencia');
-  const numOps = document.getElementById('ctrl-operarios').value;
-  const selCiclo = document.getElementById('ctrl-ciclo');
-
-  const idRefOption = selRef.options[selRef.selectedIndex];
-  const idReferenciaReal = idRefOption ? idRefOption.getAttribute('data-ref-id') : null;
-
-  if (!idReferenciaReal || !numOps) {
-    selCiclo.innerHTML = '<option value="">Faltan datos...</option>';
-    return;
-  }
-
-  selCiclo.innerHTML = '<option value="">Calculando...</option>';
-
-  try {
-    const res = await fetch('/api/balanceo/calcular', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_referencia: parseInt(idReferenciaReal), num_operarios: parseInt(numOps) })
-    });
-
-    if (!res.ok) {
-      selCiclo.innerHTML = '<option value="">Error en cálculo</option>';
-      return;
-    }
-
-    const data = await res.json();
-    const cicloSec = Math.round(data.secuencial.kpis.tiempo_ciclo * parseFloat(numOps));
-    const cicloEff = Math.round(data.eficiencia.kpis.tiempo_ciclo * parseFloat(numOps));
-
-    selCiclo.innerHTML = `
-      <option value="${cicloSec}">${formatTime(cicloSec)} (Secuencial)</option>
-      <option value="${cicloEff}">${formatTime(cicloEff)} (Eficiencia)</option>
-    `;
-  } catch (e) {
-    selCiclo.innerHTML = '<option value="">Error de conexión</option>';
-  }
-}
-
 // ============================================================
 // TABLERO DE EFICIENCIAS
 // ============================================================
@@ -1976,6 +2537,8 @@ async function actualizarOpcionesCiclo() {
 async function consultarEficiencia() {
   const startDate = document.getElementById('eff-fecha-inicio').value;
   const endDate = document.getElementById('eff-fecha-fin').value;
+  const idRef = document.getElementById('eff-referencia').value;
+  const idOrden = document.getElementById('eff-orden').value;
   const container = document.getElementById('eff-reporte-container');
 
   if (!startDate || !endDate) { Toast.warning('Seleccione el rango de fechas'); return; }
@@ -1983,11 +2546,15 @@ async function consultarEficiencia() {
   container.innerHTML = '<div class="empty-state" style="text-align:center; padding: 40px;">Procesando datos...</div>';
 
   try {
-    const data = await api(`/api/reportes/eficiencia?fecha_inicio=${startDate}&fecha_fin=${endDate}`);
+    let url = `/api/reportes/eficiencia?fecha_inicio=${startDate}&fecha_fin=${endDate}`;
+    if (idRef) url += `&id_referencia=${idRef}`;
+    if (idOrden) url += `&id_orden=${idOrden}`;
+
+    const data = await api(url);
     if (!data) return;
 
     if (data.reporte.length === 0) {
-      container.innerHTML = '<div class="empty-state" style="text-align:center; padding: 40px;">No hay registros para este periodo.</div>';
+      container.innerHTML = '<div class="empty-state" style="text-align:center; padding: 40px;">No hay registros para este periodo con los filtros seleccionados.</div>';
       return;
     }
 
@@ -1997,29 +2564,173 @@ async function consultarEficiencia() {
   }
 }
 
+async function cargarFiltrosEficiencia() {
+  const refs = await api('/api/referencias');
+  if (!refs) return;
+  const selRef = document.getElementById('eff-referencia');
+  const val = selRef.value;
+  selRef.innerHTML = '<option value="">Todas</option>';
+  refs.forEach(r => selRef.innerHTML += `<option value="${r.id}">${r.nombre}</option>`);
+  if (val) selRef.value = val;
+  cargarOrdenesFiltro();
+}
+
+async function cargarOrdenesFiltro() {
+  const ordenes = await api('/api/ordenes');
+  if (!ordenes) return;
+  const idRef = document.getElementById('eff-referencia').value;
+  const sel = document.getElementById('eff-orden');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>';
+  ordenes.forEach(o => {
+    if (!idRef || o.id_referencia === parseInt(idRef)) {
+      sel.innerHTML += `<option value="${o.id}">${o.nombre_orden}</option>`;
+    }
+  });
+  if (val) sel.value = val;
+}
+
 function renderizarTablaEficiencia(data) {
   const container = document.getElementById('eff-reporte-container');
   const modulos = data.modulos;
   const reporte = data.reporte;
 
-  let html = `<table class="report-table"><thead><tr><th rowspan="2" class="header-hora">HORA</th>`;
-  modulos.forEach(mod => { html += `<th colspan="3">${mod}</th>`; });
-  html += `<th colspan="3" class="col-total">TOTAL PLANTA</th></tr><tr>`;
-  modulos.forEach(() => { html += `<th>CANT</th><th>META</th><th>EFF</th>`; });
-  html += `<th class="col-total">CANT</th><th class="col-total">META</th><th class="col-total">EFF</th></tr></thead><tbody>`;
-
-  reporte.forEach(row => {
-    html += `<tr><td class="header-hora">${row.hora}</td>`;
-    modulos.forEach(mod => {
-      const d = row.datos_modulos[mod] || { cantidad: 0, meta: 0, eficiencia: 0 };
-      html += `<td>${d.cantidad}</td><td>${d.meta}</td><td class="cell-eff ${obtenerClaseEficiencia(d.eficiencia)}">${d.eficiencia}%</td>`;
-    });
-    const t = row.total_planta;
-    html += `<td class="col-total">${t.cantidad}</td><td class="col-total">${t.meta}</td><td class="col-total cell-eff ${obtenerClaseEficiencia(t.eficiencia)}">${t.eficiencia}%</td></tr>`;
+  // ---- Resumen por módulo (todo el período) + detalle por hora ----
+  window.effDetalleModulos = {};
+  const resumenMod = {};
+  modulos.forEach(m => {
+    resumenMod[m] = { cant: 0, meta: 0, defectos: 0 };
+    window.effDetalleModulos[m] = [];
   });
 
-  html += '</tbody></table>';
+  reporte.forEach(row => {
+    modulos.forEach(m => {
+      const d = row.datos_modulos[m] || {};
+      resumenMod[m].cant += d.cantidad || 0;
+      resumenMod[m].meta += d.meta || 0;
+      resumenMod[m].defectos += d.defectos || 0;
+      window.effDetalleModulos[m].push({
+        hora: row.hora,
+        cant: d.cantidad || 0,
+        meta: d.meta || 0,
+        eff: d.eficiencia || 0,
+        calidad: d.calidad || 0
+      });
+    });
+  });
+
+  let html = '';
+
+  // Tarjetas por línea (clicables)
+  html += `<div class="eff-tarjetas">`;
+  modulos.forEach(m => {
+    const r = resumenMod[m];
+    const eff = r.meta > 0 ? Math.round(r.cant / r.meta * 100) : 0;
+    const cal = r.cant > 0 ? Math.round((r.cant - r.defectos) / r.cant * 100) : 0;
+    const colorName = eff >= 100 ? 'var(--eff-super)' : (eff >= 90 ? 'var(--eff-good)' : (eff >= 80 ? 'var(--eff-warn)' : 'var(--eff-critical)'));
+    const nombreId = m.replace(/[^a-zA-Z0-9]/g, '_');
+    html += `
+      <div class="eff-tarjeta" onclick="mostrarDetalleModulo('${nombreId}')" title="Clic para ver detalle por hora">
+        <div class="eff-tarjeta-nombre">${m}</div>
+        <div class="eff-tarjeta-num" style="color:${colorName};">${eff}%</div>
+        <div class="eff-tarjeta-label">Eficiencia</div>
+        <div class="progress-bar-container" style="height:7px; margin:8px 0;">
+          <div class="progress-bar" style="width:${Math.min(100,eff)}%; ${claseBarraEficiencia(eff)}"></div>
+        </div>
+        <div class="eff-tarjeta-footer">
+          <span>${r.cant} uds</span>
+          <span>Calidad ${cal}%</span>
+        </div>
+        <div class="eff-tarjeta-ver">Ver detalle por hora →</div>
+      </div>`;
+    window['effTarjeta_' + nombreId] = m;
+  });
+  html += '</div>';
+
+  // Tabla consolidada por hora (solo totales, ligera)
+  html += `<div class="report-table-container" style="margin-top:20px;"><table class="report-table"><thead>
+    <tr><th class="header-hora">HORA</th><th>CANT</th><th>META</th><th>EFF</th><th>CALID</th></tr>
+  </thead><tbody>`;
+
+  reporte.forEach(row => {
+    const t = row.total_planta;
+    const tCalidClass = t.calidad >= 95 ? 'bg-eff-good' : (t.calidad >= 90 ? 'bg-eff-warn' : 'bg-eff-critical');
+    html += `<tr>
+      <td class="header-hora">${row.hora}</td>
+      <td>${t.cantidad}</td>
+      <td>${t.meta}</td>
+      <td class="cell-eff ${obtenerClaseEficiencia(t.eficiencia)}">${t.eficiencia}%</td>
+      <td class="cell-eff ${tCalidClass}">${t.calidad}%</td>
+    </tr>`;
+  });
+
+  // Fila de total del periodo
+  const totCant = Object.values(resumenMod).reduce((s, r) => s + r.cant, 0);
+  const totMeta = Object.values(resumenMod).reduce((s, r) => s + r.meta, 0);
+  const totEff = totMeta > 0 ? Math.round(totCant / totMeta * 100) : 0;
+  const totDef = Object.values(resumenMod).reduce((s, r) => s + r.defectos, 0);
+  const totCal = totCant > 0 ? Math.round((totCant - totDef) / totCant * 100) : 0;
+  html += `<tr>
+    <td class="header-hora">TOTAL</td>
+    <td><strong>${totCant}</strong></td>
+    <td><strong>${totMeta}</strong></td>
+    <td class="cell-eff ${obtenerClaseEficiencia(totEff)}"><strong>${totEff}%</strong></td>
+    <td class="cell-eff ${totCal >= 95 ? 'bg-eff-good' : totCal >= 90 ? 'bg-eff-warn' : 'bg-eff-critical'}"><strong>${totCal}%</strong></td>
+  </tr>`;
+
+  html += '</tbody></table></div>';
+
   container.innerHTML = html;
+}
+
+function mostrarDetalleModulo(nombreId) {
+  const modulo = window['effTarjeta_' + nombreId];
+  if (!modulo || !window.effDetalleModulos || !window.effDetalleModulos[modulo]) return;
+
+  const detalle = window.effDetalleModulos[modulo];
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="font-weight:700; font-size:1.1rem; color:var(--text-primary);">${modulo} — detalle por hora</div>
+      <button class="btn-secondary" onclick="cerrarDetalleModulo()" style="width:auto; padding:6px 14px;">✕ Cerrar</button>
+    </div>
+    <div class="report-table-container"><table class="report-table"><thead>
+      <tr><th class="header-hora">HORA</th><th>CANT</th><th>META</th><th>EFF</th><th>CALID</th></tr>
+    </thead><tbody>`;
+
+  detalle.forEach(h => {
+    const cClass = h.calidad >= 95 ? 'bg-eff-good' : (h.calidad >= 90 ? 'bg-eff-warn' : 'bg-eff-critical');
+    html += `<tr>
+      <td class="header-hora">${h.hora}</td>
+      <td>${h.cant}</td>
+      <td>${h.meta}</td>
+      <td class="cell-eff ${obtenerClaseEficiencia(h.eff)}">${h.eff}%</td>
+      <td class="cell-eff ${cClass}">${h.calidad}%</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  // Insertar el detalle debajo de las tarjetas
+  let detalleEl = document.getElementById('eff-detalle-modulo');
+  if (!detalleEl) {
+    detalleEl = document.createElement('div');
+    detalleEl.id = 'eff-detalle-modulo';
+    const tarjetas = document.querySelector('.eff-tarjetas');
+    tarjetas.parentNode.insertBefore(detalleEl, tarjetas.nextSibling);
+  }
+  detalleEl.innerHTML = `<div style="margin-top:16px; padding:16px; background:var(--bg-secondary); border:1px solid var(--card-border); border-radius:12px;">${html}</div>`;
+  detalleEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cerrarDetalleModulo() {
+  const el = document.getElementById('eff-detalle-modulo');
+  if (el) el.innerHTML = '';
+}
+
+function claseBarraEficiencia(eff) {
+  if (eff >= 100) return 'background:var(--eff-super);';
+  if (eff >= 90) return 'background:var(--eff-good);';
+  if (eff >= 80) return 'background:var(--eff-warn);';
+  return 'background:var(--eff-critical);';
 }
 
 function obtenerClaseEficiencia(v) {
@@ -2030,10 +2741,132 @@ function obtenerClaseEficiencia(v) {
 }
 
 // ============================================================
+// PROGRESO DE PRODUCCIÓN
+// ============================================================
+
+async function cargarOrdenesReporte() {
+  const data = await api('/api/ordenes');
+  if (!data) return;
+  const select = document.getElementById('prog-reporte-orden');
+  select.innerHTML = '<option value="">Seleccione el lote...</option>';
+  data.forEach(o => {
+    select.innerHTML += `<option value="${o.id}">${o.nombre_orden} — ${o.referencia}</option>`;
+  });
+}
+
+async function consultarProgreso() {
+  const idOrden = document.getElementById('prog-reporte-orden').value;
+  if (!idOrden) { Toast.warning('Seleccione una orden'); return; }
+
+  const data = await api(`/api/progreso/${idOrden}`);
+  if (!data) return;
+  renderizarProgreso(data);
+}
+
+function renderizarProgreso(data) {
+  document.getElementById('progreso-resumen').style.display = 'block';
+  document.getElementById('progreso-ref').innerText = data.referencia;
+  document.getElementById('progreso-orden').innerText = `${data.nombre_orden} · Lote objetivo: ${data.cantidad_lote} gorras · Estado: ${data.estado}`;
+  document.getElementById('progreso-total-pct').innerText = data.porcentaje_total + '%';
+  document.getElementById('progreso-total-bar').style.width = Math.min(100, data.porcentaje_total) + '%';
+  document.getElementById('progreso-hechas').innerText = `${data.unidades_completas} completas`;
+  document.getElementById('progreso-objetivo').innerText = `Objetivo: ${data.unidades_objetivo} gorras`;
+
+  const container = document.getElementById('progreso-container');
+  if (data.actividades.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="text-align:center; padding:40px;">Esta referencia no tiene actividades definidas.</div>';
+    return;
+  }
+
+  // Ordenar actividades por avance ASC (las más atrasadas primero = prioridad)
+  const ordenadas = [...data.actividades].sort((a, b) => a.avance - b.avance);
+  const cuello = data.actividades.filter(a => a.producido === data.unidades_completas && data.unidades_completas > 0);
+  const actividadesCriticas = ordenadas.filter(a => a.avance < data.porcentaje_total && a.avance < 100);
+  const pendientes = ordenadas.filter(a => a.avance < 100);
+  const completas = ordenadas.filter(a => a.avance >= 100);
+
+  let html = '';
+
+  // KPIs rápidos
+  html += `
+    <div class="progreso-kpi-grid">
+      <div class="progreso-kpi">
+        <div class="progreso-kpi-num">${data.unidades_completas}</div>
+        <div class="progreso-kpi-label">Gorras completas</div>
+      </div>
+      <div class="progreso-kpi">
+        <div class="progreso-kpi-num">${data.actividades.length - completas.length}</div>
+        <div class="progreso-kpi-label">Actividades pendientes</div>
+      </div>
+      <div class="progreso-kpi">
+        <div class="progreso-kpi-num">${completas.length}</div>
+        <div class="progreso-kpi-label">Actividades al 100%</div>
+      </div>
+    </div>`;
+
+  // Alertas de prioridad
+  if (cuello.length > 0 && data.porcentaje_total < 100) {
+    html += `
+      <div style="margin:16px 0; padding:14px 16px; border:1px solid var(--accent-danger); border-radius:10px; background:rgba(239,68,68,0.08);">
+        <strong style="color:var(--accent-danger);">⛔ Está frenando la producción:</strong>
+        <span style="color:var(--text-secondary);"> ${cuello.map(a => `${a.letra} — ${a.nombre}`).join(' · ')}</span>
+        <div style="color:var(--text-muted); font-size:0.8rem; margin-top:6px;">Solo ${cuello[0].producido} de ${data.cantidad_lote} pasaron por esta actividad. Mientras no avance, ninguna gorra puede completarse.</div>
+      </div>`;
+  } else if (data.porcentaje_total >= 100) {
+    html += `<div style="margin:16px 0; padding:14px 16px; border:1px solid var(--accent-success); border-radius:10px; background:rgba(74,222,128,0.08);">
+      <strong style="color:var(--accent-success);">✅ Lote completo</strong></div>`;
+  }
+
+  // Tabla de actividades: las críticas resaltadas primero
+  html += `<div class="report-table-container"><table class="report-table"><thead>
+    <tr><th>ACT.</th><th>OPERACIÓN</th><th>PRODUCIDO</th><th>OBJETIVO</th><th style="min-width:200px;">AVANCE</th><th>%</th><th>ESTADO</th></tr>
+  </thead><tbody>`;
+
+  ordenadas.forEach(a => {
+    const pct = Math.min(100, a.avance);
+    let color = 'var(--accent-success)';
+    let estado = '<span class="badge badge-module">OK</span>';
+    if (a.avance >= 100) { color = 'var(--eff-super)'; estado = '<span class="badge badge-module" style="background:rgba(6,182,212,.15); color:var(--eff-super);">100%</span>'; }
+    else if (a.avance < data.porcentaje_total) { color = 'var(--accent-danger)'; estado = '<span class="badge badge-machine">CRÍTICA</span>'; }
+    else if (a.avance < 80) { color = 'var(--eff-warn)'; estado = '<span class="badge badge-hour">ATRASADA</span>'; }
+    const esCuello = cuello.some(c => c.id_operacion === a.id_operacion) && data.porcentaje_total < 100;
+    html += `
+      <tr ${esCuello ? 'style="background:rgba(239,68,68,0.06);"' : ''}>
+        <td><span class="progreso-activity-letra" style="width:26px;height:26px;">${a.letra}</span></td>
+        <td>${a.nombre}</td>
+        <td class="${a.avance < data.porcentaje_total ? 'text-accent' : ''}">${a.producido}</td>
+        <td>${a.necesario}</td>
+        <td><div class="progress-bar-container" style="margin:0;"><div class="progress-bar" style="width:${pct}%; background:${color};"></div></div></td>
+        <td class="cell-eff" style="color:${color}; font-weight:700;">${a.avance}%</td>
+        <td>${estado}${esCuello ? ' <span class="badge badge-machine">CU</span>' : ''}</td>
+      </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+
+  container.innerHTML = html;
+}
+
+// ============================================================
 // SIMULADOR DE BALANCEO
 // ============================================================
 
 let resultadoSimulacionGlobal = null;
+
+async function mostrarMinimoOperarios() {
+  const idRef = document.getElementById('sim-referencia').value;
+  const hint = document.getElementById('sim-min-hint');
+  if (!idRef) { hint.innerText = ''; return; }
+
+  const detalles = await api(`/api/referencias/${idRef}/detalles`);
+  if (!detalles || detalles.length === 0) { hint.innerText = ''; return; }
+
+  const maquinas = new Set(detalles.map(d => d.maquina));
+  const minimo = maquinas.size;
+  hint.innerText = `Requiere al menos ${minimo} operarios (${minimo} tipos de máquina: ${Array.from(maquinas).join(', ')})`;
+  const input = document.getElementById('sim-operarios');
+  if (parseInt(input.value) < minimo) input.value = minimo;
+}
 
 async function ejecutarSimulacion() {
   const idRef = document.getElementById('sim-referencia').value;
@@ -2128,11 +2961,15 @@ function renderizarResultados(data) {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  const sesionOk = ocultarSesionInicial();
+
   cargarMaquinaria();
+  cargarSelectMaquinaModulo();
   cargarSecciones();
   cargarModulos();
   cargarEmpleados();
-  cargarSelectModulos();
+  cargarSelectMaquinaEmpleado();
+  cargarCheckboxModulosSupervisor();
   cargarMateriales();
   cargarHoras();
   cargarParadas();
@@ -2142,4 +2979,21 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarSelectOrdenesRef();
   cargarDatosProgramacion();
   cargarAsignaciones();
+  cargarUsuarios();
+  cargarSelectUsuarioEmpleado();
+  cargarCausas();
+  conectarBuscadores();
+
+  if (sesionOk) {
+    initControlHora();
+    cargarControlesHoy();
+  }
+
+  // Enter en el login
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') iniciarSesion();
+  });
+  document.getElementById('login-usuario').addEventListener('keydown', e => {
+    if (e.key === 'Enter') iniciarSesion();
+  });
 });

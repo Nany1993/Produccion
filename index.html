@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Balanceo - Panel Industrial</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=16">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -13,6 +13,23 @@
 
 <body>
     <div id="toast-container"></div>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <div class="login-brand">PROYECTO <span>BALANCEO</span></div>
+            <div class="login-subtitle">Gestión de Producción</div>
+            <div class="form-group">
+                <label>Usuario</label>
+                <input type="text" id="login-usuario" placeholder="Nombre de usuario">
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="login-password" placeholder="••••••">
+            </div>
+            <button class="btn-primary" onclick="iniciarSesion()">Ingresar</button>
+            <div id="login-error" class="login-error" style="display:none;"></div>
+        </div>
+    </div>
 
     <div id="modal-overlay">
         <div class="modal-box">
@@ -32,6 +49,10 @@
                     PROYECTO <span>BALANCEO</span>
                 </div>
                 <div class="brand-subtitle">Gestión de Producción</div>
+                <div class="session-bar" id="session-bar" style="display:none;">
+                    <span id="session-info"></span>
+                    <button class="btn-primary" onclick="cerrarSesion()" style="width:auto; padding:6px 12px; font-size:0.8rem; background:var(--accent-danger);">Salir</button>
+                </div>
             </div>
 
             <nav class="sidebar-nav">
@@ -45,12 +66,14 @@
                     </div>
 <ul class="nav-list">
                         <li><a href="#" class="nav-link active" onclick="showModule('mod-maquinaria')" id="link-maquinaria">Maquinaria</a></li>
-                        <li><a href="#" class="nav-link" onclick="showModule('mod-secciones')" id="link-secciones">Secciones</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-secciones')" id="link-secciones">Secciones de la gorra</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-modulos')" id="link-modulos">Módulos</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-empleados')" id="link-empleados">Empleados</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-usuarios')" id="link-usuarios">Usuarios</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-causas')" id="link-causas">Causas de Parada</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-materiales')" id="link-materiales">Materiales</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-horas')" id="link-horas">Horas</a></li>
-                        <li><a href="#" class="nav-link" onclick="showModule('mod-paradas')" id="link-paradas">Paradas</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-paradas')" id="link-paradas">Paradas Programadas</a></li>
                     </ul>
                 </div>
 
@@ -81,6 +104,7 @@
                     </div>
                     <ul class="nav-list">
                         <li><a href="#" class="nav-link" onclick="showModule('mod-eficiencia')" id="link-eficiencia">Tablero Eficiencias</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-progreso')" id="link-progreso">Progreso de Producción</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-simulador')" id="link-simulador">Simulador Balanceo</a></li>
                     </ul>
                 </div>
@@ -101,33 +125,43 @@
                         <p class="page-subtitle">Tipos de máquina disponibles en la planta</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nueva Máquina</h2>
-                        <div class="form-grid-compact">
-                            <div class="form-group">
-                                <label>Nombre *</label>
-                                <input type="text" id="input-maquina" placeholder="Ej: Fileteadora">
-                            </div>
-                            <div class="form-group">
-                                <label>Descripción</label>
-                                <input type="text" id="input-maquina-desc" placeholder="Función de la máquina">
-                            </div>
-                            <div class="form-group">
-                                <label>Velocidad (uds/h)</label>
-                                <input type="number" id="input-maquina-vel" placeholder="120">
-                            </div>
-                            <div class="form-group">
-                                <label>Estado</label>
-                                <select id="input-maquina-estado">
-                                    <option value="Activa">Activa</option>
-                                    <option value="Inactiva">Inactiva</option>
-                                    <option value="Mantenimiento">Mantenimiento</option>
-                                </select>
-                            </div>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Maquinaria</h2>
+                            <button class="btn-primary" id="btn-nueva-maquina" onclick="toggleFormColapsable('form-nueva-maquina','btn-nueva-maquina','+ Nueva Máquina')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Máquina</button>
                         </div>
-                        <button class="btn-primary" onclick="guardarMaquina()" style="margin-top: 12px; max-width: 250px;">Guardar Máquina</button>
+
+                        <div id="form-nueva-maquina" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                            <div class="form-grid-compact">
+                                <div class="form-group">
+                                    <label>Nombre *</label>
+                                    <input type="text" id="input-maquina" placeholder="Ej: Fileteadora">
+                                </div>
+                                <div class="form-group">
+                                    <label>Descripción</label>
+                                    <input type="text" id="input-maquina-desc" placeholder="Función de la máquina">
+                                </div>
+                                <div class="form-group">
+                                    <label>Línea (módulo) *</label>
+                                    <select id="input-maquina-modulo"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Velocidad (uds/h)</label>
+                                    <input type="number" id="input-maquina-vel" placeholder="120">
+                                </div>
+                                <div class="form-group">
+                                    <label>Estado</label>
+                                    <select id="input-maquina-estado">
+                                        <option value="Activa">Activa</option>
+                                        <option value="Inactiva">Inactiva</option>
+                                        <option value="Mantenimiento">Mantenimiento</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn-primary" onclick="guardarMaquina()" style="margin-top: 12px; max-width: 250px;">Guardar Máquina</button>
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Velocidad</th><th>Estado</th></tr></thead>
+                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Línea</th><th>Velocidad</th><th>Estado</th></tr></thead>
                                 <tbody id="lista-maquinaria"></tbody>
                             </table>
                             <div id="empty-maquinaria" class="empty-state" style="display: none;">No hay máquinas registradas.</div>
@@ -138,26 +172,32 @@
                 <!-- SECCIONES -->
                 <div id="mod-secciones" class="module-section">
                     <div class="page-header">
-                        <h1 class="page-title">Catálogo de Secciones</h1>
+                        <h1 class="page-title">Secciones de la Gorra</h1>
                         <p class="page-subtitle">Partes o secciones de la prenda</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nueva Sección</h2>
-                        <div class="form-grid-compact">
-                            <div class="form-group">
-                                <label>Nombre *</label>
-                                <input type="text" id="input-seccion" placeholder="Ej: Corona">
-                            </div>
-                            <div class="form-group">
-                                <label>Descripción</label>
-                                <input type="text" id="input-seccion-desc" placeholder="Parte de la gorra">
-                            </div>
-                            <div class="form-group">
-                                <label>Orden</label>
-                                <input type="number" id="input-seccion-orden" placeholder="1">
-                            </div>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Secciones de la Gorra</h2>
+                            <button class="btn-primary" id="btn-nueva-seccion" onclick="toggleFormColapsable('form-nueva-seccion','btn-nueva-seccion','+ Nueva Sección')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Sección</button>
                         </div>
-                        <button class="btn-primary" onclick="guardarSeccion()" style="margin-top: 12px; max-width: 250px;">Guardar Sección</button>
+
+                        <div id="form-nueva-seccion" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                            <div class="form-grid-compact">
+                                <div class="form-group">
+                                    <label>Nombre *</label>
+                                    <input type="text" id="input-seccion" placeholder="Ej: Corona">
+                                </div>
+                                <div class="form-group">
+                                    <label>Descripción</label>
+                                    <input type="text" id="input-seccion-desc" placeholder="Parte de la gorra">
+                                </div>
+                                <div class="form-group">
+                                    <label>Orden</label>
+                                    <input type="number" id="input-seccion-orden" placeholder="1">
+                                </div>
+                            </div>
+                            <button class="btn-primary" onclick="guardarSeccion()" style="margin-top: 12px; max-width: 250px;">Guardar Sección</button>
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
                                 <thead><tr><th>Orden</th><th>Nombre</th><th>Descripción</th></tr></thead>
@@ -175,36 +215,38 @@
                         <p class="page-subtitle">Líneas de producción físicas</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nuevo Módulo</h2>
-                        <div class="form-grid-compact">
-                            <div class="form-group">
-                                <label>Nombre *</label>
-                                <input type="text" id="input-modulo" placeholder="Ej: Línea 1">
-                            </div>
-                            <div class="form-group">
-                                <label>Capacidad (op.)</label>
-                                <input type="number" id="input-modulo-cap" placeholder="8">
-                            </div>
-                            <div class="form-group">
-                                <label>Ubicación</label>
-                                <input type="text" id="input-modulo-ubic" placeholder="Nave A - Piso 1">
-                            </div>
-                            <div class="form-group">
-                                <label>Supervisor</label>
-                                <input type="text" id="input-modulo-sup" placeholder="Nombre">
-                            </div>
-                            <div class="form-group">
-                                <label>Estado</label>
-                                <select id="input-modulo-estado">
-                                    <option value="Activo">Activo</option>
-                                    <option value="Inactivo">Inactivo</option>
-                                </select>
-                            </div>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Módulos</h2>
+                            <button class="btn-primary" id="btn-nuevo-modulo" onclick="toggleFormColapsable('form-nuevo-modulo','btn-nuevo-modulo','+ Nuevo Módulo')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Módulo</button>
                         </div>
-                        <button class="btn-primary" onclick="guardarModulo()" style="margin-top: 12px; max-width: 250px;">Guardar Módulo</button>
+
+                        <div id="form-nuevo-modulo" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                            <div class="form-grid-compact">
+                                <div class="form-group">
+                                    <label>Nombre *</label>
+                                    <input type="text" id="input-modulo" placeholder="Ej: Línea 1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Capacidad (op.)</label>
+                                    <input type="number" id="input-modulo-cap" placeholder="8">
+                                </div>
+                                <div class="form-group">
+                                    <label>Ubicación</label>
+                                    <input type="text" id="input-modulo-ubic" placeholder="Nave A - Piso 1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Estado</label>
+                                    <select id="input-modulo-estado">
+                                        <option value="Activo">Activo</option>
+                                        <option value="Inactivo">Inactivo</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn-primary" onclick="guardarModulo()" style="margin-top: 12px; max-width: 250px;">Guardar Módulo</button>
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Nombre</th><th>Capacidad</th><th>Ubicación</th><th>Supervisor</th><th>Estado</th></tr></thead>
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Capacidad</th><th>Ubicación</th><th>Estado</th></tr></thead>
                                 <tbody id="lista-modulos"></tbody>
                             </table>
                             <div id="empty-modulos" class="empty-state" style="display: none;">No hay módulos registrados.</div>
@@ -219,7 +261,12 @@
                         <p class="page-subtitle">Registro de operarios y personal de la planta</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nuevo Empleado</h2>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Empleados</h2>
+                            <button class="btn-primary" id="btn-nuevo-empleado" onclick="toggleFormColapsable('form-nuevo-empleado','btn-nuevo-empleado','+ Nuevo Empleado')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Empleado</button>
+                        </div>
+
+                        <div id="form-nuevo-empleado" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
                         <input type="hidden" id="empleado-id-edicion">
                         <div class="form-grid-compact">
                             <div class="form-group">
@@ -232,28 +279,19 @@
                             </div>
                             <div class="form-group">
                                 <label>Cargo *</label>
-                                <select id="input-emp-cargo">
-                                    <option value="">Seleccione...</option>
-                                    <option value="Operario">Operario</option>
-                                    <option value="Supervisor">Supervisor</option>
-                                    <option value="Auxiliar">Auxiliar</option>
-                                    <option value="Técnico de Calidad">Técnico de Calidad</option>
-                                    <option value="Digitalizador">Digitalizador</option>
-                                </select>
+                                <input type="text" id="input-emp-cargo" placeholder="Ej: Costurero, Mecánico, Jefe de línea...">
                             </div>
                             <div class="form-group">
-                                <label>Especialidad</label>
-                                <select id="input-emp-especialidad">
-                                    <option value="">Seleccione...</option>
-                                    <option value="Plana">Plana</option>
-                                    <option value="Fileteadora">Fileteadora</option>
-                                    <option value="Bordadora">Bordadora</option>
-                                    <option value="Ojetera">Ojetera</option>
-                                    <option value="Botonera">Botonera</option>
-                                    <option value="Ribeteadora">Ribeteadora</option>
-                                    <option value="Prensa Térmica">Prensa Térmica</option>
-                                    <option value="Cortadora">Cortadora</option>
-                                    <option value="Múltiple">Múltiple</option>
+                                <label>Rol *</label>
+                                <select id="input-emp-rol" onchange="toggleRolEmpleado()">
+                                    <option value="Operador">Operador</option>
+                                    <option value="Supervisor">Supervisor</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="form-emp-maquina">
+                                <label>Máquina que opera</label>
+                                <select id="input-emp-maquina">
+                                    <option value="">Seleccione máquina...</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -287,24 +325,23 @@
                                 <label>Email</label>
                                 <input type="text" id="input-emp-email" placeholder="correo@empresa.com">
                             </div>
-                            <div class="form-group">
-                                <label>Módulo asignado</label>
-                                <select id="input-emp-modulo">
-                                    <option value="">Sin asignar</option>
-                                </select>
-                            </div>
+                        </div>
+                        <div class="form-group" id="form-emp-modulos-sup" style="display:none; width:100%; margin-top:4px;">
+                            <label>Módulos a supervisar</label>
+                            <div id="emp-modulos-supervisor"></div>
                         </div>
                         <button class="btn-primary" id="btn-empleado" onclick="procesarEmpleado()" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
                                 <thead>
                                     <tr>
                                         <th>N° Doc</th>
                                         <th>Nombre</th>
+                                        <th>Rol</th>
                                         <th>Cargo</th>
-                                        <th>Especialidad</th>
+                                        <th>Máquina</th>
                                         <th>Turno</th>
-                                        <th>Módulo</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -316,6 +353,96 @@
                     </div>
                 </div>
 
+                <!-- USUARIOS -->
+                <div id="mod-usuarios" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Usuarios y Accesos</h1>
+                        <p class="page-subtitle">Cuentas de acceso y líneas asignadas</p>
+                    </div>
+
+                    <div class="catalogo-grid" style="grid-template-columns: 1fr;">
+                        <div class="catalog-card">
+                            <div class="ref-header">
+                                <h2 class="form-title" style="margin:0;">Usuarios</h2>
+                                <button class="btn-primary" id="btn-nuevo-usuario" onclick="toggleFormNuevoUsuario()" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Usuario</button>
+                            </div>
+
+                            <input type="hidden" id="usuario-id-edicion">
+
+                            <div id="form-nuevo-usuario" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                                <div class="ref-grid-4" style="width:100%;">
+                                    <div class="form-group">
+                                        <label>Nombre de Usuario *</label>
+                                        <input type="text" id="input-usuario-nombre" placeholder="ej: carlos">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Contraseña *</label>
+                                        <input type="text" id="input-usuario-pass" placeholder="Contraseña">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Rol *</label>
+                                        <select id="input-usuario-rol">
+                                            <option value="Supervisor">Supervisor</option>
+                                            <option value="Operador">Operador</option>
+                                            <option value="Administrador">Administrador</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Empleado asociado *</label>
+                                        <select id="input-usuario-empleado"></select>
+                                    </div>
+                                </div>
+                                <button class="btn-primary" id="btn-usuario" onclick="procesarUsuario()" style="max-width:280px;">Crear Usuario</button>
+                            </div>
+
+                            <div class="data-table-container" style="margin-top:16px;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Usuario</th>
+                                            <th>Rol</th>
+                                            <th>Empleado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lista-usuarios"></tbody>
+                                </table>
+                                <div id="empty-usuarios" class="empty-state" style="display: none;">No hay usuarios.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CAUSAS DE PARADA -->
+                <div id="mod-causas" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Causas de Parada</h1>
+                        <p class="page-subtitle">Causas de paradas no programadas (reutilizables en el registro de producción)</p>
+                    </div>
+                    <div class="catalog-card">
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Causas de Parada</h2>
+                            <button class="btn-primary" id="btn-nueva-causa" onclick="toggleFormColapsable('form-nueva-causa','btn-nueva-causa','+ Nueva Causa')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Causa</button>
+                        </div>
+
+                        <div id="form-nueva-causa" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                        <div style="display:flex; gap:12px; align-items:flex-end;">
+                            <div class="form-group" style="flex:1; margin-bottom:0;">
+                                <label>Nombre de la causa</label>
+                                <input type="text" id="input-causa-nombre" placeholder="Ej: Falta de material">
+                            </div>
+                            <button class="btn-primary" onclick="guardarCausa()" style="width:auto; padding:12px 24px;">Guardar</button>
+                        </div>
+                        </div>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>ID</th><th>Causa</th><th>Acción</th></tr></thead>
+                                <tbody id="lista-causas"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- MATERIALES -->
                 <div id="mod-materiales" class="module-section">
                     <div class="page-header">
@@ -323,7 +450,12 @@
                         <p class="page-subtitle">Insumos disponibles para la producción de gorras</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nuevo Material</h2>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Materiales</h2>
+                            <button class="btn-primary" id="btn-nuevo-material" onclick="toggleFormColapsable('form-nuevo-material','btn-nuevo-material','+ Nuevo Material')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Material</button>
+                        </div>
+
+                        <div id="form-nuevo-material" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
                         <input type="hidden" id="material-id-edicion">
                         <div class="form-grid-compact">
                             <div class="form-group">
@@ -348,6 +480,7 @@
                             </div>
                         </div>
                         <button class="btn-primary" id="btn-material" onclick="procesarMaterial()" style="margin-top: 12px; max-width: 250px;">Guardar Material</button>
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
                                 <thead>
@@ -373,7 +506,12 @@
                         <p class="page-subtitle">Horas operativas del día</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nueva Hora</h2>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Horas</h2>
+                            <button class="btn-primary" id="btn-nueva-hora" onclick="toggleFormColapsable('form-nueva-hora','btn-nueva-hora','+ Nueva Hora')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Hora</button>
+                        </div>
+
+                        <div id="form-nueva-hora" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
                         <div class="form-grid-compact">
                             <div class="form-group">
                                 <label>Nombre *</label>
@@ -399,6 +537,7 @@
                             </div>
                         </div>
                         <button class="btn-primary" onclick="guardarHora()" style="margin-top: 12px; max-width: 250px;">Guardar Hora</button>
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
                                 <thead><tr><th>ID</th><th>Nombre</th><th>Inicio</th><th>Fin</th><th>Turno</th></tr></thead>
@@ -413,10 +552,15 @@
                 <div id="mod-paradas" class="module-section">
                     <div class="page-header">
                         <h1 class="page-title">Catálogo de Paradas Programadas</h1>
-                        <p class="page-subtitle">Paradas planificadas con duración</p>
+                        <p class="page-subtitle">Paradas que ocurren de forma planificada (con tiempo fijo)</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nueva Parada</h2>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Paradas Programadas</h2>
+                            <button class="btn-primary" id="btn-nueva-parada" onclick="toggleFormColapsable('form-nueva-parada','btn-nueva-parada','+ Nueva Parada')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Parada</button>
+                        </div>
+
+                        <div id="form-nueva-parada" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
                         <div class="form-grid-compact">
                             <div class="form-group">
                                 <label>Descripción *</label>
@@ -443,102 +587,13 @@
                             </div>
                         </div>
                         <button class="btn-primary" onclick="guardarParada()" style="margin-top: 12px; max-width: 250px;">Guardar Parada</button>
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
                                 <thead><tr><th>ID</th><th>Descripción</th><th>Tiempo</th><th>Tipo</th><th>Frecuencia</th></tr></thead>
                                 <tbody id="lista-paradas"></tbody>
                             </table>
                             <div id="empty-paradas" class="empty-state" style="display: none;">No hay paradas registradas.</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- EMPLEADOS -->
-                <div id="mod-empleados" class="module-section">
-                    <div class="page-header">
-                        <h1 class="page-title">Catálogo de Empleados</h1>
-                        <p class="page-subtitle">Gestión de operarios y personal de planta</p>
-                    </div>
-                    <div class="catalog-card">
-                        <h2 class="form-title">Nuevo Empleado</h2>
-                        <div class="form-grid-compact">
-                            <div class="form-group">
-                                <label>Nombre *</label>
-                                <input type="text" id="input-empleado-nombre" placeholder="Nombre completo">
-                            </div>
-                            <div class="form-group">
-                                <label>N° Documento *</label>
-                                <input type="text" id="input-empleado-doc" placeholder="12345678">
-                            </div>
-                            <div class="form-group">
-                                <label>Cargo *</label>
-                                <select id="input-empleado-cargo">
-                                    <option value="">Seleccione...</option>
-                                    <option value="Operario">Operario</option>
-                                    <option value="Supervisor">Supervisor</option>
-                                    <option value="Auxiliar">Auxiliar</option>
-                                    <option value="Mecánico">Mecánico</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Especialidad</label>
-                                <select id="input-empleado-especialidad">
-                                    <option value="">Seleccione...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Turno</label>
-                                <select id="input-empleado-turno">
-                                    <option value="">Seleccione...</option>
-                                    <option value="Mañana">Mañana</option>
-                                    <option value="Tarde">Tarde</option>
-                                    <option value="Noche">Noche</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Módulo Asignado</label>
-                                <select id="input-empleado-modulo">
-                                    <option value="">Sin asignar</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Fecha Ingreso</label>
-                                <input type="date" id="input-empleado-fecha">
-                            </div>
-                            <div class="form-group">
-                                <label>Teléfono</label>
-                                <input type="text" id="input-empleado-tel" placeholder="123-456-7890">
-                            </div>
-                            <div class="form-group">
-                                <label>Email</label>
-                                <input type="text" id="input-empleado-email" placeholder="correo@ejemplo.com">
-                            </div>
-                            <div class="form-group">
-                                <label>Estado</label>
-                                <select id="input-empleado-estado">
-                                    <option value="Activo">Activo</option>
-                                    <option value="Inactivo">Inactivo</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button class="btn-primary" onclick="guardarEmpleado()" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
-                        <div class="data-table-container">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre</th>
-                                        <th>Documento</th>
-                                        <th>Cargo</th>
-                                        <th>Especialidad</th>
-                                        <th>Turno</th>
-                                        <th>Módulo</th>
-                                        <th>Estado</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="lista-empleados"></tbody>
-                            </table>
-                            <div id="empty-empleados" class="empty-state" style="display: none;">No hay empleados registrados.</div>
                         </div>
                     </div>
                 </div>
@@ -550,7 +605,12 @@
                         <p class="page-subtitle">Registro de operaciones de confección con tiempos y máquinas</p>
                     </div>
                     <div class="catalog-card">
-                        <h2 class="form-title">Nueva Operación</h2>
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Operaciones</h2>
+                            <button class="btn-primary" id="btn-nueva-operacion" onclick="toggleFormColapsable('form-nueva-operacion','btn-nueva-operacion','+ Nueva Operación')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Operación</button>
+                        </div>
+
+                        <div id="form-nueva-operacion" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; width: 100%;">
                             <div class="form-group">
                                 <label>Nombre de la Operación</label>
@@ -574,7 +634,7 @@
                             </div>
                         </div>
                         <button id="btn-operacion" class="btn-primary" onclick="procesarOperacion()" style="margin-top: 12px; max-width: 300px;">Guardar Operación</button>
-
+                        </div>
                         <div class="data-table-container" style="margin-top: 24px;">
                             <table class="data-table">
                                 <thead>
@@ -600,65 +660,69 @@
                         <p class="page-subtitle">Cree lotes de producción reutilizando una referencia varias veces</p>
                     </div>
 
-                    <div class="catalogo-grid">
-                        <div class="catalog-card">
-                            <h2 class="form-title">Nueva Orden</h2>
-                            <input type="hidden" id="orden-id-edicion">
-                            <div class="form-group">
-                                <label>Referencia (modelo) *</label>
-                                <select id="input-orden-ref"></select>
-                            </div>
-                            <div class="form-group">
-                                <label>Nombre de la Orden *</label>
-                                <input type="text" id="input-orden-nombre" placeholder="Ej: LOTE-SNP-001">
-                            </div>
-                            <div class="form-group">
-                                <label>Cantidad del Lote *</label>
-                                <input type="number" id="input-orden-cantidad" placeholder="Ej: 2000">
-                            </div>
-                            <button class="btn-primary" id="btn-orden" onclick="procesarOrden()" style="margin-top: 10px;">Crear Orden</button>
+                    <div class="catalog-card">
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Órdenes de Producción</h2>
+                            <button class="btn-primary" id="btn-nueva-orden" onclick="toggleFormColapsable('form-nueva-orden','btn-nueva-orden','+ Nueva Orden')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Orden</button>
                         </div>
 
-                        <div class="catalog-card">
-                            <h2 class="form-title">Órdenes Existentes</h2>
-                            <div class="data-table-container" style="margin-top: 0;">
+                        <div id="form-nueva-orden" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                            <input type="hidden" id="orden-id-edicion">
+                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
+                                <div class="form-group">
+                                    <label>Referencia (modelo) *</label>
+                                    <select id="input-orden-ref"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Nombre de la Orden *</label>
+                                    <input type="text" id="input-orden-nombre" placeholder="Ej: LOTE-SNP-001">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cantidad del Lote *</label>
+                                    <input type="number" id="input-orden-cantidad" placeholder="Ej: 2000">
+                                </div>
+                            </div>
+                            <button class="btn-primary" id="btn-orden" onclick="procesarOrden()" style="margin-top: 10px; max-width:220px;">Crear Orden</button>
+                        </div>
+
+                        <div class="data-table-container" style="margin-top: 0;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Orden</th>
+                                        <th>Referencia</th>
+                                        <th>Lote</th>
+                                        <th>Cumplimiento</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-ordenes"></tbody>
+                            </table>
+                            <div id="empty-ordenes" class="empty-state" style="display: none;">No hay órdenes creadas.</div>
+                        </div>
+
+                        <div id="orden-materiales-panel" style="display: none; margin-top: 20px; border-top: 1px solid var(--card-border); padding-top: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 class="bom-title" id="orden-materiales-titulo" style="margin:0;">Materiales Calculados</h3>
+                                <button class="btn-icon btn-edit" onclick="cerrarMaterialesOrden()" title="Cerrar">✕ Cerrar</button>
+                            </div>
+                            <div class="data-table-container">
                                 <table class="data-table">
                                     <thead>
                                         <tr>
-                                            <th>Orden</th>
-                                            <th>Referencia</th>
-                                            <th>Lote</th>
-                                            <th>Estado</th>
-                                            <th>Acciones</th>
+                                            <th>Material</th>
+                                            <th>Unidad</th>
+                                            <th>Por unidad</th>
+                                            <th>Merma</th>
+                                            <th>Requerido total</th>
+                                            <th>Costo estimado</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="lista-ordenes"></tbody>
+                                    <tbody id="lista-orden-materiales"></tbody>
                                 </table>
-                                <div id="empty-ordenes" class="empty-state" style="display: none;">No hay órdenes creadas.</div>
                             </div>
-
-                            <div id="orden-materiales-panel" style="display: none; margin-top: 20px; border-top: 1px solid var(--card-border); padding-top: 16px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <h3 class="bom-title" id="orden-materiales-titulo" style="margin:0;">Materiales Calculados</h3>
-                                    <button class="btn-icon btn-edit" onclick="cerrarMaterialesOrden()" title="Cerrar">✕ Cerrar</button>
-                                </div>
-                                <div class="data-table-container">
-                                    <table class="data-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Material</th>
-                                                <th>Unidad</th>
-                                                <th>Por unidad</th>
-                                                <th>Merma</th>
-                                                <th>Requerido total</th>
-                                                <th>Costo estimado</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="lista-orden-materiales"></tbody>
-                                    </table>
-                                </div>
-                                <div id="orden-materiales-total" style="margin-top: 12px; font-size: 0.9rem; color: var(--accent-blue); font-weight: 600;"></div>
-                            </div>
+                            <div id="orden-materiales-total" style="margin-top: 12px; font-size: 0.9rem; color: var(--accent-blue); font-weight: 600;"></div>
                         </div>
                     </div>
                 </div>
@@ -813,7 +877,6 @@
                                         <div id="empty-bom" class="empty-state" style="display: none;">Esta referencia no tiene materiales asociados.</div>
                                     </div>
                                 </div>
-                                </div>
 
                                 <div style="margin-top: 24px; border-top: 1px solid var(--card-border); padding-top: 16px;">
                                     <button class="btn-primary" onclick="finalizarReferencia()" style="background: var(--accent-success);">Guardar Referencia</button>
@@ -830,9 +893,13 @@
                         <p class="page-subtitle">Asignación de referencias a módulos de producción</p>
                     </div>
 
-                    <div class="catalogo-grid">
-                        <div class="catalog-card">
-                            <h2 class="form-title">Nueva Asignación</h2>
+                    <div class="catalog-card">
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Asignaciones</h2>
+                            <button class="btn-primary" id="btn-nueva-asignacion" onclick="toggleFormNuevaAsignacion()" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Asignación</button>
+                        </div>
+
+                        <div id="form-nueva-asignacion" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
                             <div class="form-group">
                                 <label>Orden / Lote</label>
                                 <select id="prog-referencia" onchange="verificarDisponibilidad()">
@@ -841,35 +908,26 @@
                                 <small id="prog-disponibilidad" style="color: var(--text-secondary); display:block; margin-top:5px;">Disponible: - / Total: -</small>
                             </div>
                             <div class="form-group">
-                                <label>Módulo Destino</label>
-                                <select id="prog-modulo">
-                                    <option value="">Seleccione Módulo...</option>
-                                </select>
+                                <label>Líneas destino (marque y escriba cantidad por línea)</label>
+                                <div id="prog-lineas-checks"></div>
                             </div>
-                            <div class="form-group">
-                                <label>Cantidad a Asignar <span id="prog-cantidad-hint" style="color: var(--accent-success); font-weight: normal; margin-left: 5px;"></span></label>
-                                <input type="number" id="prog-cantidad" placeholder="Cantidad">
-                            </div>
-                            <button class="btn-primary" onclick="guardarAsignacion()" style="margin-top:15px;">Asignar</button>
+                            <button class="btn-primary" onclick="guardarAsignacion()" style="margin-top:15px; max-width:220px;">Asignar</button>
                         </div>
 
-                        <div class="catalog-card">
-                            <h2 class="form-title">Asignaciones Actuales</h2>
-                            <div class="data-table-container">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Orden</th>
-                                            <th>Ref</th>
-                                            <th>Módulo</th>
-                                            <th>Cant.</th>
-                                            <th>Acción</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="lista-asignaciones"></tbody>
-                                </table>
-                                <div id="empty-asignaciones" class="empty-state" style="display: none;">No hay asignaciones.</div>
-                            </div>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Orden</th>
+                                        <th>Ref</th>
+                                        <th>Módulo</th>
+                                        <th>Cant.</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-asignaciones"></tbody>
+                            </table>
+                            <div id="empty-asignaciones" class="empty-state" style="display: none;">No hay asignaciones.</div>
                         </div>
                     </div>
                 </div>
@@ -899,9 +957,15 @@
                                 <input type="number" step="1" id="ctrl-operarios" placeholder="Ej: 5" oninput="actualizarOpcionesCiclo()">
                             </div>
                             <div class="form-group">
-                                <label>Referencia (Lote)</label>
-                                <select id="ctrl-referencia" disabled onchange="actualizarOpcionesCiclo()">
+                                <label>Orden / Lote</label>
+                                <select id="ctrl-referencia" disabled onchange="cargarOpcionesActividad()">
                                     <option value="">Seleccione Módulo primero...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Actividad (operación)</label>
+                                <select id="ctrl-actividad" disabled>
+                                    <option value="">Seleccione la orden primero...</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -917,39 +981,52 @@
                             <div class="form-group">
                                 <label>Porción de Tiempo</label>
                                 <select id="ctrl-porcion">
-                                    <option value="0.1">0.1</option>
-                                    <option value="0.2">0.2</option>
-                                    <option value="0.3">0.3</option>
-                                    <option value="0.4">0.4</option>
-                                    <option value="0.5">0.5</option>
-                                    <option value="0.6">0.6</option>
-                                    <option value="0.7">0.7</option>
-                                    <option value="0.8">0.8</option>
-                                    <option value="0.9">0.9</option>
                                     <option value="1.0">1.0</option>
+                                    <option value="0.9">0.9</option>
+                                    <option value="0.8">0.8</option>
+                                    <option value="0.7">0.7</option>
+                                    <option value="0.6">0.6</option>
+                                    <option value="0.5">0.5</option>
+                                    <option value="0.4">0.4</option>
+                                    <option value="0.3">0.3</option>
+                                    <option value="0.2">0.2</option>
+                                    <option value="0.1">0.1</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Cantidad Producida</label>
+                                <label>Cantidad Producida *</label>
                                 <input type="number" id="ctrl-cantidad" placeholder="Unidades">
                             </div>
                             <div class="form-group">
-                                <label>Parada Programada</label>
-                                <select id="ctrl-parada-p" onchange="actualizarTiempoParadaP()"></select>
+                                <label>Unidades Defectuosas</label>
+                                <input type="number" id="ctrl-defectuosas" placeholder="0" value="0">
                             </div>
                             <div class="form-group">
-                                <label>Tiempo Parada Programada (Segundos)</label>
+                                <label>Observaciones</label>
+                                <input type="text" id="ctrl-obs" placeholder="Opcional">
+                            </div>
+
+                            <div class="separator-title">PARADAS PROGRAMADAS</div>
+                            <div class="form-group">
+                                <label>Parada</label>
+                                <select id="ctrl-parada-p" onchange="actualizarTiempoParadaP()"></select>
+                                <label style="margin-top:8px;">Tiempo (seg)</label>
                                 <input type="number" id="ctrl-tiempo-p" readonly style="background-color: var(--bg-card); opacity: 0.7;">
                             </div>
-                            <div class="form-group">
-                                <label>Parada NO Programada (Opcional)</label>
-                                <input type="text" id="ctrl-parada-np" placeholder="Descripción de la causa">
+
+                            <div class="separator-title">PARADAS NO PROGRAMADAS</div>
+                            <div id="lista-paradas-np">
+                                <div class="parada-np-row">
+                                    <select class="parada-np-causa" onchange="toggleDescripcionParada(this)">
+                                        <option value="">Seleccione causa...</option>
+                                    </select>
+                                    <input type="number" class="parada-np-tiempo" placeholder="Segundos" min="0">
+                                    <input type="text" class="parada-np-desc" placeholder="¿Qué pasó?" style="display:none;">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Tiempo Parada No Programada (Segundos)</label>
-                                <input type="number" id="ctrl-tiempo-np" placeholder="0">
-                            </div>
-                            <button class="btn-primary" onclick="guardarControlHora()" style="margin-top:20px;">Guardar Registro</button>
+                            <button class="btn-secondary" onclick="agregarFilaParadaNP()" type="button" style="margin-bottom:14px;">+ Agregar otra parada</button>
+
+                            <button class="btn-primary" onclick="guardarControlHora(this)" style="margin-top:6px;">Guardar Registro</button>
                         </div>
 
                         <div class="catalog-card">
@@ -960,11 +1037,12 @@
                                         <tr>
                                             <th>HORA</th>
                                             <th>MOD.</th>
-                                            <th>REF.</th>
-                                            <th>TC</th>
+                                            <th>ORDEN</th>
+                                            <th>ACT.</th>
                                             <th>CANT.</th>
-                                            <th>T.P. PROG</th>
-                                            <th>T.P. N/PROG</th>
+                                            <th>DEFECT.</th>
+                                            <th>USUARIO</th>
+                                            <th>PARADAS</th>
                                             <th>ACC.</th>
                                         </tr>
                                     </thead>
@@ -992,12 +1070,68 @@
                             <label>Fecha Fin</label>
                             <input type="date" id="eff-fecha-fin" style="margin-bottom:0;">
                         </div>
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Referencia</label>
+                            <select id="eff-referencia" onchange="cargarOrdenesFiltro()">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Lote</label>
+                            <select id="eff-orden">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
                         <button class="btn-primary" onclick="consultarEficiencia()" style="width:auto; padding: 12px 32px;">Consultar</button>
                     </div>
 
                     <div class="report-table-container" id="eff-reporte-container">
                         <div class="empty-state" style="text-align:center; padding: 40px;">
                             Seleccione un rango de fechas y presione 'Consultar' para generar el tablero.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROGRESO DE PRODUCCIÓN -->
+                <div id="mod-progreso" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Progreso de Producción</h1>
+                        <p class="page-subtitle">Avanza real en unidades de gorras completas, por actividad y lote</p>
+                    </div>
+
+                    <div class="report-controls">
+                        <div class="form-group" style="margin-bottom:0; flex:1.4;">
+                            <label>Orden / Lote</label>
+                            <select id="prog-reporte-orden">
+                                <option value="">Seleccione el lote...</option>
+                            </select>
+                        </div>
+                        <button class="btn-primary" onclick="consultarProgreso()" style="width:auto; padding:12px 32px;">Ver Progreso</button>
+                    </div>
+
+                    <div id="progreso-resumen" style="display:none; margin-bottom:24px;">
+                        <div class="progreso-header-card">
+                            <div>
+                                <div class="progreso-ref-nombre" id="progreso-ref"></div>
+                                <div class="progreso-orden-nombre" id="progreso-orden"></div>
+                            </div>
+                            <div class="progreso-total">
+                                <div class="progreso-total-num" id="progreso-total-pct">0%</div>
+                                <div class="progreso-total-label">Gorras completas</div>
+                            </div>
+                        </div>
+                        <div class="progress-bar-container" style="height:18px;">
+                            <div class="progress-bar" id="progreso-total-bar" style="width:0%;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.85rem; color:var(--text-secondary);">
+                            <span id="progreso-hechas">0</span>
+                            <span id="progreso-objetivo">0</span>
+                        </div>
+                    </div>
+
+                    <div class="report-table-container" id="progreso-container">
+                        <div class="empty-state" style="text-align:center; padding:40px;">
+                            Seleccione un lote para ver el avance por actividad y el total de gorras completas.
                         </div>
                     </div>
                 </div>
@@ -1014,11 +1148,12 @@
                         <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 24px; align-items: end;">
                             <div>
                                 <label>Seleccionar Referencia</label>
-                                <select id="sim-referencia"></select>
+                                <select id="sim-referencia" onchange="mostrarMinimoOperarios()"></select>
+                                <small id="sim-min-hint" style="display:block; margin-top:4px; color:var(--text-muted);"></small>
                             </div>
                             <div>
                                 <label>N° Operarios</label>
-                                <input type="number" id="sim-operarios" value="5" min="1">
+                                <input type="number" id="sim-operarios" value="9" min="1">
                             </div>
                             <div>
                                 <button class="btn-primary" onclick="ejecutarSimulacion()">Calcular Balanceo</button>
@@ -1064,7 +1199,7 @@
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=17"></script>
 </body>
 
 </html>

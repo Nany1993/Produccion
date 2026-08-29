@@ -16,10 +16,11 @@ def main():
     cursor = conn.cursor()
 
     # Limpiar todo (menos catálogos maestros)
-    for t in ["ControlHoraHora", "Empleados", "AsignacionModulo", "OrdenProduccion",
+    for t in ["ParadaRegistro", "RegistroProduccion", "AsignacionUsuarioLinea", "Usuario",
+              "ControlHoraHora", "Empleados", "AsignacionModulo", "OrdenProduccion",
               "ReferenciaMaterial", "ReferenciaDetalle", "ReferenciaProducto", "Operacion",
               "TipoMaquinaria", "SeccionPrenda", "ModuloConfeccion", "HorasProduccion",
-              "ParadasProgramadas", "Materiales"]:
+              "ParadasProgramadas", "Materiales", "CausaParada"]:
         cursor.execute(f"DELETE FROM {t}")
         cursor.execute(f"DELETE FROM sqlite_sequence WHERE name='{t}'")
 
@@ -168,16 +169,35 @@ def main():
 
     # Recrear empleados (mínimo)
     cursor.execute("DELETE FROM Empleados")
+    cursor.execute("DELETE FROM Usuario")
     cursores_empleados = [
         ("Carlos Rodriguez", "12345678", "Supervisor", "PLANA", "Manana", "2023-03-15", "Activo", "1234567890", "carlos@planta.com", modulos[0]),
-        ("Maria Gonzalez", "23456789", "Operario", "FILETEADORA", "Manana", "2022-08-20", "Activo", "2345678901", "maria@planta.com", modulos[0]),
-        ("Juan Martinez", "34567890", "Operario", "BORDADORA", "Tarde", "2021-01-10", "Activo", "3456789012", "juan@planta.com", modulos[1]),
-        ("Ana Lopez", "45678901", "Operario", "OJETERA", "Tarde", "2023-06-01", "Activo", "4567890123", "ana@planta.com", modulos[1]),
+        ("Maria Gonzalez", "23456789", "Operario", "FILETEADORA", "Manana", "2022-08-20", "Activo", "2345678901", "maria@planta.com", modulos[1]),
+        ("Juan Martinez", "34567890", "Operario", "BORDADORA", "Tarde", "2021-01-10", "Activo", "3456789012", "juan@planta.com", modulos[2]),
+        ("Ana Lopez", "45678901", "Operario", "OJETERA", "Tarde", "2023-06-01", "Activo", "4567890123", "ana@planta.com", modulos[3]),
     ]
     cursor.executemany("""
         INSERT INTO Empleados (nombre, numero_documento, cargo, especialidad, turno, fecha_ingreso, estado, telefono, email, modulo_asignado)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, cursores_empleados)
+
+    # Usuarios iniciales (login sencillo, si no existen)
+    cursor.execute("SELECT COUNT(*) FROM Usuario")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("SELECT id FROM Empleados WHERE cargo = 'Supervisor' LIMIT 1")
+        sup_id = cursor.fetchone()[0]
+        cursor.execute("INSERT INTO Usuario (nombre_usuario, password, rol, id_empleado) VALUES ('carlos', '1234', 'Supervisor', ?)", (sup_id,))
+        cursor.execute("SELECT id FROM Empleados WHERE cargo != 'Supervisor' LIMIT 1")
+        emp_id = cursor.fetchone()[0]
+        cursor.execute("INSERT INTO Usuario (nombre_usuario, password, rol, id_empleado) VALUES ('operario', '1234', 'Operador', ?)", (emp_id,))
+
+    # Causas de parada (si la limpieza las borró, se regeneran)
+    cursor.execute("SELECT COUNT(*) FROM CausaParada")
+    if cursor.fetchone()[0] == 0:
+        causas = ["Falta de material", "Avería de máquina", "Cambio de operario",
+                  "Problema de calidad", "Falta de energía", "Reunión/socialización",
+                  "Espera de instrucciones", "Cambio de referencia", "Otro"]
+        cursor.executemany("INSERT INTO CausaParada (nombre) VALUES (?)", [(c,) for c in causas])
 
     conn.commit()
 

@@ -49,6 +49,23 @@ from database import (
     actualizar_control_hora,
     obtener_controles_rango,
     obtener_tiempo_ciclo_referencia,
+    verificar_login,
+    obtener_usuarios,
+    crear_usuario,
+    actualizar_usuario,
+    eliminar_usuario,
+    obtener_lineas_usuario,
+    asignar_lineas_usuario,
+    obtener_causas_parada,
+    insertar_causa_parada,
+    eliminar_causa_parada,
+    obtener_registros_dia,
+    resumen_registros_hora,
+    insertar_registro_produccion,
+    eliminar_registro_produccion,
+    obtener_registros_rango,
+    reporte_progreso_orden,
+    obtener_cumplimiento_orden,
     obtener_empleados,
     obtener_empleado,
     insertar_empleado,
@@ -130,7 +147,8 @@ def add_maquina():
         datos['nombre'],
         datos.get('descripcion'),
         datos.get('velocidad_tipica'),
-        datos.get('estado', 'Activa')
+        datos.get('estado', 'Activa'),
+        datos.get('id_modulo')
     )
     return jsonify({"mensaje": "Máquina guardada con éxito"}), 201
 
@@ -415,6 +433,14 @@ def get_materiales_orden(id_orden):
         return jsonify({"error": "Orden no encontrada"}), 404
     return jsonify(res)
 
+# Cumplimiento real de una orden (producción registrada vs lote)
+@app.route('/api/ordenes/<int:id_orden>/cumplimiento', methods=['GET'])
+def get_cumplimiento_orden(id_orden):
+    res = obtener_cumplimiento_orden(id_orden)
+    if not res:
+        return jsonify({"error": "Orden no encontrada"}), 404
+    return jsonify(res)
+
 # --- ASIGNACIÓN DE REFERENCIAS ---
 
 @app.route('/api/asignaciones', methods=['GET'])
@@ -476,8 +502,10 @@ def update_asignacion(id_asignacion):
 
 @app.route('/api/referencias/<int:id_ref>', methods=['DELETE'])
 def delete_referencia(id_ref):
-    eliminar_referencia(id_ref)
-    return jsonify({"mensaje": "Referencia eliminada"}), 200
+    res = eliminar_referencia(id_ref)
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res)
 
 @app.route('/api/referencias/<int:id_ref>/detalles', methods=['GET'])
 def get_referencia_detalles(id_ref):
@@ -545,6 +573,8 @@ def update_control_hora(id_control):
 def get_reporte_eficiencia():
     fecha_inicio = request.args.get('fecha_inicio')
     fecha_fin = request.args.get('fecha_fin')
+    id_referencia = request.args.get('id_referencia', type=int)
+    id_orden = request.args.get('id_orden', type=int)
     
     if not fecha_inicio or not fecha_fin:
         from datetime import date
@@ -552,11 +582,13 @@ def get_reporte_eficiencia():
         fecha_inicio = fecha_inicio or hoy
         fecha_fin = fecha_fin or hoy
 
-    controles = obtener_controles_rango(fecha_inicio, fecha_fin)
+    controles = obtener_registros_rango(fecha_inicio, fecha_fin, id_orden)
+    if id_referencia:
+        controles = [c for c in controles if c['id_referencia'] == id_referencia]
     
     # 1. Identificar módulos y horas presentes
     modulos_set = set()
-    horas_dict = {} # {hora_nombre: {modulo_nombre: {cantidad:0, meta:0}}}
+    horas_dict = {} # {hora_nombre: {modulo_nombre: {cantidad:0, meta:0, defectos:0}}}
     
     # Cache para tiempos de ciclo
     tc_cache = {}
@@ -569,16 +601,11 @@ def get_reporte_eficiencia():
         tc = tc_cache[id_ref]
         num_op = c['cantidad_operarios'] or 0
         porcion = c['porcion_tiempo'] or 1.0
-        p_prog = c['tiempo_p'] or 0
-        p_noprog = c['tiempo_np'] or 0
-        
-        # Fórmula: TD = (Num_Op * 3600 * Porcion) - (P_Prog * Num_Op) - (P_NoProg)
-        # Nota: P_Prog ya es tiempo total de parada programada? 
-        # En database.py, tiempo_parada_programada se guarda por registro.
-        # Generalmente, las paradas programadas afectan a todos los operarios.
-        # El requerimiento dice: TD = (Num_Op * 3600 * Porcion) - (P_Prog * Num_Op) - (P_NoProg)
-        
-        td = (num_op * 3600 * porcion) - (p_prog * num_op) - p_noprog
+        p_total = c.get('tiempo_total_parada') or 0
+        # Paradas programadas afectan a todos los operarios; no programadas solo al módulo.
+        # Como no distinguimos por tipo aquí, usamos tiempo total como no programada para no penalizar doble.
+        # Fórmula: TD = (Num_Op * 3600 * Porcion) - Paradas
+        td = (num_op * 3600 * porcion) - p_total
         meta = int(td / tc) if tc > 0 else 0
         
         hora = c['hora']
@@ -589,37 +616,43 @@ def get_reporte_eficiencia():
             horas_dict[hora] = {}
         
         if modulo not in horas_dict[hora]:
-            horas_dict[hora][modulo] = {"cantidad": 0, "meta": 0}
+            horas_dict[hora][modulo] = {"cantidad": 0, "meta": 0, "defectos": 0}
             
         horas_dict[hora][modulo]["cantidad"] += c['cantidad']
         horas_dict[hora][modulo]["meta"] += meta
+        horas_dict[hora][modulo]["defectos"] += c.get('cantidad_defectuosa') or 0
 
     # 2. Estructurar respuesta para el frontend
     modulos_lista = sorted(list(modulos_set))
     reporte = []
     
-    # Ordenar horas (asumiendo formato 'Hora 1', 'Hora 2'...)
-    # O simplemente usar el orden en que aparecen si no hay mejor criterio
     for hora_nombre in sorted(horas_dict.keys(), key=lambda x: int(x.split()[1]) if len(x.split()) > 1 and x.split()[1].isdigit() else 99):
         datos_modulos = {}
         total_planta_cantidad = 0
         total_planta_meta = 0
+        total_planta_defectos = 0
         
         for mod in modulos_lista:
-            val = horas_dict[hora_nombre].get(mod, {"cantidad": 0, "meta": 0})
+            val = horas_dict[hora_nombre].get(mod, {"cantidad": 0, "meta": 0, "defectos": 0})
             cantidad = val["cantidad"]
             meta = val["meta"]
+            defectos = val["defectos"]
             eficiencia = round((cantidad / meta * 100), 1) if meta > 0 else 0
+            calidad = round(((cantidad - defectos) / cantidad * 100), 1) if cantidad > 0 else 0
             
             datos_modulos[mod] = {
                 "cantidad": cantidad,
                 "meta": meta,
-                "eficiencia": eficiencia
+                "eficiencia": eficiencia,
+                "defectos": defectos,
+                "calidad": calidad
             }
             total_planta_cantidad += cantidad
             total_planta_meta += meta
+            total_planta_defectos += defectos
             
         eficiencia_total = round((total_planta_cantidad / total_planta_meta * 100), 1) if total_planta_meta > 0 else 0
+        calidad_total = round(((total_planta_cantidad - total_planta_defectos) / total_planta_cantidad * 100), 1) if total_planta_cantidad > 0 else 0
         
         reporte.append({
             "hora": hora_nombre,
@@ -627,7 +660,9 @@ def get_reporte_eficiencia():
             "total_planta": {
                 "cantidad": total_planta_cantidad,
                 "meta": total_planta_meta,
-                "eficiencia": eficiencia_total
+                "eficiencia": eficiencia_total,
+                "defectos": total_planta_defectos,
+                "calidad": calidad_total
             }
         })
         
@@ -659,13 +694,15 @@ def add_empleado():
         datos['nombre'],
         datos['numero_documento'],
         datos['cargo'],
-        datos.get('especialidad'),
+        datos.get('rol', 'Operador'),
         datos.get('turno'),
         datos.get('fecha_ingreso'),
         datos.get('estado', 'Activo'),
         datos.get('telefono'),
         datos.get('email'),
-        datos.get('modulo_asignado')
+        datos.get('modulo_asignado'),
+        datos.get('id_maquina'),
+        [int(x) for x in (datos.get('id_modulos_supervisor') or [])]
     )
     
     if "error" in res:
@@ -683,13 +720,15 @@ def update_empleado(id_empleado):
         datos['nombre'],
         datos['numero_documento'],
         datos['cargo'],
-        datos.get('especialidad'),
+        datos.get('rol', 'Operador'),
         datos.get('turno'),
         datos.get('fecha_ingreso'),
         datos.get('estado', 'Activo'),
         datos.get('telefono'),
         datos.get('email'),
-        datos.get('modulo_asignado')
+        datos.get('modulo_asignado'),
+        datos.get('id_maquina'),
+        [int(x) for x in (datos.get('id_modulos_supervisor') or [])]
     )
     
     if "error" in res:
@@ -699,6 +738,128 @@ def update_empleado(id_empleado):
 @app.route('/api/empleados/<int:id_empleado>', methods=['DELETE'])
 def delete_empleado(id_empleado):
     res = eliminar_empleado(id_empleado)
+    return jsonify(res)
+
+# --- LOGIN ---
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    datos = request.json
+    if not datos or not datos.get('nombre_usuario') or not datos.get('password'):
+        return jsonify({"error": "Usuario y contraseña requeridos"}), 400
+    usuario = verificar_login(datos['nombre_usuario'], datos['password'])
+    if not usuario:
+        return jsonify({"error": "Credenciales inválidas"}), 401
+    return jsonify(usuario)
+
+# --- USUARIOS ---
+
+@app.route('/api/usuarios', methods=['GET'])
+def get_usuarios():
+    return jsonify(obtener_usuarios())
+
+@app.route('/api/usuarios', methods=['POST'])
+def add_usuario():
+    datos = request.json
+    required = ['nombre_usuario', 'password', 'rol', 'id_empleado']
+    if not all(k in datos for k in required):
+        return jsonify({"error": "Faltan datos requeridos"}), 400
+    res = crear_usuario(datos['nombre_usuario'], datos['password'], datos['rol'], int(datos['id_empleado']))
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
+
+@app.route('/api/usuarios/<int:id_usuario>', methods=['PUT'])
+def update_usuario(id_usuario):
+    datos = request.json
+    required = ['nombre_usuario', 'password', 'rol', 'id_empleado']
+    if not all(k in datos for k in required):
+        return jsonify({"error": "Faltan datos requeridos"}), 400
+    res = actualizar_usuario(id_usuario, datos['nombre_usuario'], datos['password'], datos['rol'], int(datos['id_empleado']))
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res)
+
+@app.route('/api/usuarios/<int:id_usuario>', methods=['DELETE'])
+def delete_usuario(id_usuario):
+    return jsonify(eliminar_usuario(id_usuario))
+
+@app.route('/api/usuarios/<int:id_usuario>/lineas', methods=['GET'])
+def get_lineas_usuario(id_usuario):
+    return jsonify(obtener_lineas_usuario(id_usuario))
+
+@app.route('/api/usuarios/<int:id_usuario>/lineas', methods=['POST'])
+def set_lineas_usuario(id_usuario):
+    datos = request.json
+    ids = [int(x) for x in datos.get('id_modulos', [])]
+    return jsonify(asignar_lineas_usuario(id_usuario, ids))
+
+# --- CAUSAS DE PARADA ---
+
+@app.route('/api/causas-parada', methods=['GET'])
+def get_causas_parada():
+    return jsonify(obtener_causas_parada())
+
+@app.route('/api/causas-parada', methods=['POST'])
+def add_causa_parada():
+    datos = request.json
+    if not datos or not datos.get('nombre'):
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = insertar_causa_parada(datos['nombre'])
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
+
+@app.route('/api/causas-parada/<int:id_causa>', methods=['DELETE'])
+def delete_causa_parada(id_causa):
+    return jsonify(eliminar_causa_parada(id_causa))
+
+# --- REGISTRO DE PRODUCCIÓN (NUEVO) ---
+
+@app.route('/api/produccion/dia', methods=['GET'])
+def get_produccion_dia():
+    fecha = request.args.get('fecha')
+    id_usuario = request.args.get('id_usuario', type=int)
+    if not fecha:
+        from datetime import date
+        fecha = date.today().isoformat()
+    return jsonify(obtener_registros_dia(fecha, id_usuario))
+
+@app.route('/api/produccion/resumen', methods=['GET'])
+def get_resumen_produccion():
+    fecha = request.args.get('fecha')
+    id_modulo = request.args.get('id_modulo', type=int)
+    id_hora = request.args.get('id_hora', type=int)
+    if not fecha or not id_modulo or not id_hora:
+        return jsonify({"error": "Faltan parámetros"}), 400
+    return jsonify(resumen_registros_hora(fecha, id_modulo, id_hora))
+
+@app.route('/api/produccion', methods=['POST'])
+def add_produccion():
+    datos = request.json
+    if not datos.get('fecha') or not datos.get('id_modulo') or not datos.get('id_hora') or not datos.get('id_orden'):
+        return jsonify({"error": "Faltan datos requeridos"}), 400
+    id_usuario = datos.get('id_usuario')
+    if not id_usuario:
+        return jsonify({"error": "Usuario no identificado"}), 401
+    try:
+        cantidad = int(datos['cantidad_producida'])
+    except:
+        return jsonify({"error": "Cantidad inválida"}), 400
+    res = insertar_registro_produccion(datos, int(id_usuario))
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
+
+@app.route('/api/produccion/<int:id_registro>', methods=['DELETE'])
+def delete_produccion(id_registro):
+    return jsonify(eliminar_registro_produccion(id_registro))
+
+@app.route('/api/progreso/<int:id_orden>', methods=['GET'])
+def get_progreso_orden(id_orden):
+    res = reporte_progreso_orden(id_orden)
+    if not res:
+        return jsonify({"error": "Orden no encontrada"}), 404
     return jsonify(res)
 
 if __name__ == "__main__":
