@@ -48,6 +48,7 @@
                         <li><a href="#" class="nav-link" onclick="showModule('mod-secciones')" id="link-secciones">Secciones</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-modulos')" id="link-modulos">Módulos</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-empleados')" id="link-empleados">Empleados</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-materiales')" id="link-materiales">Materiales</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-horas')" id="link-horas">Horas</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-paradas')" id="link-paradas">Paradas</a></li>
                     </ul>
@@ -63,6 +64,7 @@
                     </div>
                     <ul class="nav-list">
                         <li><a href="#" class="nav-link" onclick="showModule('mod-operaciones')" id="link-operaciones">Operaciones Estándar</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-ordenes')" id="link-ordenes">Órdenes de Producción</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-ingenieria')" id="link-ingenieria">Ingeniería de Producto</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-programacion')" id="link-programacion">Programación de Líneas</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-control-hora')" id="link-control-hora">Control Hora a Hora</a></li>
@@ -314,6 +316,56 @@
                     </div>
                 </div>
 
+                <!-- MATERIALES -->
+                <div id="mod-materiales" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Catálogo de Materiales</h1>
+                        <p class="page-subtitle">Insumos disponibles para la producción de gorras</p>
+                    </div>
+                    <div class="catalog-card">
+                        <h2 class="form-title">Nuevo Material</h2>
+                        <input type="hidden" id="material-id-edicion">
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-mat-nombre" placeholder="Ej: Popelín 120g/m²">
+                            </div>
+                            <div class="form-group">
+                                <label>Unidad</label>
+                                <input type="text" id="input-mat-unidad" placeholder="Metros, unidades, kg...">
+                            </div>
+                            <div class="form-group">
+                                <label>Costo unitario ($)</label>
+                                <input type="number" id="input-mat-costo" placeholder="Ej: 2500">
+                            </div>
+                            <div class="form-group">
+                                <label>Proveedor</label>
+                                <input type="text" id="input-mat-proveedor" placeholder="Opcional">
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción</label>
+                                <input type="text" id="input-mat-desc" placeholder="Opcional">
+                            </div>
+                        </div>
+                        <button class="btn-primary" id="btn-material" onclick="procesarMaterial()" style="margin-top: 12px; max-width: 250px;">Guardar Material</button>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Unidad</th>
+                                        <th>Costo</th>
+                                        <th>Proveedor</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lista-materiales"></tbody>
+                            </table>
+                            <div id="empty-materiales" class="empty-state" style="display: none;">No hay materiales registrados.</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- HORAS -->
                 <div id="mod-horas" class="module-section">
                     <div class="page-header">
@@ -541,6 +593,76 @@
                     </div>
                 </div>
 
+                <!-- ÓRDENES DE PRODUCCIÓN -->
+                <div id="mod-ordenes" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Órdenes de Producción (Lotes)</h1>
+                        <p class="page-subtitle">Cree lotes de producción reutilizando una referencia varias veces</p>
+                    </div>
+
+                    <div class="catalogo-grid">
+                        <div class="catalog-card">
+                            <h2 class="form-title">Nueva Orden</h2>
+                            <input type="hidden" id="orden-id-edicion">
+                            <div class="form-group">
+                                <label>Referencia (modelo) *</label>
+                                <select id="input-orden-ref"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Nombre de la Orden *</label>
+                                <input type="text" id="input-orden-nombre" placeholder="Ej: LOTE-SNP-001">
+                            </div>
+                            <div class="form-group">
+                                <label>Cantidad del Lote *</label>
+                                <input type="number" id="input-orden-cantidad" placeholder="Ej: 2000">
+                            </div>
+                            <button class="btn-primary" id="btn-orden" onclick="procesarOrden()" style="margin-top: 10px;">Crear Orden</button>
+                        </div>
+
+                        <div class="catalog-card">
+                            <h2 class="form-title">Órdenes Existentes</h2>
+                            <div class="data-table-container" style="margin-top: 0;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Orden</th>
+                                            <th>Referencia</th>
+                                            <th>Lote</th>
+                                            <th>Estado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lista-ordenes"></tbody>
+                                </table>
+                                <div id="empty-ordenes" class="empty-state" style="display: none;">No hay órdenes creadas.</div>
+                            </div>
+
+                            <div id="orden-materiales-panel" style="display: none; margin-top: 20px; border-top: 1px solid var(--card-border); padding-top: 16px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h3 class="bom-title" id="orden-materiales-titulo" style="margin:0;">Materiales Calculados</h3>
+                                    <button class="btn-icon btn-edit" onclick="cerrarMaterialesOrden()" title="Cerrar">✕ Cerrar</button>
+                                </div>
+                                <div class="data-table-container">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Material</th>
+                                                <th>Unidad</th>
+                                                <th>Por unidad</th>
+                                                <th>Merma</th>
+                                                <th>Requerido total</th>
+                                                <th>Costo estimado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="lista-orden-materiales"></tbody>
+                                    </table>
+                                </div>
+                                <div id="orden-materiales-total" style="margin-top: 12px; font-size: 0.9rem; color: var(--accent-blue); font-weight: 600;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- INGENIERÍA -->
                 <div id="mod-ingenieria" class="module-section">
                     <div class="page-header">
@@ -550,57 +672,152 @@
 
                     <div class="master-detail-container">
                         <div class="catalog-card" style="margin-top: 0; align-self: start;">
-                            <h2 class="form-title">Referencias</h2>
-                            <div class="form-group">
-                                <label>Nombre de Referencia</label>
-                                <input type="text" id="input-ref-nombre" placeholder="Ej: Gorra Snapback">
-                                <label style="margin-top: 10px;">Cantidad Lote</label>
-                                <input type="number" id="input-ref-cantidad" placeholder="Ej: 1000" style="margin-top: 0;">
-                                <button class="btn-primary" onclick="crearReferencia()" style="margin-top: 10px;">Crear Referencia</button>
+                            <div class="ref-header">
+                                <h2 class="form-title" style="margin:0;">Referencias</h2>
+                                <button class="btn-primary" id="btn-nueva-ref" onclick="toggleFormNuevaReferencia()" style="width:auto; padding: 8px 14px; background: var(--accent-blue);">+ Nueva Referencia</button>
                             </div>
+
+                            <div id="form-nueva-ref" style="display:none; margin-top: 16px; padding: 16px; border: 1px solid var(--card-border); border-radius: 8px; background: var(--bg-deep);">
+                                <div class="form-group">
+                                    <label>Nombre de Referencia *</label>
+                                    <input type="text" id="input-ref-nombre" placeholder="Ej: Gorra Snapback">
+                                </div>
+                                <div class="form-group">
+                                    <label>Especificaciones Técnicas</label>
+                                    <textarea id="input-ref-espec" rows="3" placeholder="Descripción técnica, materiales, tallas..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Foto del Prototipo</label>
+                                    <div class="foto-upload">
+                                        <input type="file" id="input-ref-foto" accept="image/*" onchange="previewFotoNueva(this)">
+                                        <img id="preview-ref-foto" style="display:none;" alt="Vista previa">
+                                    </div>
+                                </div>
+                                <button class="btn-primary" onclick="crearReferencia()">Crear Referencia</button>
+                            </div>
+
+                            <div class="reference-search" style="margin-top: 16px;">
+                                <input type="text" id="input-buscar-ref" placeholder="Buscar referencia..." oninput="filtrarReferencias()">
+                            </div>
+
+                            <div class="reference-list-hint">
+                                <span class="hint-icon">👈</span>
+                                <span>Haz clic en una referencia para ver su detalle completo</span>
+                            </div>
+
                             <div id="lista-referencias" style="width: 100%; display: flex; flex-direction: column;"></div>
+                            <div id="empty-referencias-filtro" class="empty-state" style="display: none;">No se encontraron referencias con ese nombre.</div>
                         </div>
 
-                        <div class="catalog-card" style="margin-top: 0; display: none;" id="panel-secuencia">
-                            <h2 class="form-title" id="titulo-ref-activa">Secuencia de Operaciones</h2>
+                        <div class="catalog-card" style="margin-top: 0;" id="panel-secuencia">
+                            <h2 class="form-title" id="titulo-ref-activa" style="display: none;">Detalle de Referencia</h2>
 
-                            <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end;">
-                                <div>
-                                    <label>Operación</label>
-                                    <select id="seq-operacion"></select>
-                                </div>
-                                <div>
-                                    <label>Letra</label>
-                                    <input type="text" id="seq-letra" placeholder="A, B...">
-                                </div>
-                                <div>
-                                    <label>Predec.</label>
-                                    <input type="text" id="seq-pred" placeholder="N/A o A,C">
-                                </div>
-                                <div>
-                                    <button class="btn-primary" onclick="agregarDetalle()">Agregar</button>
-                                </div>
+                            <div id="empty-secuencia-placeholder" class="secuencia-placeholder">
+                                <div class="placeholder-icon">📋</div>
+                                <div class="placeholder-title">Detalle de la Referencia</div>
+                                <div class="placeholder-text">Selecciona una referencia de la lista de la izquierda para ver su diagrama de actividades, especificaciones, foto y materiales.</div>
                             </div>
 
-                            <div class="data-table-container">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Orden</th>
-                                            <th>Letra</th>
-                                            <th>Operación</th>
-                                            <th>Máquina</th>
-                                            <th>Tiempo</th>
-                                            <th>Pred.</th>
-                                            <th>Acción</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="lista-secuencia"></tbody>
-                                </table>
-                            </div>
+                            <div id="secuencia-content" style="display: none;">
+                                <div class="ficha-tecnica" id="ficha-tecnica-container" style="display: none;">
+                                    <div class="ficha-foto">
+                                        <img id="ficha-foto-img" alt="Foto prototipo" style="display:none;">
+                                        <div id="ficha-foto-empty" class="ficha-foto-empty">Sin foto de prototipo</div>
+                                        <label class="ficha-foto-btn" for="input-cambiar-foto">Cambiar foto</label>
+                                        <input type="file" id="input-cambiar-foto" accept="image/*" style="display:none;" onchange="cambiarFotoPrototipo(this)">
+                                    </div>
+                                    <div class="ficha-info">
+                                        <div class="ficha-titulo">Especificaciones Técnicas</div>
+                                        <div id="ficha-especificaciones" class="ficha-texto">Sin especificaciones.</div>
+                                    </div>
+                                </div>
 
-                            <div style="margin-top: 24px; border-top: 1px solid var(--card-border); padding-top: 16px;">
-                                <button class="btn-primary" onclick="finalizarReferencia()" style="background: var(--accent-success);">Guardar Referencia</button>
+                                <!-- PESTAÑAS -->
+                                <div class="detail-tabs">
+                                    <button class="detail-tab active" id="tab-secuencia" onclick="cambiarTabReferencia('secuencia')">🛠 Diagrama de Actividades</button>
+                                    <button class="detail-tab" id="tab-bom" onclick="cambiarTabReferencia('bom')">🧵 Materiales</button>
+                                </div>
+
+                                <!-- CONTENIDO: DIAGRAMA -->
+                                <div id="detail-secuencia">
+                                    <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end;">
+                                        <div>
+                                            <label>Operación</label>
+                                            <select id="seq-operacion"></select>
+                                        </div>
+                                        <div>
+                                            <label>Letra</label>
+                                            <input type="text" id="seq-letra" placeholder="A, B...">
+                                        </div>
+                                        <div>
+                                            <label>Predec.</label>
+                                            <input type="text" id="seq-pred" placeholder="N/A o A,C">
+                                        </div>
+                                        <div>
+                                            <button class="btn-primary" onclick="agregarDetalle()">Agregar</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="data-table-container">
+                                        <table class="data-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Orden</th>
+                                                    <th>Letra</th>
+                                                    <th>Operación</th>
+                                                    <th>Máquina</th>
+                                                    <th>Tiempo</th>
+                                                    <th>Pred.</th>
+                                                    <th>Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="lista-secuencia"></tbody>
+                                        </table>
+                                        <div id="empty-secuencia" class="empty-state" style="display: none;">Esta referencia no tiene operaciones asignadas.</div>
+                                    </div>
+                                </div>
+
+                                <!-- CONTENIDO: MATERIALES (BOM) -->
+                                <div id="detail-bom" style="display: none;">
+                                    <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; align-items: end;">
+                                        <div>
+                                            <label>Material</label>
+                                            <select id="bom-material"></select>
+                                        </div>
+                                        <div>
+                                            <label>Cant./unidad</label>
+                                            <input type="number" id="bom-cantidad" placeholder="0.35" step="0.01">
+                                        </div>
+                                        <div>
+                                            <label>Merma %</label>
+                                            <input type="number" id="bom-merma" placeholder="5" step="0.01">
+                                        </div>
+                                        <div>
+                                            <button class="btn-primary" onclick="agregarMaterialReferencia()">Agregar</button>
+                                        </div>
+                                    </div>
+                                    <div class="data-table-container">
+                                        <table class="data-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Material</th>
+                                                    <th>Unidad</th>
+                                                    <th>Cant./unidad</th>
+                                                    <th>Merma</th>
+                                                    <th>Nota</th>
+                                                    <th>Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="lista-bom"></tbody>
+                                        </table>
+                                        <div id="empty-bom" class="empty-state" style="display: none;">Esta referencia no tiene materiales asociados.</div>
+                                    </div>
+                                </div>
+                                </div>
+
+                                <div style="margin-top: 24px; border-top: 1px solid var(--card-border); padding-top: 16px;">
+                                    <button class="btn-primary" onclick="finalizarReferencia()" style="background: var(--accent-success);">Guardar Referencia</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -617,9 +834,9 @@
                         <div class="catalog-card">
                             <h2 class="form-title">Nueva Asignación</h2>
                             <div class="form-group">
-                                <label>Referencia</label>
+                                <label>Orden / Lote</label>
                                 <select id="prog-referencia" onchange="verificarDisponibilidad()">
-                                    <option value="">Seleccione Referencia...</option>
+                                    <option value="">Seleccione Orden...</option>
                                 </select>
                                 <small id="prog-disponibilidad" style="color: var(--text-secondary); display:block; margin-top:5px;">Disponible: - / Total: -</small>
                             </div>
@@ -642,6 +859,7 @@
                                 <table class="data-table">
                                     <thead>
                                         <tr>
+                                            <th>Orden</th>
                                             <th>Ref</th>
                                             <th>Módulo</th>
                                             <th>Cant.</th>

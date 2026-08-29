@@ -157,23 +157,49 @@ Calcula la asignación óptima de operaciones a operarios.
                        │
                        │ FK
                        ▼
-┌──────────────────┐   ┌──────────────────────────────────┐
-│ReferenciaProducto│   │       ReferenciaDetalle          │
-├──────────────────┤   ├──────────────────────────────────┤
-│ id (PK)          │◄──│ id_referencia (FK)               │
-│ nombre_referencia│   │ id_operacion (FK → Operacion)    │
-│ fecha_creacion   │   │ letra_secuencia                  │
-│ cantidad_lote    │   │ predecesoras                     │
-└────────┬─────────┘   │ orden_fila                       │
-         │             └──────────────────────────────────┘
-         │
-         │ FK
-         ▼
+┌──────────────────────┐   ┌──────────────────────────────────┐
+│ReferenciaMaterial(BOM)│  │       ReferenciaDetalle          │
+├──────────────────────┤   ├──────────────────────────────────┤
+│ id (PK)              │   │ id_referencia (FK)               │
+│ id_referencia (FK)   │   │ id_operacion (FK → Operacion)    │
+│ id_material (FK)     │   │ letra_secuencia                  │
+│ cantidad_por_unidad  │   │ predecesoras                     │
+│ merma_porcentaje     │   │ orden_fila                       │
+│ nota                 │   └──────────────────────────────────┘
+└──────────┬───────────┘
+           │
+     ┌─────┴─────┐
+     ▼           ▼
+┌────────────────────┐  ┌──────────────────┐
+│     Materiales     │  │ReferenciaProducto│
+├────────────────────┤  ├──────────────────┤
+│ id (PK)            │  │ id (PK)          │
+│ nombre             │  │ nombre_referencia│
+│ unidad             │  │ especificaciones │
+│ costo_unitario     │  │ foto             │
+│ proveedor          │  └────────┬─────────┘
+│ descripcion        │           │
+└────────────────────┘           │
+                                 │ FK (id_referencia)
+                                 ▼
+┌─────────────────────────────────────────┐
+│         OrdenProduccion (LOTE)          │
+├─────────────────────────────────────────┤
+│ id (PK)                                 │
+│ id_referencia (FK → ReferenciaProducto) │
+│ nombre_orden                            │
+│ cantidad_lote                           │
+│ estado (Abierta/Cerrada)                │
+│ fecha_creacion                          │
+└────────────────────┬────────────────────┘
+                     │
+                     │ FK (id_orden)
+                     ▼
 ┌──────────────────────────────────────────────────┐
 │              AsignacionModulo                     │
 ├──────────────────────────────────────────────────┤
 │ id (PK)                                          │
-│ id_referencia (FK → ReferenciaProducto)          │
+│ id_orden (FK → OrdenProduccion)                  │
 │ id_modulo (FK → ModuloConfeccion)                │
 │ cantidad_asignada                                │
 └──────────────────────┬───────────────────────────┘
@@ -263,14 +289,60 @@ Operaciones estándar de confección.
 | id_seccion | INTEGER FK | Sección de la prenda |
 
 #### ReferenciaProducto
-Modelos de producto (referencias).
+Catálogo de modelos de producto (referencias).
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | INTEGER PK | Identificador único |
 | nombre_referencia | TEXT | Nombre/código de la referencia |
+| especificaciones | TEXT | Especificaciones técnicas detalladas del modelo |
+| foto | TEXT | Ruta de la foto del prototipo (uploads/) |
 | fecha_creacion | TIMESTAMP | Fecha de creación |
-| cantidad_lote | INTEGER | Cantidad planificada del lote |
+
+> Nota: La referencia es el MODELO. El lote/cantidad vive en OrdenProduccion para permitir reutilizar un modelo en múltiples órdenes.
+
+#### Materiales
+Catálogo de insumos/fabricantes reutilizable.
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | INTEGER PK | Identificador único |
+| nombre | TEXT | Nombre del material |
+| unidad | TEXT | Unidad (metros, unidades, kg, conos...) — texto libre |
+| costo_unitario | REAL | Costo por unidad (opcional) |
+| proveedor | TEXT | Proveedor (opcional) |
+| descripcion | TEXT | Descripción (opcional) |
+
+#### ReferenciaMaterial (BOM)
+Lista de materiales que consume cada referencia (por unidad de producto).
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | INTEGER PK | Identificador único |
+| id_referencia | INTEGER FK | Referencia padre |
+| id_material | INTEGER FK | Material del catálogo |
+| cantidad_por_unidad | REAL | Cantidad que consume UNA unidad de producto |
+| merma_porcentaje | REAL | % de desperdicio (corte, etc.) |
+| nota | TEXT | Nota opcional (color, talla) |
+
+**Cálculo de requerimiento para un lote:**
+```
+Requerimiento = cantidad_por_unidad × cantidad_lote × (1 + merma/100)
+Costo estimado = Requerimiento × costo_unitario
+```
+Endpoint: `GET /api/ordenes/{id}/materiales`
+
+#### OrdenProduccion
+Órdenes de producción (lotes). Una referencia puede tener muchas órdenes.
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | INTEGER PK | Identificador único |
+| id_referencia | INTEGER FK | Referencia (modelo) |
+| nombre_orden | TEXT | Nombre de la orden (ej: LOTE-001-1) |
+| cantidad_lote | INTEGER | Cantidad del lote |
+| estado | TEXT | Abierta o Cerrada |
+| fecha_creacion | TIMESTAMP | Fecha de creación |
 
 #### ReferenciaDetalle
 Secuencia de operaciones de cada referencia.
@@ -331,12 +403,12 @@ Paradas planificadas con duración.
 | tiempo_segundos | INTEGER | Duración en segundos |
 
 #### AsignacionModulo
-Asignación de referencias a módulos.
+Asignación de órdenes (lotes) a módulos.
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | INTEGER PK | Identificador único |
-| id_referencia | INTEGER FK | Referencia asignada |
+| id_orden | INTEGER FK | Orden de producción asignada |
 | id_modulo | INTEGER FK | Módulo destino |
 | cantidad_asignada | INTEGER | Unidades asignadas |
 
@@ -404,8 +476,20 @@ Registro de producción hora a hora.
 | GET | `/api/referencias/{id}/detalles` | Listar detalles de secuencia |
 | POST | `/api/referencias/{id}/detalles` | Agregar operación a secuencia |
 | DELETE | `/api/detalles/{id}` | Quitar operación de secuencia |
-| GET | `/api/referencias-disponibles` | Referencias con stock disponible |
-| GET | `/api/referencias/{id}/disponibilidad` | Stock disponible de referencia |
+| GET | `/api/ordenes` | Listar órdenes de producción |
+| POST | `/api/ordenes` | Crear orden (lote) |
+| PUT | `/api/ordenes/{id}` | Actualizar cantidad/estado de orden |
+| DELETE | `/api/ordenes/{id}` | Eliminar orden |
+| GET | `/api/ordenes-disponibles` | Órdenes abiertas con stock disponible |
+| GET | `/api/ordenes/{id}/disponibilidad` | Stock disponible de una orden |
+| GET | `/api/materiales` | Listar catálogo de materiales |
+| POST | `/api/materiales` | Crear material |
+| PUT | `/api/materiales/{id}` | Actualizar material |
+| DELETE | `/api/materiales/{id}` | Eliminar material |
+| GET | `/api/referencias/{id}/materiales` | BOM de una referencia |
+| POST | `/api/referencias/{id}/materiales` | Asociar material a referencia |
+| DELETE | `/api/materiales-referencia/{id}` | Quitar material de referencia |
+| GET | `/api/ordenes/{id}/materiales` | Cálculo de materiales requeridos para un lote |
 
 ### Programación
 
@@ -437,10 +521,20 @@ Registro de producción hora a hora.
 
 ## Reglas de Negocio
 
+### Ciclo de Vida de una Referencia (Diseño → Producción)
+1. Una referencia (modelo de gorra) se crea en estado **Diseño**
+2. Mientras está en Diseño, se define su **secuencia de operaciones** (diagrama de actividades)
+3. Solo cuando el diseño está aprobado, la referencia pasa a estado **Activo**
+4. En estado Activo, se pueden crear **órdenes de producción** (lotes) sobre ese modelo
+5. Se mantiene el estado **Obsoleto** para modelos que ya no se producen
+
+> **Por qué esta separación resuelve el problema de diseño vs producción:** la referencia define QUÉ se debe hacer (operaciones aprobadas) y la orden define CUÁNTO y CUÁNDO se produce. Una referencia no aprobada no puede generar lotes de producción.
+
 ### Asignación de Lotes
-1. No se puede asignar más unidades que las disponibles (lote - ya asignado)
-2. Al editar una asignación, se valida contra el máximo posible
-3. Una referencia puede estar en múltiples módulos simultáneamente
+1. No se puede asignar más unidades que las disponibles (cantidad_lote de la orden - ya asignado)
+2. Una orden debe estar `Abierta` para poder asignarse
+3. Una referencia (modelo) puede generar múltiples órdenes de producción
+4. Al editar una asignación, se valida contra el máximo posible
 
 ### Control de Producción
 1. La suma de porciones de tiempo por módulo/hora/fecha no puede exceder 1.0
@@ -670,12 +764,15 @@ Hora 1 a Hora 9 + Hora Extra
 | Horas | 10 |
 | Paradas | 6 |
 | Empleados | 20 |
+| Materiales | 15 |
 | Operaciones | 20 |
 | Referencias | 8 |
+| BOM (materiales x referencia) | 73 |
 | Detalles de secuencia | 126 |
-| Asignaciones | 26 |
+| Órdenes de producción | 18 |
+| Asignaciones | 18 |
 | Control hora a hora | 1200 |
-| **TOTAL** | **1,438** |
+| **TOTAL** | **1,540** |
 
 ---
 

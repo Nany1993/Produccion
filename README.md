@@ -6,9 +6,11 @@ Sistema web para gestión y balanceo de líneas de producción en plantas de con
 
 - **Catálogos**: Maquinaria, secciones, módulos (líneas), horas operativas y paradas programadas
 - **Empleados**: Registro del personal con cargo, especialidad, turno y módulo asignado
+- **Materiales**: Catálogo de insumos con unidad (metros, unidades, kg) y costo
 - **Operaciones**: Registro de operaciones de confección con tiempos estándar
-- **Ingeniería de Producto**: Creación de referencias (modelos de gorra) con secuencia y precedencias de operaciones
-- **Programación**: Asignación de lotes de referencias a módulos de producción
+- **Ingeniería de Producto**: Creación de referencias (modelos) con especificaciones técnicas, foto de prototipo, secuencia de operaciones y lista de materiales (BOM)
+- **Órdenes de Producción**: Creación de lotes sobre una referencia con cálculo automático de materiales requeridos y costo estimado
+- **Programación**: Asignación de órdenes/lotes a módulos de producción
 - **Control Hora a Hora**: Registro de producción real por hora, módulo y referencia con paradas
 - **Tablero de Eficiencias**: Reporte de cumplimiento de metas por módulo y hora
 - **Simulador de Balanceo**: Cálculo de asignación óptima de operaciones a operarios (2 escenarios)
@@ -67,11 +69,13 @@ El sistema queda disponible en **http://localhost:8000**
 1. **Configuración** → Empleados: registrar el personal, asignarlos a líneas
 2. **Configuración** → Catálogos: definir máquinas, secciones, horas y paradas
 3. **Operaciones** → Operaciones Estándar: registrar operaciones de confección
-4. **Operaciones** → Ingeniería de Producto: crear referencias y su secuencia de operaciones
-5. **Operaciones** → Programación de Líneas: asignar lotes a módulos
-6. **Operaciones** → Control Hora a Hora: registrar producción real
-7. **Análisis** → Tablero Eficiencias: consultar cumplimiento de metas
-8. **Análisis** → Simulador Balanceo: calcular distribución óptima de operarios
+4. **Configuración** → Materiales: crear el catálogo de insumos
+5. **Operaciones** → Ingeniería de Producto: crear referencias con especificaciones, foto del prototipo, secuencia de operaciones y materiales (BOM)
+6. **Operaciones** → Órdenes de Producción: crear lotes y ver el cálculo de materiales requeridos
+7. **Operaciones** → Programación de Líneas: asignar órdenes a módulos
+8. **Operaciones** → Control Hora a Hora: registrar producción real
+9. **Análisis** → Tablero Eficiencias: consultar cumplimiento de metas
+10. **Análisis** → Simulador Balanceo: calcular distribución óptima de operarios
 
 ## API
 

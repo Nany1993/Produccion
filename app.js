@@ -189,6 +189,11 @@ function showModule(moduleId) {
     cargarDatosProgramacion();
     cargarAsignaciones();
   }
+  if (moduleId === 'mod-ordenes') {
+    cargarOrdenes();
+    cargarSelectOrdenesRef();
+  }
+  if (moduleId === 'mod-materiales') cargarMateriales();
   if (moduleId === 'mod-control-hora') initControlHora();
   if (moduleId === 'mod-eficiencia') {
     const hoy = new Date().toISOString().split('T')[0];
@@ -791,15 +796,19 @@ function toggleCatalogo(containerId, btnId) {
 let referenciaActivaId = null;
 let idReferenciaEnEdicion = null;
 let secuenciaActualLength = 0;
+let referenciasCache = [];
 
-async function cargarReferencias() {
-  const data = await api('/api/referencias');
-  if (!data) return;
-
+function renderListaReferencias(data) {
   const container = document.getElementById('lista-referencias');
   container.innerHTML = '';
 
-  data.forEach(ref => {
+  const filtro = (document.getElementById('input-buscar-ref').value || '').toLowerCase().trim();
+  const filtradas = filtro ? data.filter(ref => ref.nombre.toLowerCase().includes(filtro)) : data;
+
+  const emptyFilter = document.getElementById('empty-referencias-filtro');
+  if (emptyFilter) emptyFilter.style.display = (filtro && filtradas.length === 0) ? 'block' : 'none';
+
+  filtradas.forEach(ref => {
     const item = document.createElement('div');
     item.className = `reference-item ${referenciaActivaId === ref.id ? 'active' : ''}`;
     item.onclick = (e) => {
@@ -807,12 +816,16 @@ async function cargarReferencias() {
     };
 
     const objStr = JSON.stringify(ref).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const badges = [];
+    if (ref.foto) badges.push('<span class="badge badge-module" title="Tiene foto">📷</span>');
+    if (ref.especificaciones) badges.push('<span class="badge badge-hour" title="Tiene especificaciones">📝</span>');
     item.innerHTML = `
-      <div style="display:flex; flex-direction:column;">
+      <div style="display:flex; flex-direction:column; flex:1; min-width:0;">
         <span style="font-weight:600;">${ref.nombre}</span>
-        <span style="font-size:0.75rem; color:var(--text-muted);">${ref.cantidad ? 'Lote: ' + ref.cantidad : 'Sin lote'}</span>
+        <span style="display:flex; gap:4px; margin-top:4px;">${badges.join('') || ''}</span>
+        <span class="reference-view-hint ${referenciaActivaId === ref.id ? 'visible' : ''}">Ver diagrama de actividades →</span>
       </div>
-      <div style="display:flex; gap: 5px;">
+      <div style="display:flex; gap: 5px; align-items:center;">
         <button class="btn-icon btn-edit" style="padding:4px 8px;" onclick="iniciarEdicionReferencia(${objStr})" title="Editar">✎</button>
         <button class="btn-icon btn-edit" style="padding:4px 8px;" onclick="duplicarReferencia(${ref.id}, '${ref.nombre}')" title="Duplicar">⧉</button>
         <button class="btn-icon btn-delete" style="padding:4px 8px;" onclick="eliminarReferencia(${ref.id})" title="Eliminar">✕</button>
@@ -820,6 +833,18 @@ async function cargarReferencias() {
     `;
     container.appendChild(item);
   });
+}
+
+function filtrarReferencias() {
+  renderListaReferencias(referenciasCache);
+}
+
+async function cargarReferencias() {
+  const data = await api('/api/referencias');
+  if (!data) return;
+
+  referenciasCache = data;
+  renderListaReferencias(data);
 
   const selectSim = document.getElementById('sim-referencia');
   const currentSim = selectSim.value;
@@ -832,35 +857,68 @@ async function cargarReferencias() {
 
 async function crearReferencia() {
   const nombre = document.getElementById('input-ref-nombre').value.trim();
-  const cantidad = document.getElementById('input-ref-cantidad').value;
+  const especificaciones = document.getElementById('input-ref-espec').value.trim();
 
   if (!nombre) { showFieldError('input-ref-nombre', 'Ingrese un nombre'); return; }
   clearFieldErrors('input-ref-nombre');
 
   let url = '/api/referencias';
   let method = 'POST';
+  let idRef = null;
+
   if (idReferenciaEnEdicion) {
     url = `/api/referencias/${idReferenciaEnEdicion}`;
     method = 'PUT';
+    idRef = idReferenciaEnEdicion;
   }
+
+  const payload = { nombre, especificaciones: especificaciones || null };
 
   const data = await api(url, {
     method,
-    body: JSON.stringify({ nombre, cantidad: parseInt(cantidad) || 0 }),
+    body: JSON.stringify(payload),
     _btn: event.target
   });
 
   if (data) {
+    if (data.id) idRef = data.id;
+
+    // Subir la foto si eligió archivo
+    const inputFoto = document.getElementById('input-ref-foto');
+    if (inputFoto && inputFoto.files && inputFoto.files[0] && idRef) {
+      await subirFotoReferencia(idRef, inputFoto.files[0]);
+    }
+
     limpiarFormularioReferencia();
     Toast.success(data.mensaje || 'Referencia guardada');
     cargarReferencias();
+    cargarSelectOrdenesRef();
+  }
+}
+
+async function subirFotoReferencia(idRef, archivo) {
+  const formData = new FormData();
+  formData.append('foto', archivo);
+  try {
+    const res = await fetch(`/api/referencias/${idRef}/foto`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+      Toast.success('Foto del prototipo subida');
+      cargarReferencias();
+    }
+  } catch (e) {
+    Toast.error('Error al subir la foto');
   }
 }
 
 function iniciarEdicionReferencia(ref) {
   idReferenciaEnEdicion = ref.id;
   document.getElementById('input-ref-nombre').value = ref.nombre;
-  document.getElementById('input-ref-cantidad').value = ref.cantidad || '';
+  document.getElementById('input-ref-espec').value = ref.especificaciones || '';
+  document.getElementById('input-ref-foto').value = '';
 
   const btn = document.querySelector('#input-ref-nombre').parentElement.querySelector('button');
   if (btn) btn.innerText = 'Actualizar Referencia';
@@ -869,7 +927,10 @@ function iniciarEdicionReferencia(ref) {
 function limpiarFormularioReferencia() {
   idReferenciaEnEdicion = null;
   document.getElementById('input-ref-nombre').value = '';
-  document.getElementById('input-ref-cantidad').value = '';
+  document.getElementById('input-ref-espec').value = '';
+  document.getElementById('input-ref-foto').value = '';
+  const preview = document.getElementById('preview-ref-foto');
+  if (preview) { preview.style.display = 'none'; preview.src = ''; }
   const btn = document.querySelector('#input-ref-nombre').parentElement.querySelector('button');
   if (btn) btn.innerText = 'Crear Referencia';
 }
@@ -881,12 +942,21 @@ async function eliminarReferencia(id) {
   const data = await api(`/api/referencias/${id}`, { method: 'DELETE' });
   if (data) {
     if (referenciaActivaId === id) {
-      referenciaActivaId = null;
-      document.getElementById('panel-secuencia').style.display = 'none';
+      resetPanelSecuencia();
     }
     Toast.success('Referencia eliminada');
     cargarReferencias();
   }
+}
+
+function resetPanelSecuencia() {
+  referenciaActivaId = null;
+  document.getElementById('titulo-ref-activa').style.display = 'none';
+  document.getElementById('empty-secuencia-placeholder').style.display = 'flex';
+  document.getElementById('secuencia-content').style.display = 'none';
+  document.getElementById('lista-secuencia').innerHTML = '';
+  const ficha = document.getElementById('ficha-tecnica-container');
+  if (ficha) ficha.style.display = 'none';
 }
 
 async function duplicarReferencia(id, nombreActual) {
@@ -904,13 +974,99 @@ async function duplicarReferencia(id, nombreActual) {
   }
 }
 
+function cambiarTabReferencia(tab) {
+  const esBom = tab === 'bom';
+  document.getElementById('tab-secuencia').classList.toggle('active', !esBom);
+  document.getElementById('tab-bom').classList.toggle('active', esBom);
+  document.getElementById('detail-secuencia').style.display = esBom ? 'none' : 'block';
+  document.getElementById('detail-bom').style.display = esBom ? 'block' : 'none';
+  if (esBom) cargarMaterialesReferencia(referenciaActivaId);
+}
+
+function toggleFormNuevaReferencia() {
+  const form = document.getElementById('form-nueva-ref');
+  const btn = document.getElementById('btn-nueva-ref');
+  if (form.style.display === 'none') {
+    form.style.display = 'block';
+    btn.textContent = '− Cerrar';
+  } else {
+    form.style.display = 'none';
+    btn.textContent = '+ Nueva Referencia';
+    limpiarFormularioReferencia();
+  }
+}
+
+function previewFotoNueva(input) {
+  const preview = document.getElementById('preview-ref-foto');
+  if (input.files && input.files[0]) {
+    preview.src = URL.createObjectURL(input.files[0]);
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+    preview.src = '';
+  }
+}
+
+async function cambiarFotoPrototipo(input) {
+  if (!referenciaActivaId) return;
+  if (!input.files || !input.files[0]) return;
+
+  const formData = new FormData();
+  formData.append('foto', input.files[0]);
+  try {
+    const res = await fetch(`/api/referencias/${referenciaActivaId}/foto`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+      Toast.success('Foto del prototipo actualizada');
+      input.value = '';
+      cargarFichaTecnica(referenciaActivaId);
+      cargarReferencias();
+    } else {
+      Toast.error(data.error || 'Error al subir la foto');
+    }
+  } catch (e) {
+    Toast.error('Error al subir la foto');
+  }
+}
+
 async function seleccionarReferencia(id, nombre) {
   referenciaActivaId = id;
-  document.getElementById('titulo-ref-activa').innerText = `Secuencia: ${nombre}`;
-  document.getElementById('panel-secuencia').style.display = 'block';
+  document.getElementById('titulo-ref-activa').innerText = `Diagrama de Actividades: ${nombre}`;
+  document.getElementById('titulo-ref-activa').style.display = 'block';
+  document.getElementById('empty-secuencia-placeholder').style.display = 'none';
+  document.getElementById('secuencia-content').style.display = 'block';
   cargarReferencias();
   await cargarDetallesReferencia(id);
   cargarOperacionesSelect();
+  cargarFichaTecnica(id);
+  cargarMaterialesReferencia(id);
+  cargarMateriales();
+}
+
+async function cargarFichaTecnica(idRef) {
+  const data = await api('/api/referencias');
+  if (!data) return;
+  const ref = data.find(r => r.id === idRef);
+  if (!ref) return;
+
+  const container = document.getElementById('ficha-tecnica-container');
+  container.style.display = 'flex';
+
+  const img = document.getElementById('ficha-foto-img');
+  const empty = document.getElementById('ficha-foto-empty');
+  if (ref.foto) {
+    img.src = ref.foto;
+    img.style.display = 'block';
+    empty.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    empty.style.display = 'block';
+  }
+
+  document.getElementById('ficha-especificaciones').textContent = ref.especificaciones || 'Sin especificaciones.';
 }
 
 async function cargarDetallesReferencia(idRef) {
@@ -920,6 +1076,8 @@ async function cargarDetallesReferencia(idRef) {
   const tbody = document.getElementById('lista-secuencia');
   tbody.innerHTML = '';
   secuenciaActualLength = data.length;
+
+  document.getElementById('empty-secuencia').style.display = data.length === 0 ? 'block' : 'none';
 
   const nextChar = String.fromCharCode(65 + secuenciaActualLength);
   document.getElementById('seq-letra').value = nextChar;
@@ -989,10 +1147,354 @@ async function eliminarDetalle(id) {
 }
 
 function finalizarReferencia() {
-  referenciaActivaId = null;
-  document.getElementById('panel-secuencia').style.display = 'none';
+  resetPanelSecuencia();
   Toast.success('Referencia guardada correctamente');
   cargarReferencias();
+}
+
+// ============================================================
+// ÓRDENES DE PRODUCCIÓN (LOTES)
+// ============================================================
+
+let idOrdenEnEdicion = null;
+
+async function cargarSelectOrdenesRef() {
+  const data = await api('/api/referencias');
+  if (!data) return;
+  const select = document.getElementById('input-orden-ref');
+  if (!select) return;
+  const val = select.value;
+  select.innerHTML = '<option value="">Seleccione referencia...</option>';
+  data.forEach(r => {
+    select.innerHTML += `<option value="${r.id}">${r.nombre}</option>`;
+  });
+  if (val) select.value = val;
+}
+
+async function cargarOrdenes() {
+  const data = await api('/api/ordenes');
+  if (!data) return;
+
+  const tbody = document.getElementById('lista-ordenes');
+  const empty = document.getElementById('empty-ordenes');
+  tbody.innerHTML = '';
+  if (data.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    data.forEach(o => {
+      const objStr = JSON.stringify(o).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const estadoClass = o.estado === 'Abierta' ? 'badge-module' : (o.estado === 'Cerrada' ? 'badge-machine' : 'badge-hour');
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${o.nombre_orden}</strong></td>
+          <td>${o.referencia}</td>
+          <td class="text-accent">${o.cantidad_lote}</td>
+          <td><span class="badge ${estadoClass}">${o.estado}</span></td>
+          <td class="action-buttons">
+            <button class="btn-icon btn-edit" style="background:var(--accent-green);" onclick="verMaterialesOrden(${o.id})" title="Ver materiales calculados">📦</button>
+            <button class="btn-icon btn-edit" onclick="iniciarEdicionOrden(${objStr})" title="Editar">✎</button>
+            <button class="btn-icon btn-edit" onclick="cambiarEstadoOrden(${o.id}, '${o.estado}')" title="Cambiar estado">⇄</button>
+            <button class="btn-icon btn-delete" onclick="eliminarOrden(${o.id})" title="Eliminar">✕</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+}
+
+function limpiarFormOrden() {
+  idOrdenEnEdicion = null;
+  document.getElementById('orden-id-edicion').value = '';
+  document.getElementById('input-orden-nombre').value = '';
+  document.getElementById('input-orden-cantidad').value = '';
+  document.getElementById('input-orden-ref').value = '';
+  const btn = document.getElementById('btn-orden');
+  if (btn) { btn.textContent = 'Crear Orden'; btn.style.background = ''; }
+}
+
+async function procesarOrden() {
+  const idReferencia = document.getElementById('input-orden-ref').value;
+  const nombreOrden = document.getElementById('input-orden-nombre').value.trim();
+  const cantidad = document.getElementById('input-orden-cantidad').value;
+
+  let valid = true;
+  if (!idReferencia) { showFieldError('input-orden-ref', 'Seleccione referencia'); valid = false; }
+  else { clearFieldErrors('input-orden-ref'); }
+  if (!nombreOrden) { showFieldError('input-orden-nombre', 'Ingrese nombre'); valid = false; }
+  else { clearFieldErrors('input-orden-nombre'); }
+  if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) { showFieldError('input-orden-cantidad', 'Cantidad inválida'); valid = false; }
+  else { clearFieldErrors('input-orden-cantidad'); }
+  if (!valid) return;
+
+  let url = '/api/ordenes';
+  let method = 'POST';
+  if (idOrdenEnEdicion) {
+    url = `/api/ordenes/${idOrdenEnEdicion}`;
+    method = 'PUT';
+  }
+
+  const payload = idOrdenEnEdicion
+    ? { cantidad_lote: parseInt(cantidad) }
+    : { id_referencia: parseInt(idReferencia), nombre_orden: nombreOrden, cantidad_lote: parseInt(cantidad) };
+
+  const data = await api(url, {
+    method,
+    body: JSON.stringify(payload),
+    _btn: event.target
+  });
+
+  if (data) {
+    Toast.success(data.mensaje || 'Orden guardada');
+    limpiarFormOrden();
+    cargarOrdenes();
+    cargarDatosProgramacion();
+  }
+}
+
+function iniciarEdicionOrden(o) {
+  idOrdenEnEdicion = o.id;
+  document.getElementById('orden-id-edicion').value = o.id;
+  document.getElementById('input-orden-nombre').value = o.nombre_orden;
+  document.getElementById('input-orden-ref').value = o.id_referencia;
+  document.getElementById('input-orden-cantidad').value = o.cantidad_lote;
+  const btn = document.getElementById('btn-orden');
+  if (btn) { btn.textContent = 'Actualizar Cantidad'; btn.style.background = 'var(--accent-blue)'; }
+}
+
+async function cambiarEstadoOrden(id, estadoActual) {
+  const nuevo = estadoActual === 'Abierta' ? 'Cerrada' : 'Abierta';
+  const ok = await Modal.confirm('Cambiar Estado', `¿Cambiar la orden a estado "${nuevo}"?`);
+  if (!ok) return;
+
+  const data = await api(`/api/ordenes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ estado: nuevo })
+  });
+  if (data) {
+    Toast.success(`Orden ${nuevo.toLowerCase()}`);
+    cargarOrdenes();
+    cargarDatosProgramacion();
+  }
+}
+
+async function eliminarOrden(id) {
+  const ok = await Modal.confirm('Eliminar Orden', '¿Eliminar esta orden de producción? Esta acción no se puede deshacer.');
+  if (!ok) return;
+
+  const data = await api(`/api/ordenes/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Orden eliminada');
+    cargarOrdenes();
+    cargarDatosProgramacion();
+  }
+}
+
+// ============================================================
+// MATERIALES (BOM)
+// ============================================================
+
+let idMaterialEnEdicion = null;
+
+async function cargarMateriales() {
+  const data = await api('/api/materiales');
+  if (!data) return;
+
+  const tbody = document.getElementById('lista-materiales');
+  const empty = document.getElementById('empty-materiales');
+  const select = document.getElementById('bom-material');
+
+  tbody.innerHTML = '';
+  let valSelect = null;
+  if (select) valSelect = select.value;
+  if (select) select.innerHTML = '<option value="">Seleccione material...</option>';
+
+  if (data.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    data.forEach(m => {
+      const objStr = JSON.stringify(m).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${m.nombre}</strong></td>
+          <td>${m.unidad || '-'}</td>
+          <td>${m.costo_unitario ? '$' + m.costo_unitario.toLocaleString() : '-'}</td>
+          <td>${m.proveedor || '-'}</td>
+          <td class="action-buttons">
+            <button class="btn-icon btn-edit" onclick="iniciarEdicionMaterial(${objStr})">Editar</button>
+            <button class="btn-icon btn-delete" onclick="eliminarMaterial(${m.id})">Eliminar</button>
+          </td>
+        </tr>
+      `;
+      if (select) {
+        select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
+      }
+    });
+  }
+  if (select && valSelect) select.value = valSelect;
+}
+
+function limpiarFormMaterial() {
+  idMaterialEnEdicion = null;
+  document.getElementById('material-id-edicion').value = '';
+  document.getElementById('input-mat-nombre').value = '';
+  document.getElementById('input-mat-unidad').value = '';
+  document.getElementById('input-mat-costo').value = '';
+  document.getElementById('input-mat-proveedor').value = '';
+  document.getElementById('input-mat-desc').value = '';
+  const btn = document.getElementById('btn-material');
+  if (btn) { btn.textContent = 'Guardar Material'; btn.style.background = ''; }
+}
+
+async function procesarMaterial() {
+  const nombre = document.getElementById('input-mat-nombre').value.trim();
+  if (!nombre) { showFieldError('input-mat-nombre', 'Campo requerido'); return; }
+  clearFieldErrors('input-mat-nombre');
+
+  const payload = {
+    nombre,
+    unidad: document.getElementById('input-mat-unidad').value.trim() || null,
+    costo_unitario: document.getElementById('input-mat-costo').value ? parseFloat(document.getElementById('input-mat-costo').value) : null,
+    proveedor: document.getElementById('input-mat-proveedor').value.trim() || null,
+    descripcion: document.getElementById('input-mat-desc').value.trim() || null
+  };
+
+  let url = '/api/materiales';
+  let method = 'POST';
+  if (idMaterialEnEdicion) {
+    url = `/api/materiales/${idMaterialEnEdicion}`;
+    method = 'PUT';
+  }
+
+  const data = await api(url, { method, body: JSON.stringify(payload), _btn: event.target });
+  if (data) {
+    Toast.success(data.mensaje || 'Material guardado');
+    limpiarFormMaterial();
+    cargarMateriales();
+  }
+}
+
+function iniciarEdicionMaterial(m) {
+  idMaterialEnEdicion = m.id;
+  document.getElementById('material-id-edicion').value = m.id;
+  document.getElementById('input-mat-nombre').value = m.nombre;
+  document.getElementById('input-mat-unidad').value = m.unidad || '';
+  document.getElementById('input-mat-costo').value = m.costo_unitario || '';
+  document.getElementById('input-mat-proveedor').value = m.proveedor || '';
+  document.getElementById('input-mat-desc').value = m.descripcion || '';
+  const btn = document.getElementById('btn-material');
+  if (btn) { btn.textContent = 'Actualizar Material'; btn.style.background = 'var(--accent-blue)'; }
+}
+
+async function eliminarMaterial(id) {
+  const ok = await Modal.confirm('Eliminar Material', '¿Eliminar este material del catálogo?');
+  if (!ok) return;
+  const data = await api(`/api/materiales/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Material eliminado');
+    cargarMateriales();
+  }
+}
+
+async function cargarMaterialesReferencia(idRef) {
+  const data = await api(`/api/referencias/${idRef}/materiales`);
+  if (!data) return;
+
+  const tbody = document.getElementById('lista-bom');
+  const empty = document.getElementById('empty-bom');
+  tbody.innerHTML = '';
+  if (data.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    data.forEach(b => {
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${b.nombre}</strong></td>
+          <td>${b.unidad || '-'}</td>
+          <td class="text-accent">${b.cantidad_por_unidad}</td>
+          <td>${b.merma_porcentaje}%</td>
+          <td>${b.nota || '-'}</td>
+          <td><button class="btn-icon btn-delete" onclick="eliminarMaterialReferencia(${b.id})">✕</button></td>
+        </tr>
+      `;
+    });
+  }
+}
+
+async function agregarMaterialReferencia() {
+  if (!referenciaActivaId) return;
+
+  const idMaterial = document.getElementById('bom-material').value;
+  const cantidad = document.getElementById('bom-cantidad').value;
+  const merma = document.getElementById('bom-merma').value;
+
+  if (!idMaterial) { Toast.warning('Seleccione un material'); return; }
+  if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) { Toast.warning('Ingrese cantidad por unidad'); return; }
+
+  const data = await api(`/api/referencias/${referenciaActivaId}/materiales`, {
+    method: 'POST',
+    body: JSON.stringify({
+      id_material: parseInt(idMaterial),
+      cantidad_por_unidad: parseFloat(cantidad),
+      merma_porcentaje: parseFloat(merma) || 0
+    }),
+    _btn: event.target
+  });
+
+  if (data) {
+    Toast.success('Material asociado a la referencia');
+    document.getElementById('bom-cantidad').value = '';
+    document.getElementById('bom-merma').value = '';
+    cargarMaterialesReferencia(referenciaActivaId);
+  }
+}
+
+async function eliminarMaterialReferencia(id) {
+  const ok = await Modal.confirm('Quitar Material', '¿Quitar este material de la referencia?');
+  if (!ok) return;
+  const data = await api(`/api/materiales-referencia/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Material removido');
+    cargarMaterialesReferencia(referenciaActivaId);
+  }
+}
+
+function cerrarMaterialesOrden() {
+  const panel = document.getElementById('orden-materiales-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+async function verMaterialesOrden(idOrden) {
+  const data = await api(`/api/ordenes/${idOrden}/materiales`);
+  if (!data) return;
+
+  const panel = document.getElementById('orden-materiales-panel');
+  panel.style.display = 'block';
+  document.getElementById('orden-materiales-titulo').innerText = `Materiales para ${data.nombre_orden} (lote: ${data.cantidad_lote})`;
+
+  const tbody = document.getElementById('lista-orden-materiales');
+  tbody.innerHTML = '';
+  data.materiales.forEach(m => {
+    tbody.innerHTML += `
+      <tr>
+        <td><strong>${m.nombre}</strong></td>
+        <td>${m.unidad || '-'}</td>
+        <td>${m.cantidad_por_unidad}</td>
+        <td>${m.merma_porcentaje}%</td>
+        <td class="text-accent">${m.cantidad_requerida}</td>
+        <td>${m.costo_estimado ? '$' + m.costo_estimado.toLocaleString() : '-'}</td>
+      </tr>
+    `;
+  });
+
+  const total = document.getElementById('orden-materiales-total');
+  total.innerText = data.materiales.length
+    ? `Costo estimado total: $${data.total_costo_estimado.toLocaleString()}`
+    : 'Esta referencia no tiene materiales asociados en su BOM.';
+
+  panel.scrollIntoView({ behavior: 'smooth' });
 }
 
 // ============================================================
@@ -1002,14 +1504,14 @@ function finalizarReferencia() {
 let idAsignacionEnEdicion = null;
 
 async function cargarDatosProgramacion() {
-  const dataRef = await api('/api/referencias-disponibles');
+  const dataRef = await api('/api/ordenes-disponibles');
   if (!dataRef) return;
 
   const selRef = document.getElementById('prog-referencia');
   const valActual = selRef.value;
-  selRef.innerHTML = '<option value="">Seleccione Referencia...</option>';
-  dataRef.forEach(r => {
-    selRef.innerHTML += `<option value="${r.id}">${r.nombre}</option>`;
+  selRef.innerHTML = '<option value="">Seleccione Orden...</option>';
+  dataRef.forEach(o => {
+    selRef.innerHTML += `<option value="${o.id}">${o.nombre_orden} (${o.referencia})</option>`;
   });
 
   const dataMod = await api('/api/modulos');
@@ -1027,18 +1529,18 @@ async function cargarDatosProgramacion() {
 }
 
 async function verificarDisponibilidad() {
-  const idRef = document.getElementById('prog-referencia').value;
+  const idOrden = document.getElementById('prog-referencia').value;
   const label = document.getElementById('prog-disponibilidad');
   const hint = document.getElementById('prog-cantidad-hint');
 
-  if (!idRef || idRef === '-1') {
-    if (idRef === '-1') return;
+  if (!idOrden || idOrden === '-1') {
+    if (idOrden === '-1') return;
     label.innerText = 'Disponible: - / Total: -';
     if (hint) hint.innerText = '';
     return;
   }
 
-  const data = await api(`/api/referencias/${idRef}/disponibilidad`);
+  const data = await api(`/api/ordenes/${idOrden}/disponibilidad`);
   if (data) {
     label.innerText = `Disponible: ${data.disponible} / Total: ${data.total}`;
     if (hint) {
@@ -1055,12 +1557,12 @@ async function verificarDisponibilidad() {
 }
 
 async function guardarAsignacion() {
-  const idRef = document.getElementById('prog-referencia').value;
+  const idOrden = document.getElementById('prog-referencia').value;
   const idMod = document.getElementById('prog-modulo').value;
   const cant = document.getElementById('prog-cantidad').value;
 
   let valid = true;
-  if (!idRef) { showFieldError('prog-referencia', 'Seleccione referencia'); valid = false; }
+  if (!idOrden) { showFieldError('prog-referencia', 'Seleccione una orden'); valid = false; }
   else { clearFieldErrors('prog-referencia'); }
 
   if (!idMod) { showFieldError('prog-modulo', 'Seleccione módulo'); valid = false; }
@@ -1090,7 +1592,7 @@ async function guardarAsignacion() {
   const data = await api('/api/asignaciones', {
     method: 'POST',
     body: JSON.stringify({
-      id_referencia: parseInt(idRef),
+      id_orden: parseInt(idOrden),
       id_modulo: parseInt(idMod),
       cantidad: parseInt(cant)
     }),
@@ -1120,14 +1622,16 @@ async function cargarAsignaciones() {
     empty.style.display = 'none';
     data.forEach(a => {
       const refSafe = a.referencia.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const ordenSafe = (a.orden || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
       const modSafe = a.modulo.replace(/'/g, "\\'").replace(/"/g, '&quot;');
       tbody.innerHTML += `
         <tr>
+          <td><span class="badge badge-hour">${a.orden}</span></td>
           <td>${a.referencia}</td>
           <td><span class="badge badge-module">${a.modulo}</span></td>
           <td class="text-accent">${a.cantidad}</td>
           <td class="action-buttons">
-            <button class="btn-icon btn-edit" onclick="iniciarEdicionAsignacion(${a.id}, ${a.cantidad}, '${refSafe}', '${modSafe}')">✎</button>
+            <button class="btn-icon btn-edit" onclick="iniciarEdicionAsignacion(${a.id}, ${a.cantidad}, ${a.id_orden}, '${ordenSafe}', '${modSafe}')">✎</button>
             <button class="btn-icon btn-delete" onclick="eliminarAsignacion(${a.id})">✕</button>
           </td>
         </tr>
@@ -1150,7 +1654,7 @@ async function eliminarAsignacion(id) {
   }
 }
 
-function iniciarEdicionAsignacion(id, cantidad, nombreRef, nombreMod) {
+function iniciarEdicionAsignacion(id, cantidad, idOrden, nombreOrden, nombreMod) {
   idAsignacionEnEdicion = id;
 
   const btn = document.querySelector('#mod-programacion .btn-primary');
@@ -1164,13 +1668,14 @@ function iniciarEdicionAsignacion(id, cantidad, nombreRef, nombreMod) {
   selRef.disabled = true;
   selMod.disabled = true;
 
+  // Seleccionar la orden por id (puede ser un placeholder -1 si ya no está disponible)
   let foundRef = false;
   for (let op of selRef.options) {
-    if (op.text === nombreRef) { selRef.value = op.value; foundRef = true; break; }
+    if (op.value === String(idOrden)) { selRef.value = op.value; foundRef = true; break; }
   }
   if (!foundRef) {
     const opt = document.createElement('option');
-    opt.text = nombreRef + ' (Actual)';
+    opt.text = nombreOrden + ' (Actual)';
     opt.value = '-1';
     opt.selected = true;
     selRef.add(opt);
@@ -1265,9 +1770,10 @@ async function cargarReferenciasPorModulo() {
   const refs = await api(`/api/modulos/${idMod}/referencias-asignadas`);
   if (!refs) return;
 
-  selRef.innerHTML = '<option value="">Seleccione Referencia...</option>';
+  selRef.innerHTML = '<option value="">Seleccione Asignación...</option>';
   refs.forEach(r => {
-    selRef.innerHTML += `<option value="${r.id}" data-ref-id="${r.id_referencia}">${r.nombre}</option>`;
+    const etiqueta = r.nombre_orden ? `${r.nombre_orden} - ${r.nombre}` : r.nombre;
+    selRef.innerHTML += `<option value="${r.id}" data-ref-id="${r.id_referencia}">${etiqueta}</option>`;
   });
   selRef.disabled = false;
 
@@ -1618,165 +2124,6 @@ function renderizarResultados(data) {
 }
 
 // ============================================================
-// EMPLEADOS
-// ============================================================
-
-let idEmpleadoEnEdicion = null;
-
-async function cargarEmpleados() {
-  const datos = await api('/api/empleados');
-  if (!datos) return;
-
-  const tbody = document.getElementById('lista-empleados');
-  const empty = document.getElementById('empty-empleados');
-
-  tbody.innerHTML = '';
-  if (datos.length === 0) {
-    empty.style.display = 'block';
-  } else {
-    empty.style.display = 'none';
-    datos.forEach(e => {
-      const estadoClass = e.estado === 'Activo' ? 'badge-module' : 'badge-machine';
-      tbody.innerHTML += `
-        <tr>
-          <td><strong>${e.nombre}</strong></td>
-          <td>${e.numero_documento}</td>
-          <td>${e.cargo}</td>
-          <td>${e.especialidad || '-'}</td>
-          <td>${e.turno ? `<span class="badge badge-hour">${e.turno}</span>` : '-'}</td>
-          <td>${e.nombre_modulo || '-'}</td>
-          <td><span class="badge ${estadoClass}">${e.estado}</span></td>
-          <td class="action-buttons">
-            <button class="btn-icon btn-edit" onclick='editarEmpleado(${JSON.stringify(e).replace(/'/g, "\\'")})'>✎</button>
-            <button class="btn-icon btn-delete" onclick="eliminarEmpleado(${e.id})">✕</button>
-          </td>
-        </tr>
-      `;
-    });
-  }
-}
-
-async function cargarSelectsEmpleados() {
-  const maquinas = await api('/api/maquinaria');
-  const modulos = await api('/api/modulos');
-
-  if (maquinas) {
-    const selectEsp = document.getElementById('input-empleado-especialidad');
-    selectEsp.innerHTML = '<option value="">Seleccione...</option>';
-    maquinas.forEach(m => {
-      selectEsp.innerHTML += `<option value="${m.nombre}">${m.nombre}</option>`;
-    });
-  }
-
-  if (modulos) {
-    const selectMod = document.getElementById('input-empleado-modulo');
-    selectMod.innerHTML = '<option value="">Sin asignar</option>';
-    modulos.forEach(m => {
-      selectMod.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
-    });
-  }
-}
-
-async function guardarEmpleado() {
-  const nombre = document.getElementById('input-empleado-nombre').value.trim();
-  const documento = document.getElementById('input-empleado-doc').value.trim();
-  const cargo = document.getElementById('input-empleado-cargo').value;
-
-  let valid = true;
-  if (!nombre) { showFieldError('input-empleado-nombre', 'Campo requerido'); valid = false; }
-  else { clearFieldErrors('input-empleado-nombre'); }
-
-  if (!documento) { showFieldError('input-empleado-doc', 'Campo requerido'); valid = false; }
-  else { clearFieldErrors('input-empleado-doc'); }
-
-  if (!cargo) { showFieldError('input-empleado-cargo', 'Campo requerido'); valid = false; }
-  else { clearFieldErrors('input-empleado-cargo'); }
-
-  if (!valid) return;
-
-  const payload = {
-    nombre,
-    numero_documento: documento,
-    cargo,
-    especialidad: document.getElementById('input-empleado-especialidad').value || null,
-    turno: document.getElementById('input-empleado-turno').value || null,
-    modulo_asignado: document.getElementById('input-empleado-modulo').value || null,
-    fecha_ingreso: document.getElementById('input-empleado-fecha').value || null,
-    telefono: document.getElementById('input-empleado-tel').value.trim() || null,
-    email: document.getElementById('input-empleado-email').value.trim() || null,
-    estado: document.getElementById('input-empleado-estado').value
-  };
-
-  let url = '/api/empleados';
-  let method = 'POST';
-  if (idEmpleadoEnEdicion) {
-    url = `/api/empleados/${idEmpleadoEnEdicion}`;
-    method = 'PUT';
-  }
-
-  const data = await api(url, {
-    method,
-    body: JSON.stringify(payload),
-    _btn: event.target
-  });
-
-  if (data) {
-    limpiarFormularioEmpleado();
-    Toast.success(data.mensaje || 'Empleado guardado');
-    cargarEmpleados();
-  }
-}
-
-function editarEmpleado(empleado) {
-  idEmpleadoEnEdicion = empleado.id;
-  document.getElementById('input-empleado-nombre').value = empleado.nombre;
-  document.getElementById('input-empleado-doc').value = empleado.numero_documento;
-  document.getElementById('input-empleado-cargo').value = empleado.cargo;
-  document.getElementById('input-empleado-especialidad').value = empleado.especialidad || '';
-  document.getElementById('input-empleado-turno').value = empleado.turno || '';
-  document.getElementById('input-empleado-modulo').value = empleado.modulo_asignado || '';
-  document.getElementById('input-empleado-fecha').value = empleado.fecha_ingreso || '';
-  document.getElementById('input-empleado-tel').value = empleado.telefono || '';
-  document.getElementById('input-empleado-email').value = empleado.email || '';
-  document.getElementById('input-empleado-estado').value = empleado.estado;
-
-  const btn = document.querySelector('#mod-empleados .btn-primary');
-  btn.textContent = 'Actualizar Empleado';
-  btn.style.background = 'var(--accent-blue)';
-
-  document.getElementById('mod-empleados').scrollIntoView({ behavior: 'smooth' });
-}
-
-function limpiarFormularioEmpleado() {
-  idEmpleadoEnEdicion = null;
-  document.getElementById('input-empleado-nombre').value = '';
-  document.getElementById('input-empleado-doc').value = '';
-  document.getElementById('input-empleado-cargo').value = '';
-  document.getElementById('input-empleado-especialidad').value = '';
-  document.getElementById('input-empleado-turno').value = '';
-  document.getElementById('input-empleado-modulo').value = '';
-  document.getElementById('input-empleado-fecha').value = '';
-  document.getElementById('input-empleado-tel').value = '';
-  document.getElementById('input-empleado-email').value = '';
-  document.getElementById('input-empleado-estado').value = 'Activo';
-
-  const btn = document.querySelector('#mod-empleados .btn-primary');
-  btn.textContent = 'Guardar Empleado';
-  btn.style.background = 'var(--accent-success)';
-}
-
-async function eliminarEmpleado(id) {
-  const ok = await Modal.confirm('Eliminar Empleado', '¿Estás seguro de eliminar este empleado? Esta acción no se puede deshacer.');
-  if (!ok) return;
-
-  const data = await api(`/api/empleados/${id}`, { method: 'DELETE' });
-  if (data) {
-    Toast.success('Empleado eliminado');
-    cargarEmpleados();
-  }
-}
-
-// ============================================================
 // INICIALIZACIÓN
 // ============================================================
 
@@ -1786,10 +2133,13 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarModulos();
   cargarEmpleados();
   cargarSelectModulos();
+  cargarMateriales();
   cargarHoras();
   cargarParadas();
   cargarOperaciones();
   cargarReferencias();
+  cargarOrdenes();
+  cargarSelectOrdenesRef();
   cargarDatosProgramacion();
   cargarAsignaciones();
 });

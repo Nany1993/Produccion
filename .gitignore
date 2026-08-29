@@ -1,6 +1,12 @@
 # Base de datos (se regenera con seed_data.py)
 balanceo_produccion.db
 
+# Cargas del navegador (prototipo, fotos)
+uploads/
+
+# Herramientas de navegación automatizada
+.playwright-mcp/
+
 # Python
 __pycache__/
 *.py[cod]

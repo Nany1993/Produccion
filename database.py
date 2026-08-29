@@ -123,10 +123,10 @@ def inicializar_base_de_datos():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS AsignacionModulo (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                id_referencia INTEGER NOT NULL,
+                id_orden INTEGER NOT NULL,
                 id_modulo INTEGER NOT NULL,
                 cantidad_asignada INTEGER NOT NULL,
-                FOREIGN KEY (id_referencia) REFERENCES ReferenciaProducto(id),
+                FOREIGN KEY (id_orden) REFERENCES OrdenProduccion(id),
                 FOREIGN KEY (id_modulo) REFERENCES ModuloConfeccion(id)
             );
         """)
@@ -177,15 +177,31 @@ def inicializar_base_de_datos():
 
 
 
-        # 4. Tabla ReferenciaProducto
+        # 4. Tabla ReferenciaProducto (catálogo del modelo, SIN lote)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ReferenciaProducto (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre_referencia TEXT NOT NULL,
+                especificaciones TEXT,
+                foto TEXT,
                 fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
         print("- Tabla 'ReferenciaProducto' lista.")
+
+        # 4b. Tabla OrdenProduccion (el lote) [NUEVA]
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS OrdenProduccion (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_referencia INTEGER NOT NULL,
+                nombre_orden TEXT NOT NULL,
+                cantidad_lote INTEGER NOT NULL,
+                estado TEXT DEFAULT 'Abierta',
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (id_referencia) REFERENCES ReferenciaProducto(id)
+            );
+        """)
+        print("- Tabla 'OrdenProduccion' lista.")
 
         # 5. Tabla ReferenciaDetalle
         cursor.execute("""
@@ -202,13 +218,33 @@ def inicializar_base_de_datos():
         """)
         print("- Tabla 'ReferenciaDetalle' lista.")
 
-        # MIGRACIÓN: Agregar columna cantidad_lote si no existe
-        try:
-            cursor.execute("ALTER TABLE ReferenciaProducto ADD COLUMN cantidad_lote INTEGER DEFAULT 0;")
-            print("- Migración: Columna 'cantidad_lote' agregada a ReferenciaProducto.")
-        except sqlite3.OperationalError:
-            # La columna ya existe
-            pass
+        # 2h. Tabla Materiales (catálogo de insumos) [NUEVA]
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Materiales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                unidad TEXT,
+                costo_unitario REAL,
+                proveedor TEXT,
+                descripcion TEXT
+            );
+        """)
+        print("- Tabla 'Materiales' lista.")
+
+        # 2i. Tabla ReferenciaMaterial (BOM: materiales por referencia) [NUEVA]
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ReferenciaMaterial (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_referencia INTEGER NOT NULL,
+                id_material INTEGER NOT NULL,
+                cantidad_por_unidad REAL NOT NULL,
+                merma_porcentaje REAL DEFAULT 0,
+                nota TEXT,
+                FOREIGN KEY (id_referencia) REFERENCES ReferenciaProducto(id) ON DELETE CASCADE,
+                FOREIGN KEY (id_material) REFERENCES Materiales(id)
+            );
+        """)
+        print("- Tabla 'ReferenciaMaterial' lista.")
 
         # MIGRACIÓN: Agregar columnas nuevas si no existen
         migraciones = [
@@ -226,6 +262,8 @@ def inicializar_base_de_datos():
             ("HorasProduccion", "turno", "TEXT"),
             ("ParadasProgramadas", "tipo", "TEXT DEFAULT 'Opcional'"),
             ("ParadasProgramadas", "frecuencia", "TEXT DEFAULT 'Diaria'"),
+            ("ReferenciaProducto", "especificaciones", "TEXT"),
+            ("ReferenciaProducto", "foto", "TEXT"),
         ]
         
         for tabla, columna, tipo in migraciones:
@@ -338,19 +376,27 @@ def eliminar_operacion(id_operacion):
 
 # --- REFERENCIAS ---
 
-def crear_referencia(nombre, cantidad_lote=0):
+def crear_referencia(nombre, especificaciones=None, foto=None):
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO ReferenciaProducto (nombre_referencia, cantidad_lote) VALUES (?, ?)", (nombre, cantidad_lote))
+    cursor.execute("INSERT INTO ReferenciaProducto (nombre_referencia, especificaciones, foto) VALUES (?, ?, ?)", (nombre, especificaciones, foto))
     ref_id = cursor.lastrowid
     conexion.commit()
     conexion.close()
     return ref_id
 
-def actualizar_referencia(id_ref, nombre, cantidad_lote):
+def actualizar_referencia(id_ref, nombre, especificaciones=None, foto=None):
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    cursor.execute("UPDATE ReferenciaProducto SET nombre_referencia = ?, cantidad_lote = ? WHERE id = ?", (nombre, cantidad_lote, id_ref))
+    cursor.execute("UPDATE ReferenciaProducto SET nombre_referencia = ?, especificaciones = ?, foto = ? WHERE id = ?",
+                   (nombre, especificaciones, foto, id_ref))
+    conexion.commit()
+    conexion.close()
+
+def actualizar_foto_referencia(id_ref, foto):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("UPDATE ReferenciaProducto SET foto = ? WHERE id = ?", (foto, id_ref))
     conexion.commit()
     conexion.close()
 
@@ -359,16 +405,17 @@ def duplicar_referencia(id_origen, nuevo_nombre):
     cursor = conexion.cursor()
     
     # 1. Obtener datos origen
-    cursor.execute("SELECT cantidad_lote FROM ReferenciaProducto WHERE id = ?", (id_origen,))
+    cursor.execute("SELECT especificaciones, foto FROM ReferenciaProducto WHERE id = ?", (id_origen,))
     row = cursor.fetchone()
     if not row:
         conexion.close()
         return None # No existe
     
-    cantidad = row[0]
+    especificaciones, foto = row
     
     # 2. Crear nueva referencia
-    cursor.execute("INSERT INTO ReferenciaProducto (nombre_referencia, cantidad_lote) VALUES (?, ?)", (nuevo_nombre, cantidad))
+    cursor.execute("INSERT INTO ReferenciaProducto (nombre_referencia, especificaciones, foto) VALUES (?, ?, ?)",
+                   (nuevo_nombre, especificaciones, foto))
     nuevo_id = cursor.lastrowid
     
     # 3. Copiar detalles
@@ -423,9 +470,10 @@ def obtener_asignaciones():
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
     query = """
-        SELECT a.id, r.nombre_referencia, m.nombre, a.cantidad_asignada, r.cantidad_lote
+        SELECT a.id, o.nombre_orden, r.nombre_referencia, m.nombre, a.cantidad_asignada, o.cantidad_lote, o.id
         FROM AsignacionModulo a
-        JOIN ReferenciaProducto r ON a.id_referencia = r.id
+        JOIN OrdenProduccion o ON a.id_orden = o.id
+        JOIN ReferenciaProducto r ON o.id_referencia = r.id
         JOIN ModuloConfeccion m ON a.id_modulo = m.id
         ORDER BY a.id DESC
     """
@@ -434,26 +482,28 @@ def obtener_asignaciones():
     conexion.close()
     return [{
         "id": row[0],
-        "referencia": row[1],
-        "modulo": row[2],
-        "cantidad": row[3],
-        "total_lote": row[4]
+        "orden": row[1],
+        "referencia": row[2],
+        "modulo": row[3],
+        "cantidad": row[4],
+        "total_lote": row[5],
+        "id_orden": row[6]
     } for row in data]
 
-def obtener_disponibilidad(id_ref):
+def obtener_disponibilidad(id_orden):
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
     
-    # 1. Obtener lote total
-    cursor.execute("SELECT cantidad_lote FROM ReferenciaProducto WHERE id = ?", (id_ref,))
+    # 1. Obtener lote total (de la orden)
+    cursor.execute("SELECT cantidad_lote FROM OrdenProduccion WHERE id = ?", (id_orden,))
     res = cursor.fetchone()
     if not res:
         conexion.close()
         return None
     total_lote = res[0]
     
-    # 2. Obtener ya asignado
-    cursor.execute("SELECT SUM(cantidad_asignada) FROM AsignacionModulo WHERE id_referencia = ?", (id_ref,))
+    # 2. Obtener ya asignado (por orden)
+    cursor.execute("SELECT SUM(cantidad_asignada) FROM AsignacionModulo WHERE id_orden = ?", (id_orden,))
     res_asignado = cursor.fetchone()
     total_asignado = res_asignado[0] if res_asignado[0] else 0
     
@@ -464,18 +514,18 @@ def obtener_disponibilidad(id_ref):
         "disponible": total_lote - total_asignado
     }
 
-def asignar_referencia_modulo(id_ref, id_mod, cantidad):
-    disp = obtener_disponibilidad(id_ref)
+def asignar_referencia_modulo(id_orden, id_mod, cantidad):
+    disp = obtener_disponibilidad(id_orden)
     if not disp:
-        return {"error": "Referencia no encontrada"}
+        return {"error": "Orden no encontrada"}
     
     if cantidad > disp['disponible']:
         return {"error": f"Excede disponibilidad. Disponible: {disp['disponible']}"}
     
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO AsignacionModulo (id_referencia, id_modulo, cantidad_asignada) VALUES (?, ?, ?)", 
-                   (id_ref, id_mod, cantidad))
+    cursor.execute("INSERT INTO AsignacionModulo (id_orden, id_modulo, cantidad_asignada) VALUES (?, ?, ?)", 
+                   (id_orden, id_mod, cantidad))
     conexion.commit()
     conexion.close()
     return {"mensaje": "Asignado correctamente"}
@@ -492,16 +542,16 @@ def actualizar_asignacion(id_asignacion, nueva_cantidad):
     cursor = conexion.cursor()
     
     # Obtener datos actuales
-    cursor.execute("SELECT id_referencia, cantidad_asignada FROM AsignacionModulo WHERE id = ?", (id_asignacion,))
+    cursor.execute("SELECT id_orden, cantidad_asignada FROM AsignacionModulo WHERE id = ?", (id_asignacion,))
     row = cursor.fetchone()
     if not row:
         conexion.close()
         return {"error": "Asignación no encontrada"}
     
-    id_ref, cantidad_anterior = row
+    id_orden, cantidad_anterior = row
     
     # Verificar disponibilidad con el ajuste
-    disp = obtener_disponibilidad(id_ref)
+    disp = obtener_disponibilidad(id_orden)
     # Al hacer update, el 'disponible' real es: disponible_actual + cantidad_anterior
     max_posible = disp['disponible'] + cantidad_anterior
     
@@ -514,32 +564,31 @@ def actualizar_asignacion(id_asignacion, nueva_cantidad):
     conexion.close()
     return {"mensaje": "Actualizado correctamente"}
 
-def obtener_referencias_disponibles():
+def obtener_ordenes_disponibles():
+    """Órdenes abiertas cuyo lote > asignado."""
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    # Seleccionar referencias cuyo lote > asignado
-    # Left join para incluir las que no tienen asignaciones (SUM es null -> 0)
     query = """
-        SELECT r.id, r.nombre_referencia
-        FROM ReferenciaProducto r
-        LEFT JOIN AsignacionModulo a ON r.id = a.id_referencia
-        GROUP BY r.id
-        HAVING r.cantidad_lote > COALESCE(SUM(a.cantidad_asignada), 0)
+        SELECT o.id, o.nombre_orden, r.nombre_referencia
+        FROM OrdenProduccion o
+        JOIN ReferenciaProducto r ON o.id_referencia = r.id
+        LEFT JOIN AsignacionModulo a ON o.id = a.id_orden
+        GROUP BY o.id
+        HAVING o.cantidad_lote > COALESCE(SUM(a.cantidad_asignada), 0)
+        AND o.estado != 'Cerrada'
     """
     cursor.execute(query)
     filas = cursor.fetchall()
     conexion.close()
-    return [{"id": f[0], "nombre": f[1]} for f in filas]
+    return [{"id": f[0], "nombre_orden": f[1], "referencia": f[2]} for f in filas]
 
 def obtener_referencias():
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
-    # Intentamos seleccionar cantidad_lote, si no existe (versión vieja), no fallará si la migración se hace bien.
-    # Pero para seguridad, asumiremos que ya existe tras la migración.
-    cursor.execute("SELECT id, nombre_referencia, fecha_creacion, cantidad_lote FROM ReferenciaProducto ORDER BY id DESC")
+    cursor.execute("SELECT id, nombre_referencia, especificaciones, foto, fecha_creacion FROM ReferenciaProducto ORDER BY id DESC")
     filas = cursor.fetchall()
     conexion.close()
-    return [{"id": f[0], "nombre": f[1], "fecha": f[2], "cantidad": f[3]} for f in filas]
+    return [{"id": f[0], "nombre": f[1], "especificaciones": f[2], "foto": f[3], "fecha": f[4]} for f in filas]
 
 def eliminar_referencia(id_ref):
     conexion = sqlite3.connect(DB_NAME)
@@ -548,6 +597,218 @@ def eliminar_referencia(id_ref):
     cursor.execute("DELETE FROM ReferenciaProducto WHERE id = ?", (id_ref,))
     conexion.commit()
     conexion.close()
+
+
+# --- ORDENES DE PRODUCCIÓN (LOTES) ---
+
+def obtener_ordenes():
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    query = """
+        SELECT o.id, o.nombre_orden, r.nombre_referencia, o.cantidad_lote,
+               o.estado, o.fecha_creacion, r.id as id_referencia
+        FROM OrdenProduccion o
+        JOIN ReferenciaProducto r ON o.id_referencia = r.id
+        ORDER BY o.id DESC
+    """
+    cursor.execute(query)
+    filas = cursor.fetchall()
+    conexion.close()
+    return [{
+        "id": f[0],
+        "nombre_orden": f[1],
+        "referencia": f[2],
+        "cantidad_lote": f[3],
+        "estado": f[4],
+        "fecha_creacion": f[5],
+        "id_referencia": f[6]
+    } for f in filas]
+
+def crear_orden(id_referencia, nombre_orden, cantidad_lote):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        INSERT INTO OrdenProduccion (id_referencia, nombre_orden, cantidad_lote)
+        VALUES (?, ?, ?)
+    """, (id_referencia, nombre_orden, cantidad_lote))
+    orden_id = cursor.lastrowid
+    conexion.commit()
+    conexion.close()
+    return orden_id
+
+def actualizar_orden(id_orden, cantidad_lote=None, estado=None):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    campos = []
+    valores = []
+    if cantidad_lote is not None:
+        campos.append("cantidad_lote = ?")
+        valores.append(cantidad_lote)
+    if estado:
+        campos.append("estado = ?")
+        valores.append(estado)
+    if not campos:
+        conexion.close()
+        return {"mensaje": "Nada que actualizar"}
+    valores.append(id_orden)
+    cursor.execute(f"UPDATE OrdenProduccion SET {', '.join(campos)} WHERE id = ?", valores)
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Orden actualizada"}
+
+def eliminar_orden(id_orden):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("DELETE FROM OrdenProduccion WHERE id = ?", (id_orden,))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Orden eliminada"}
+
+
+# ============================================================
+# MATERIALES (BOM)
+# ============================================================
+
+def obtener_materiales():
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("SELECT id, nombre, unidad, costo_unitario, proveedor, descripcion FROM Materiales ORDER BY nombre")
+    filas = cursor.fetchall()
+    conexion.close()
+    return [{
+        "id": f[0],
+        "nombre": f[1],
+        "unidad": f[2],
+        "costo_unitario": f[3],
+        "proveedor": f[4],
+        "descripcion": f[5]
+    } for f in filas]
+
+def insertar_material(nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        INSERT INTO Materiales (nombre, unidad, costo_unitario, proveedor, descripcion)
+        VALUES (?, ?, ?, ?, ?)
+    """, (nombre, unidad, costo_unitario, proveedor, descripcion))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Material guardado", "id": cursor.lastrowid}
+
+def actualizar_material(id_material, nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        UPDATE Materiales
+        SET nombre=?, unidad=?, costo_unitario=?, proveedor=?, descripcion=?
+        WHERE id=?
+    """, (nombre, unidad, costo_unitario, proveedor, descripcion, id_material))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Material actualizado"}
+
+def eliminar_material(id_material):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("DELETE FROM Materiales WHERE id = ?", (id_material,))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Material eliminado"}
+
+def obtener_materiales_referencia(id_referencia):
+    """Materiales asociados a una referencia (BOM)."""
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    query = """
+        SELECT rm.id, m.nombre, m.unidad, rm.cantidad_por_unidad,
+               rm.merma_porcentaje, rm.nota, m.id as id_material,
+               m.costo_unitario
+        FROM ReferenciaMaterial rm
+        JOIN Materiales m ON rm.id_material = m.id
+        WHERE rm.id_referencia = ?
+        ORDER BY m.nombre
+    """
+    cursor.execute(query, (id_referencia,))
+    filas = cursor.fetchall()
+    conexion.close()
+    return [{
+        "id": f[0],
+        "nombre": f[1],
+        "unidad": f[2],
+        "cantidad_por_unidad": f[3],
+        "merma_porcentaje": f[4] or 0,
+        "nota": f[5],
+        "id_material": f[6],
+        "costo_unitario": f[7]
+    } for f in filas]
+
+def agregar_material_referencia(id_referencia, id_material, cantidad_por_unidad, merma_porcentaje=0, nota=None):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("""
+        INSERT INTO ReferenciaMaterial (id_referencia, id_material, cantidad_por_unidad, merma_porcentaje, nota)
+        VALUES (?, ?, ?, ?, ?)
+    """, (id_referencia, id_material, cantidad_por_unidad, merma_porcentaje, nota))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Material asociado a la referencia"}
+
+def eliminar_material_referencia(id_material_ref):
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+    cursor.execute("DELETE FROM ReferenciaMaterial WHERE id = ?", (id_material_ref,))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Material removido de la referencia"}
+
+def calcular_materiales_orden(id_orden):
+    """Calcula el requerimiento total de materiales para un lote:
+    cantidad_por_unidad * cantidad_lote * (1 + merma/100)."""
+    conexion = sqlite3.connect(DB_NAME)
+    cursor = conexion.cursor()
+
+    cursor.execute("SELECT cantidad_lote, id_referencia, nombre_orden FROM OrdenProduccion WHERE id = ?", (id_orden,))
+    fila = cursor.fetchone()
+    if not fila:
+        conexion.close()
+        return None
+    cantidad_lote, id_referencia, nombre_orden = fila
+
+    cursor.execute("""
+        SELECT m.nombre, m.unidad, rm.cantidad_por_unidad, rm.merma_porcentaje,
+               rm.nota, m.costo_unitario
+        FROM ReferenciaMaterial rm
+        JOIN Materiales m ON rm.id_material = m.id
+        WHERE rm.id_referencia = ?
+        ORDER BY m.nombre
+    """, (id_referencia,))
+    filas = cursor.fetchall()
+    conexion.close()
+
+    materiales = []
+    total_costo = 0.0
+    for f in filas:
+        nombre, unidad, cantidad_unidad, merma, nota, costo = f
+        factor = 1 + (merma or 0) / 100.0
+        requerido = round(cantidad_unidad * cantidad_lote * factor, 2)
+        costo_total = round(requerido * (costo or 0), 2) if costo else 0
+        total_costo += costo_total
+        materiales.append({
+            "nombre": nombre,
+            "unidad": unidad,
+            "cantidad_por_unidad": cantidad_unidad,
+            "merma_porcentaje": merma or 0,
+            "cantidad_requerida": requerido,
+            "nota": nota,
+            "costo_estimado": costo_total
+        })
+
+    return {
+        "nombre_orden": nombre_orden,
+        "cantidad_lote": cantidad_lote,
+        "materiales": materiales,
+        "total_costo_estimado": round(total_costo, 2)
+    }
 
 def agregar_detalle_referencia(id_ref, id_op, letra, predecesoras, orden):
     conexion = sqlite3.connect(DB_NAME)
@@ -621,20 +882,21 @@ def insertar_modulo(nombre, capacidad_maxima=None, ubicacion=None, supervisor=No
 
 def obtener_referencias_por_modulo(id_modulo):
     """
-    Obtiene las referencias asignadas a un módulo específico (FK a AsignacionModulo).
+    Obtiene las asignaciones (orden + referencia) de un módulo específico.
     """
     conexion = sqlite3.connect(DB_NAME)
     cursor = conexion.cursor()
     query = """
-        SELECT a.id, r.nombre_referencia, r.id
+        SELECT a.id, r.nombre_referencia, r.id, o.id, o.nombre_orden
         FROM AsignacionModulo a
-        JOIN ReferenciaProducto r ON a.id_referencia = r.id
+        JOIN OrdenProduccion o ON a.id_orden = o.id
+        JOIN ReferenciaProducto r ON o.id_referencia = r.id
         WHERE a.id_modulo = ?
     """
     cursor.execute(query, (id_modulo,))
     filas = cursor.fetchall()
     conexion.close()
-    return [{"id": f[0], "nombre": f[1], "id_referencia": f[2]} for f in filas]
+    return [{"id": f[0], "nombre": f[1], "id_referencia": f[2], "id_orden": f[3], "nombre_orden": f[4]} for f in filas]
 
 def validar_porcion_tiempo(cursor, id_modulo, id_hora, fecha, nueva_porcion, id_control_ignorar=None):
     """
@@ -727,7 +989,8 @@ def obtener_controles_hoy(fecha_hoy):
         FROM ControlHoraHora c
         JOIN ModuloConfeccion m ON c.id_modulo = m.id
         JOIN AsignacionModulo a ON c.id_asignacion = a.id
-        JOIN ReferenciaProducto r ON a.id_referencia = r.id
+        JOIN OrdenProduccion o ON a.id_orden = o.id
+        JOIN ReferenciaProducto r ON o.id_referencia = r.id
         JOIN HorasProduccion h ON c.id_hora = h.id
         JOIN ParadasProgramadas p ON c.id_parada_programada = p.id
         WHERE c.fecha = ?
@@ -859,7 +1122,8 @@ def obtener_controles_rango(fecha_inicio, fecha_fin):
         FROM ControlHoraHora c
         JOIN ModuloConfeccion m ON c.id_modulo = m.id
         JOIN AsignacionModulo a ON c.id_asignacion = a.id
-        JOIN ReferenciaProducto r ON a.id_referencia = r.id
+        JOIN OrdenProduccion o ON a.id_orden = o.id
+        JOIN ReferenciaProducto r ON o.id_referencia = r.id
         JOIN HorasProduccion h ON c.id_hora = h.id
         WHERE c.fecha BETWEEN ? AND ?
         ORDER BY h.id ASC, m.id ASC

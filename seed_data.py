@@ -1,6 +1,7 @@
 import sqlite3
 import random
 from datetime import date, timedelta
+from database import inicializar_base_de_datos
 
 DB_NAME = "balanceo_produccion.db"
 
@@ -15,6 +16,9 @@ def limpiar_tablas(conn):
         "ControlHoraHora",
         "Empleados",
         "AsignacionModulo",
+        "OrdenProduccion",
+        "ReferenciaMaterial",
+        "Materiales",
         "ReferenciaDetalle",
         "ReferenciaProducto",
         "Operacion",
@@ -130,20 +134,36 @@ def seed_referencias(conn):
     cursor = conn.cursor()
 
     referencias = [
-        ("Gorra Snapback Clasica", 30000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 15, 16, 17, 18, 19, 20]),
-        ("Gorra Trucker Malla", 25000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20]),
-        ("Gorra Dad Hat Curvada", 20000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 19, 20]),
-        ("Gorra 5 Panel Camp", 18000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 15, 17, 18, 19, 20]),
-        ("Gorra Deportiva Dry-Fit", 35000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19, 20]),
-        ("Gorra Military Flat", 15000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 15, 17, 18, 19, 20]),
-        ("Gorra Bucket Hat", 28000, [1, 2, 3, 7, 8, 9, 15, 17, 18, 19, 20]),
-        ("Gorra Snapback Premium Bordada", 12000, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20]),
+        ("Gorra Snapback Clasica",
+         "Gorra 6 paneles, costo recto, visera curva 60° con 7 líneas de costura, cierre snapback ajustable.",
+         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 15, 16, 17, 18, 19, 20]),
+        ("Gorra Trucker Malla",
+         "Gorra con paneles frontales de poliéster y malla transpirable atrás, visera plana recta, cierre snapback.",
+         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20]),
+        ("Gorra Dad Hat Curvada",
+         "Gorra tipo dad hat, 6 paneles, acabado lavado, visera premoldeada curva, ajuste trasero con tira y hebilla.",
+         [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 19, 20]),
+        ("Gorra 5 Panel Camp",
+         "Gorra estilo camp/cap 5 paneles sin costura central, visera corta curva, ajuste trasero de tira deslizable.",
+         [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 15, 17, 18, 19, 20]),
+        ("Gorra Deportiva Dry-Fit",
+         "Gorra deportiva de microfibra dry-fit, 6 paneles transpirables, banda interior de secado rápido, cierre velcro.",
+         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19, 20]),
+        ("Gorra Military Flat",
+         "Gorra estilo militar, 6 paneles rígidos, visera plana larga, cierre snapback, tejido antipliegue.",
+         [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 15, 17, 18, 19, 20]),
+        ("Gorra Bucket Hat",
+         "Gorra tipo pescador (bucket), ala ancha, 6 paneles, tela de algodón lavado, sin estructura rígida.",
+         [1, 2, 3, 7, 8, 9, 15, 17, 18, 19, 20]),
+        ("Gorra Snapback Premium Bordada",
+         "Gorra premium 6 paneles, visera plana 90°, bordado 3D a todo color, banda interior de cinta, cierre snapback metálico.",
+         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20]),
     ]
 
-    for nombre, lote, ops in referencias:
+    for nombre, especificaciones, ops in referencias:
         cursor.execute(
-            "INSERT INTO ReferenciaProducto (nombre_referencia, cantidad_lote) VALUES (?, ?)",
-            (nombre, lote)
+            "INSERT INTO ReferenciaProducto (nombre_referencia, especificaciones) VALUES (?, ?)",
+            (nombre, especificaciones)
         )
         ref_id = cursor.lastrowid
 
@@ -159,19 +179,47 @@ def seed_referencias(conn):
     conn.commit()
     print(f"{len(referencias)} referencias con secuencias insertadas.")
 
+def seed_ordenes(conn):
+    cursor = conn.cursor()
+
+    # Una referencia puede tener varios lotes (órdenes)
+    cursor.execute("SELECT id, nombre_referencia FROM ReferenciaProducto")
+    refs = cursor.fetchall()
+
+    ordenes = []
+    for ref_id, nombre in refs:
+        # De 1 a 3 órdenes por referencia
+        num_ordenes = random.randint(1, 3)
+        for i in range(num_ordenes):
+            lote = random.randint(8000, 35000)
+            nombre_orden = f"LOTE-{ref_id:03d}-{i+1}"
+            estado = random.choice(['Abierta', 'Abierta', 'Abierta', 'Cerrada'])
+            ordenes.append((ref_id, nombre_orden, lote, estado))
+
+    cursor.executemany(
+        "INSERT INTO OrdenProduccion (id_referencia, nombre_orden, cantidad_lote, estado) VALUES (?, ?, ?, ?)",
+        ordenes
+    )
+    conn.commit()
+    print(f"{len(ordenes)} órdenes de producción insertadas.")
+
 def seed_asignaciones(conn):
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id, cantidad_lote FROM ReferenciaProducto")
-    refs = cursor.fetchall()
+    cursor.execute("SELECT id, cantidad_lote FROM OrdenProduccion")
+    ordenes = cursor.fetchall()
 
     cursor.execute("SELECT id FROM ModuloConfeccion")
     modulos = [r[0] for r in cursor.fetchall()]
 
     asignaciones = []
-    for ref_id, lote in refs:
-        modulos_usados = random.sample(modulos, min(random.randint(2, 4), len(modulos)))
-        restante = lote
+    for orden_id, lote in ordenes:
+        if random.random() < 0.4:
+            continue
+        modulos_usados = random.sample(modulos, min(random.randint(1, 3), len(modulos)))
+        # Dejar margen disponible: repartir entre 50%-90% del lote
+        objetivo = int(lote * random.uniform(0.5, 0.9))
+        restante = objetivo
         for i, mod_id in enumerate(modulos_usados):
             if i == len(modulos_usados) - 1:
                 cant = restante
@@ -179,19 +227,96 @@ def seed_asignaciones(conn):
                 cant = random.randint(restante // (len(modulos_usados) - i) // 2, restante // (len(modulos_usados) - i))
                 cant = min(cant, restante)
             restante -= cant
-            asignaciones.append((ref_id, mod_id, cant))
+            asignaciones.append((orden_id, mod_id, cant))
 
     cursor.executemany(
-        "INSERT INTO AsignacionModulo (id_referencia, id_modulo, cantidad_asignada) VALUES (?, ?, ?)",
+        "INSERT INTO AsignacionModulo (id_orden, id_modulo, cantidad_asignada) VALUES (?, ?, ?)",
         asignaciones
     )
     conn.commit()
     print(f"{len(asignaciones)} asignaciones insertadas.")
 
+def seed_materiales(conn):
+    cursor = conn.cursor()
+
+    materiales = [
+        ("Popelín 120g/m²", "metros", 2500, "Textiles Andinos", "Tela base para corona"),
+        ("Malla transpirable", "metros", 1800, "Textiles Andinos", "Paneles traseros tipo trucker"),
+        ("Microfibra Dry-Fit", "metros", 3200, "Importex", "Tela deportiva de secado rápido"),
+        ("Algodón lavado", "metros", 2800, "Textiles Andinos", "Tela suave para gorras casuales"),
+        ("Entretela de visera", "metros", 900, "Suministros AB", "Rigidez para visera"),
+        ("Banda interior", "metros", 700, "Suministros AB", "Cinta sweatband absorbente"),
+        ("Cinta de refuerzo", "metros", 500, "Sombreritos SA", "Costura de unión paneles"),
+        ("Cierre snapback", "unidades", 1200, "Cierres Expertos", "Ajuste trasero con broches"),
+        ("Cierre velcro", "unidades", 800, "Cierres Expertos", "Ajuste trasero velcro"),
+        ("Tira y hebilla", "unidades", 600, "Sombreritos SA", "Ajuste dad hat"),
+        ("Botón superior", "unidades", 150, "Badia & Cía", "Botón de cierre de paneles"),
+        ("Ojete metálico", "unidades", 80, "Badia & Cía", "Ojetes de ventilación (x2 por gorra)"),
+        ("Hilo de coser", "conos", 15000, "Hilaza Nacional", "Hilo para costura general"),
+        ("Etiqueta interior", "unidades", 200, "Etiquetas PRO", "Etiqueta de talla y marca"),
+        ("Empaque / bolsa", "unidades", 150, "Empaques Eco", "Bolsa para unidad"),
+    ]
+    cursor.executemany("""
+        INSERT INTO Materiales (nombre, unidad, costo_unitario, proveedor, descripcion)
+        VALUES (?, ?, ?, ?, ?)
+    """, materiales)
+
+    # Asociar materiales a referencias (BOM)
+    cursor.execute("SELECT id, nombre_referencia FROM ReferenciaProducto")
+    refs = cursor.fetchall()
+    cursor.execute("SELECT id, nombre FROM Materiales")
+    mats = cursor.fetchall()
+    material_id = {m[1]: m[0] for m in mats}
+
+    # Definir BOM base por tipo de gorra
+    bom_comun = [
+        ("Popelín 120g/m²", 0.30, 5),
+        ("Entretela de visera", 0.20, 3),
+        ("Banda interior", 0.28, 2),
+        ("Hilo de coser", 0.05, 0),
+        ("Etiqueta interior", 1, 0),
+        ("Empaque / bolsa", 1, 0),
+        ("Botón superior", 1, 0),
+        ("Ojete metálico", 2, 0),
+    ]
+    bom_cierre_snap = [("Cierre snapback", 1, 0)]
+    bom_cierre_velcro = [("Cierre velcro", 1, 0)]
+    bom_cierre_hebilla = [("Tira y hebilla", 1, 0)]
+
+    tipo_ref = {
+        "Gorra Snapback Clasica": (bom_comun + bom_cierre_snap, "Popelín 120g/m²"),
+        "Gorra Trucker Malla": (bom_comun + bom_cierre_snap + [("Malla transpirable", 0.18, 3)], "Popelín 120g/m²"),
+        "Gorra Dad Hat Curvada": (bom_comun + bom_cierre_hebilla, "Algodón lavado"),
+        "Gorra 5 Panel Camp": (bom_comun + bom_cierre_hebilla, "Algodón lavado"),
+        "Gorra Deportiva Dry-Fit": (bom_comun + bom_cierre_velcro + [("Microfibra Dry-Fit", 0.32, 4)], "Microfibra Dry-Fit"),
+        "Gorra Military Flat": (bom_comun + bom_cierre_snap, "Popelín 120g/m²"),
+        "Gorra Bucket Hat": (bom_comun, "Algodón lavado"),
+        "Gorra Snapback Premium Bordada": (bom_comun + bom_cierre_snap, "Algodón lavado"),
+    }
+
+    count = 0
+    for ref_id, nombre in refs:
+        bom, tela = tipo_ref.get(nombre, (bom_comun, "Popelín 120g/m²"))
+        # Reemplazar la tela base según tipo
+        filas_finales = []
+        for mat_nombre, cant, merma in bom:
+            if mat_nombre == "Popelín 120g/m²" and tela != "Popelín 120g/m²":
+                mat_nombre = tela
+            filas_finales.append((mat_nombre, cant, merma))
+        for mat_nombre, cant, merma in filas_finales:
+            cursor.execute("""
+                INSERT INTO ReferenciaMaterial (id_referencia, id_material, cantidad_por_unidad, merma_porcentaje)
+                VALUES (?, ?, ?, ?)
+            """, (ref_id, material_id[mat_nombre], cant, merma))
+            count += 1
+
+    conn.commit()
+    print(f"{len(materiales)} materiales y {count} asociaciones BOM insertadas.")
+
 def seed_control_hora(conn, target_registros=1500):
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id, id_referencia, id_modulo, cantidad_asignada FROM AsignacionModulo")
+    cursor.execute("SELECT id, id_orden, id_modulo, cantidad_asignada FROM AsignacionModulo")
     asignaciones = cursor.fetchall()
 
     cursor.execute("SELECT id FROM HorasProduccion")
@@ -204,6 +329,10 @@ def seed_control_hora(conn, target_registros=1500):
 
     cursor.execute("SELECT id_referencia, SUM(o.tiempo_segundos) FROM ReferenciaDetalle rd JOIN Operacion o ON rd.id_operacion = o.id GROUP BY rd.id_referencia")
     tc_cache = dict(cursor.fetchall())
+
+    # Mapear id_orden -> id_referencia para el tiempo de ciclo
+    cursor.execute("SELECT id, id_referencia FROM OrdenProduccion")
+    orden_ref = dict(cursor.fetchall())
 
     hoy = date.today()
     dias_atras = 30
@@ -221,7 +350,7 @@ def seed_control_hora(conn, target_registros=1500):
             break
 
         asig = random.choice(asig_disponibles)
-        asig_id, ref_id, mod_id, cant_asignada = asig
+        asig_id, id_orden, mod_id, cant_asignada = asig
 
         saldo = cant_asignada - produccion_acumulada[asig_id]
         if saldo <= 0:
@@ -233,6 +362,7 @@ def seed_control_hora(conn, target_registros=1500):
         id_hora = random.choice(horas)
         porcion = round(random.choice([0.5, 0.5, 1.0, 1.0, 1.0]), 1)
 
+        ref_id = orden_ref.get(id_orden)
         tc = tc_cache.get(ref_id, 300)
         num_operarios = random.randint(4, 8)
 
@@ -320,12 +450,15 @@ def seed_empleados(conn):
 
 
 def main():
+    inicializar_base_de_datos()
     conn = get_connection()
     try:
         limpiar_tablas(conn)
         seed_catalogos(conn)
         seed_operaciones(conn)
         seed_referencias(conn)
+        seed_materiales(conn)
+        seed_ordenes(conn)
         seed_asignaciones(conn)
         seed_control_hora(conn, target_registros=1200)
         seed_empleados(conn)

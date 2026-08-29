@@ -13,6 +13,7 @@ from database import (
     obtener_referencias,
     eliminar_referencia,
     actualizar_referencia,
+    actualizar_foto_referencia,
     duplicar_referencia,
     agregar_detalle_referencia,
     obtener_horas,
@@ -24,9 +25,21 @@ from database import (
     obtener_disponibilidad,
     eliminar_asignacion,
     actualizar_asignacion,
-    obtener_referencias_disponibles,
+    obtener_ordenes_disponibles,
     obtener_detalles_referencia,
     eliminar_detalle,
+    obtener_ordenes,
+    crear_orden,
+    actualizar_orden,
+    eliminar_orden,
+    obtener_materiales,
+    insertar_material,
+    actualizar_material,
+    eliminar_material,
+    obtener_materiales_referencia,
+    agregar_material_referencia,
+    eliminar_material_referencia,
+    calcular_materiales_orden,
     obtener_modulos,
     insertar_modulo,
     obtener_referencias_por_modulo,
@@ -246,8 +259,11 @@ def add_referencia():
     if not datos or 'nombre' not in datos:
         return jsonify({"error": "Nombre requerido"}), 400
     
-    cantidad = int(datos.get('cantidad', 0))
-    id_ref = crear_referencia(datos['nombre'], cantidad)
+    id_ref = crear_referencia(
+        datos['nombre'],
+        datos.get('especificaciones'),
+        datos.get('foto')
+    )
     return jsonify({"id": id_ref, "mensaje": "Referencia creada"}), 201
 
 @app.route('/api/referencias/<int:id_ref>', methods=['PUT'])
@@ -256,9 +272,27 @@ def update_referencia(id_ref):
     if not datos or 'nombre' not in datos:
         return jsonify({"error": "Nombre requerido"}), 400
     
-    cantidad = int(datos.get('cantidad', 0))
-    actualizar_referencia(id_ref, datos['nombre'], cantidad)
+    actualizar_referencia(id_ref, datos['nombre'], datos.get('especificaciones'), datos.get('foto'))
     return jsonify({"mensaje": "Referencia actualizada"}), 200
+
+@app.route('/api/referencias/<int:id_ref>/foto', methods=['POST'])
+def upload_foto_referencia(id_ref):
+    if 'foto' not in request.files:
+        return jsonify({"error": "No se recibió archivo"}), 400
+    archivo = request.files['foto']
+    if archivo.filename == '':
+        return jsonify({"error": "Archivo vacío"}), 400
+
+    from werkzeug.utils import secure_filename
+    carpeta = os.path.join(os.getcwd(), 'uploads')
+    os.makedirs(carpeta, exist_ok=True)
+    nombre_seguro = secure_filename(archivo.filename)
+    ruta_guardar = os.path.join(carpeta, f"ref_{id_ref}_{nombre_seguro}")
+    archivo.save(ruta_guardar)
+
+    ruta_web = f"/uploads/ref_{id_ref}_{nombre_seguro}"
+    actualizar_foto_referencia(id_ref, ruta_web)
+    return jsonify({"mensaje": "Foto subida", "foto": ruta_web}), 200
 
 @app.route('/api/referencias/<int:id_ref>/duplicar', methods=['POST'])
 def duplicate_referencia_endpoint(id_ref):
@@ -273,6 +307,114 @@ def duplicate_referencia_endpoint(id_ref):
         
     return jsonify({"id": nuevo_id, "mensaje": "Referencia duplicada"}), 201
 
+# --- ORDENES DE PRODUCCIÓN (LOTES) ---
+
+@app.route('/api/ordenes', methods=['GET'])
+def get_ordenes():
+    return jsonify(obtener_ordenes())
+
+@app.route('/api/ordenes', methods=['POST'])
+def add_orden():
+    datos = request.json
+    if not datos or not datos.get('id_referencia') or not datos.get('cantidad_lote'):
+        return jsonify({"error": "Faltan datos (id_referencia, cantidad_lote)"}), 400
+    if not datos.get('nombre_orden'):
+        return jsonify({"error": "Falta nombre_orden"}), 400
+
+    id_orden = crear_orden(
+        int(datos['id_referencia']),
+        datos['nombre_orden'],
+        int(datos['cantidad_lote'])
+    )
+    return jsonify({"id": id_orden, "mensaje": "Orden creada"}), 201
+
+@app.route('/api/ordenes/<int:id_orden>', methods=['PUT'])
+def update_orden_endpoint(id_orden):
+    datos = request.json
+    res = actualizar_orden(
+        id_orden,
+        int(datos['cantidad_lote']) if datos.get('cantidad_lote') else None,
+        datos.get('estado')
+    )
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res)
+
+@app.route('/api/ordenes/<int:id_orden>', methods=['DELETE'])
+def delete_orden_endpoint(id_orden):
+    return jsonify(eliminar_orden(id_orden))
+
+# --- MATERIALES (BOM) ---
+
+@app.route('/api/materiales', methods=['GET'])
+def get_materiales():
+    return jsonify(obtener_materiales())
+
+@app.route('/api/materiales', methods=['POST'])
+def add_material():
+    datos = request.json
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = insertar_material(
+        datos['nombre'],
+        datos.get('unidad'),
+        datos.get('costo_unitario'),
+        datos.get('proveedor'),
+        datos.get('descripcion')
+    )
+    return jsonify(res), 201
+
+@app.route('/api/materiales/<int:id_material>', methods=['PUT'])
+def update_material_endpoint(id_material):
+    datos = request.json
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = actualizar_material(
+        id_material,
+        datos['nombre'],
+        datos.get('unidad'),
+        datos.get('costo_unitario'),
+        datos.get('proveedor'),
+        datos.get('descripcion')
+    )
+    return jsonify(res)
+
+@app.route('/api/materiales/<int:id_material>', methods=['DELETE'])
+def delete_material_endpoint(id_material):
+    return jsonify(eliminar_material(id_material))
+
+# Materiales por referencia (BOM)
+@app.route('/api/referencias/<int:id_ref>/materiales', methods=['GET'])
+def get_materiales_referencia(id_ref):
+    return jsonify(obtener_materiales_referencia(id_ref))
+
+@app.route('/api/referencias/<int:id_ref>/materiales', methods=['POST'])
+def add_material_referencia(id_ref):
+    datos = request.json
+    required = ['id_material', 'cantidad_por_unidad']
+    if not all(k in datos for k in required):
+        return jsonify({"error": "Faltan datos (id_material, cantidad_por_unidad)"}), 400
+    res = agregar_material_referencia(
+        id_ref,
+        int(datos['id_material']),
+        float(datos['cantidad_por_unidad']),
+        float(datos.get('merma_porcentaje', 0) or 0),
+        datos.get('nota')
+    )
+    return jsonify(res), 201
+
+@app.route('/api/materiales-referencia/<int:id_material_ref>', methods=['DELETE'])
+def delete_material_referencia(id_material_ref):
+    return jsonify(eliminar_material_referencia(id_material_ref))
+
+# Cálculo de materiales para un lote
+@app.route('/api/ordenes/<int:id_orden>/materiales', methods=['GET'])
+def get_materiales_orden(id_orden):
+    res = calcular_materiales_orden(id_orden)
+    if not res:
+        return jsonify({"error": "Orden no encontrada"}), 404
+    return jsonify(res)
+
 # --- ASIGNACIÓN DE REFERENCIAS ---
 
 @app.route('/api/asignaciones', methods=['GET'])
@@ -282,11 +424,11 @@ def get_asignaciones():
 @app.route('/api/asignaciones', methods=['POST'])
 def crear_asignacion():
     datos = request.json
-    id_ref = datos.get('id_referencia')
+    id_orden = datos.get('id_orden')
     id_mod = datos.get('id_modulo')
     cantidad = datos.get('cantidad')
     
-    if not id_ref or not id_mod or not cantidad:
+    if not id_orden or not id_mod or not cantidad:
         return jsonify({"error": "Faltan datos"}), 400
 
     try:
@@ -294,16 +436,16 @@ def crear_asignacion():
     except:
         return jsonify({"error": "Cantidad inválida"}), 400
 
-    res = asignar_referencia_modulo(id_ref, id_mod, cantidad)
+    res = asignar_referencia_modulo(id_orden, id_mod, cantidad)
     if "error" in res:
         return jsonify(res), 400
     return jsonify(res), 201
 
-@app.route('/api/referencias/<int:id_ref>/disponibilidad', methods=['GET'])
-def get_disponibilidad(id_ref):
-    res = obtener_disponibilidad(id_ref)
+@app.route('/api/ordenes/<int:id_orden>/disponibilidad', methods=['GET'])
+def get_disponibilidad(id_orden):
+    res = obtener_disponibilidad(id_orden)
     if not res:
-        return jsonify({"error": "Ref no encontrada"}), 404
+        return jsonify({"error": "Orden no encontrada"}), 404
     return jsonify(res)
 
 @app.route('/api/asignaciones/<int:id_asignacion>', methods=['DELETE'])
@@ -311,9 +453,9 @@ def delete_asignacion(id_asignacion):
     eliminar_asignacion(id_asignacion)
     return jsonify({"mensaje": "Eliminado"}), 200
 
-@app.route('/api/referencias-disponibles', methods=['GET'])
-def get_referencias_disponibles():
-    return jsonify(obtener_referencias_disponibles())
+@app.route('/api/ordenes-disponibles', methods=['GET'])
+def get_ordenes_disponibles():
+    return jsonify(obtener_ordenes_disponibles())
 
 @app.route('/api/asignaciones/<int:id_asignacion>', methods=['PUT'])
 def update_asignacion(id_asignacion):
