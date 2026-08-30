@@ -2421,6 +2421,7 @@ async function cargarGrillaRegistro() {
   const tbody = document.getElementById('grilla-operadores');
   const empty = document.getElementById('empty-grilla');
   const idLinea = selLinea.value;
+  const nombreLinea = selLinea.options[selLinea.selectedIndex] ? selLinea.options[selLinea.selectedIndex].text : '';
 
   tbody.innerHTML = '';
   selOrden.innerHTML = '<option value="">Seleccione orden...</option>';
@@ -2486,8 +2487,10 @@ async function cargarGrillaRegistro() {
     const filaId = `fila-${op.id_empleado}`;
     tbody.innerHTML += `
       <tr id="${filaId}" ${(sinMaquina || ops.length === 0) ? 'class="row-disabled" style="opacity:.55;"' : ''}>
-        <td><strong>${op.nombre}</strong></td>
-        <td style="font-size:0.75rem;color:var(--text-muted);">🔧 ${op.nombre_maquina}</td>
+        <td>
+          <strong>${op.nombre}</strong>
+          <div class="op-detalle">🔧 ${op.nombre_maquina} · ${nombreLinea}</div>
+        </td>
         <td>${selAct}</td>
         <td><input type="number" class="gr-cantidad" data-id-operador="${op.id_empleado}" min="0" placeholder="0"></td>
         <td><input type="number" class="gr-defect" data-id-operador="${op.id_empleado}" min="0" value="0" placeholder="0"></td>

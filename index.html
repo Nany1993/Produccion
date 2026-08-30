@@ -824,18 +824,20 @@
                             <div class="ref-header">
                                 <h2 class="form-title" style="margin:0;">Producción por Operador</h2>
                             </div>
-                            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;">
-                                <div class="form-group" style="margin-bottom:0;">
+                            <div class="reg-filtros">
+                                <div class="form-group reg-fecha">
                                     <label>Fecha</label>
                                     <input type="date" id="ctrl-fecha">
                                 </div>
-                                <div class="form-group" style="margin-bottom:0;">
-                                    <label>Línea</label>
-                                    <select id="ctrl-linea" onchange="cargarGrillaRegistro()"></select>
-                                </div>
-                                <div class="form-group" style="margin-bottom:0;">
-                                    <label>Orden / Lote</label>
-                                    <select id="ctrl-orden-grilla" onchange="cargarGrillaRegistro()"></select>
+                                <div class="reg-fila-linea">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>Línea</label>
+                                        <select id="ctrl-linea" onchange="cargarGrillaRegistro()"></select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>Orden / Lote</label>
+                                        <select id="ctrl-orden-grilla" onchange="cargarGrillaRegistro()"></select>
+                                    </div>
                                 </div>
                             </div>
 
@@ -844,7 +846,6 @@
                                     <thead>
                                         <tr>
                                             <th>OPERADOR</th>
-                                            <th>MÁQUINA</th>
                                             <th>ACTIVIDAD</th>
                                             <th style="width:90px;">CANTIDAD</th>
                                             <th style="width:90px;">DEFECT.</th>

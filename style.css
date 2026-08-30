@@ -1979,3 +1979,36 @@ select:disabled {
 #det-paradas summary {
     padding: 6px 0;
 }
+
+/* ============================================================
+   REGISTRO DE PRODUCCIÓN (formulario)
+   ============================================================ */
+
+.reg-filtros {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.reg-fecha {
+    margin-bottom: 0;
+    max-width: 240px;
+}
+
+.reg-fecha input[type="date"] {
+    width: 100%;
+}
+
+.reg-fila-linea {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.op-detalle {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+}
