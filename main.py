@@ -869,12 +869,14 @@ def get_fechas_produccion():
 
 @app.route('/api/produccion/dia', methods=['GET'])
 def get_produccion_dia():
-    fecha = request.args.get('fecha')
+    desde = request.args.get('desde') or request.args.get('fecha')
+    hasta = request.args.get('hasta') or desde
     id_usuario = request.args.get('id_usuario', type=int)
-    if not fecha:
+    if not desde:
         from datetime import date
-        fecha = date.today().isoformat()
-    return jsonify(obtener_registros_dia(fecha, id_usuario))
+        desde = date.today().isoformat()
+        hasta = hasta or desde
+    return jsonify(obtener_registros_dia(desde, hasta, id_usuario))
 
 @app.route('/api/produccion/resumen', methods=['GET'])
 def get_resumen_produccion():

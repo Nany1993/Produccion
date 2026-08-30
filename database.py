@@ -1596,7 +1596,8 @@ def eliminar_causa_parada(id_causa):
 # REGISTRO DE PRODUCCIÓN (NUEVO)
 # ============================================================
 
-def obtener_registros_dia(fecha, id_usuario=None):
+def obtener_registros_dia(fecha_desde, fecha_hasta=None, id_usuario=None):
+    fecha_hasta = fecha_hasta or fecha_desde
     conexion = _conexion()
     cursor = conexion.cursor()
     query = """
@@ -1619,9 +1620,9 @@ def obtener_registros_dia(fecha, id_usuario=None):
         LEFT JOIN TipoMaquinaria tm ON op.id_maquina = tm.id
         LEFT JOIN ReferenciaDetalle rdl ON r.id_operacion = rdl.id_operacion AND rdl.id_referencia = ref.id
         LEFT JOIN Empleados e ON r.id_operador = e.id
-        WHERE r.fecha = ?
+        WHERE r.fecha BETWEEN ? AND ?
     """
-    params = [fecha]
+    params = [fecha_desde, fecha_hasta]
     if id_usuario:
         query += " AND r.id_usuario = ?"
         params.append(id_usuario)

@@ -2756,41 +2756,31 @@ function abrirCalendarioFecha(input) {
 }
 
 async function initProduccionDia() {
+  // Preselección: hoy, o la última fecha con registros si hoy está vacío
   const fechas = await api('/api/produccion/fechas');
-  const sel = document.getElementById('prod-dia-fechas');
-  const fechaInput = document.getElementById('prod-dia-fecha');
-  if (sel) {
-    sel.innerHTML = '<option value="">— Elegir fecha —</option>';
-    (fechas || []).forEach(f => {
-      sel.innerHTML += `<option value="${f}">${f}</option>`;
-    });
-  }
-  // Si hoy no tiene registros, preseleccionar la fecha más reciente con datos
-  if (fechas && fechas.length > 0 && fechaInput) {
-    const hoy = new Date().toISOString().split('T')[0];
-    if (!fechas.includes(hoy)) {
-      fechaInput.value = fechas[0];
-      if (sel) sel.value = fechas[0];
-    }
+  const hoy = new Date().toISOString().split('T')[0];
+  const desdeSel = document.getElementById('prod-dia-desde');
+  const hastaSel = document.getElementById('prod-dia-hasta');
+  if (fechas && fechas.length > 0 && !fechas.includes(hoy)) {
+    if (desdeSel) desdeSel.value = fechas[0];
+    if (hastaSel) hastaSel.value = fechas[0];
+  } else {
+    if (desdeSel && !desdeSel.value) desdeSel.valueAsDate = new Date();
+    if (hastaSel && !hastaSel.value) hastaSel.valueAsDate = new Date();
   }
   cargarControlesHoy();
 }
 
-function seleccionarFechaConRegistros() {
-  const sel = document.getElementById('prod-dia-fechas');
-  if (sel && sel.value) {
-    document.getElementById('prod-dia-fecha').value = sel.value;
-    cargarControlesHoy();
-  }
-}
-
 async function cargarControlesHoy() {
-  const fechaSel = document.getElementById('prod-dia-fecha');
-  if (fechaSel && !fechaSel.value) fechaSel.valueAsDate = new Date();
-  const fecha = fechaSel ? fechaSel.value : new Date().toISOString().split('T')[0];
+  const desdeSel = document.getElementById('prod-dia-desde');
+  const hastaSel = document.getElementById('prod-dia-hasta');
+  if (desdeSel && !desdeSel.value) desdeSel.valueAsDate = new Date();
+  if (hastaSel && !hastaSel.value) hastaSel.valueAsDate = new Date();
+  const desde = desdeSel ? desdeSel.value : new Date().toISOString().split('T')[0];
+  const hasta = hastaSel ? hastaSel.value : desde;
   // El Admin ve toda la planta; supervisores/operadores solo sus registros
   const usr = (sesionActual && sesionActual.rol === 'Admin') ? '' : (sesionActual ? `&id_usuario=${sesionActual.id}` : '');
-  const data = await api(`/api/produccion/dia?fecha=${fecha}${usr}`);
+  const data = await api(`/api/produccion/dia?desde=${desde}&hasta=${hasta}${usr}`);
   if (!data) return;
 
   const tbody = document.getElementById('lista-controles');
@@ -2817,12 +2807,15 @@ async function cargarControlesHoy() {
     tbody.innerHTML += `
       <tr>
         <td><span class="badge ${badgeHora}">${marca}</span></td>
+        <td>
+          <strong>${c.nombre_operador || '—'}</strong>
+          ${c.nombre_operador ? '' : `<div class="op-detalle">${c.usuario || ''}</div>`}
+        </td>
         <td>${c.modulo}<br>${maquinaCell}</td>
         <td>${c.orden}</td>
         <td>${actividad}</td>
         <td class="text-accent">${c.cantidad_producida}</td>
         <td><span class="badge ${defectClass}">${c.cantidad_defectuosa || 0}</span></td>
-        <td><strong>${c.nombre_operador || c.usuario || '-'}</strong></td>
         <td title="${paradasTexto}" style="max-width:140px;">${paradasTexto}</td>
         <td class="action-buttons">
           <button class="btn-icon btn-delete" onclick="eliminarControlHora(${c.id})">✕</button>
