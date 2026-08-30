@@ -795,7 +795,6 @@ async function cargarEmpleados() {
           <td><span class="badge ${rolClass}">${e.rol || 'Operador'}</span></td>
           <td>${e.cargo}</td>
           <td>${e.nombre_maquina ? `<span class="badge badge-machine">${e.nombre_maquina}</span>` : (e.rol === 'Supervisor' ? '<span style="color:var(--text-muted);">Supervisa</span>' : '-')}</td>
-          <td>${e.turno || '-'}</td>
           <td><span class="badge ${estadoClass}">${e.estado}</span></td>
           <td class="action-buttons">
             <button class="btn-icon btn-edit" onclick="iniciarEdicionEmpleado(${objStr})">Editar</button>
@@ -831,7 +830,6 @@ function limpiarFormEmpleado() {
   document.getElementById('input-emp-cargo').value = '';
   document.getElementById('input-emp-rol').value = 'Operador';
   document.getElementById('input-emp-maquina').value = '';
-  document.getElementById('input-emp-turno').value = '';
   document.getElementById('input-emp-fecha').value = '';
   document.getElementById('input-emp-estado').value = 'Activo';
   document.getElementById('input-emp-tel').value = '';
@@ -847,7 +845,6 @@ async function procesarEmpleado() {
   const numero_documento = document.getElementById('input-emp-doc').value.trim();
   const cargo = document.getElementById('input-emp-cargo').value.trim();
   const rol = document.getElementById('input-emp-rol').value;
-  const turno = document.getElementById('input-emp-turno').value;
   const fecha_ingreso = document.getElementById('input-emp-fecha').value;
   const estado = document.getElementById('input-emp-estado').value;
   const telefono = document.getElementById('input-emp-tel').value.trim();
@@ -875,7 +872,6 @@ async function procesarEmpleado() {
     numero_documento,
     cargo,
     rol,
-    turno: turno || null,
     fecha_ingreso: fecha_ingreso || null,
     estado,
     telefono: telefono || null,
@@ -914,7 +910,6 @@ function iniciarEdicionEmpleado(e) {
   document.getElementById('input-emp-cargo').value = e.cargo;
   document.getElementById('input-emp-rol').value = (e.rol || 'Operador') === 'Supervisor' ? 'Supervisor' : 'Operador';
   document.getElementById('input-emp-maquina').value = e.id_maquina || '';
-  document.getElementById('input-emp-turno').value = e.turno || '';
   document.getElementById('input-emp-fecha').value = e.fecha_ingreso || '';
   document.getElementById('input-emp-estado').value = e.estado || 'Activo';
   document.getElementById('input-emp-tel').value = e.telefono || '';

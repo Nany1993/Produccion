@@ -116,7 +116,6 @@ def inicializar_base_de_datos():
                 numero_documento TEXT UNIQUE NOT NULL,
                 cargo TEXT NOT NULL,
                 rol TEXT DEFAULT 'Operador',
-                turno TEXT,
                 fecha_ingreso TEXT,
                 estado TEXT DEFAULT 'Activo',
                 telefono TEXT,
@@ -353,6 +352,13 @@ def inicializar_base_de_datos():
                 print(f"- Migración: Columna '{columna}' agregada a {tabla}.")
             except sqlite3.OperationalError:
                 pass  # La columna ya existe
+
+        # MIGRACIÓN: Eliminar la columna 'turno' de Empleados (ya no se usa)
+        try:
+            cursor.execute("ALTER TABLE Empleados DROP COLUMN turno")
+            print("- Migración: Columna 'turno' eliminada de Empleados.")
+        except sqlite3.OperationalError:
+            pass  # La columna ya no existe
 
         # Confirmar cambios
         conexion.commit()
@@ -1141,7 +1147,7 @@ def obtener_empleados():
     cursor = conexion.cursor()
     cursor.execute("""
         SELECT e.id, e.nombre, e.numero_documento, e.cargo, e.rol,
-               e.turno, e.fecha_ingreso, e.estado, e.telefono, e.email,
+               e.fecha_ingreso, e.estado, e.telefono, e.email,
                e.modulo_asignado, m.nombre as nombre_modulo,
                e.id_maquina, tm.nombre as nombre_maquina
         FROM Empleados e
@@ -1158,15 +1164,14 @@ def obtener_empleados():
             "numero_documento": f[2],
             "cargo": f[3],
             "rol": f[4],
-            "turno": f[5],
-            "fecha_ingreso": f[6],
-            "estado": f[7],
-            "telefono": f[8],
-            "email": f[9],
-            "modulo_asignado": f[10],
-            "nombre_modulo": f[11],
-            "id_maquina": f[12],
-            "nombre_maquina": f[13]
+            "fecha_ingreso": f[5],
+            "estado": f[6],
+            "telefono": f[7],
+            "email": f[8],
+            "modulo_asignado": f[9],
+            "nombre_modulo": f[10],
+            "id_maquina": f[11],
+            "nombre_maquina": f[12]
         }
         for f in filas
     ]
@@ -1178,7 +1183,7 @@ def obtener_empleado(id_empleado):
     cursor = conexion.cursor()
     cursor.execute("""
         SELECT e.id, e.nombre, e.numero_documento, e.cargo, e.rol,
-               e.turno, e.fecha_ingreso, e.estado, e.telefono, e.email,
+               e.fecha_ingreso, e.estado, e.telefono, e.email,
                e.modulo_asignado, m.nombre as nombre_modulo,
                e.id_maquina, tm.nombre as nombre_maquina
         FROM Empleados e
@@ -1195,15 +1200,14 @@ def obtener_empleado(id_empleado):
             "numero_documento": fila[2],
             "cargo": fila[3],
             "rol": fila[4],
-            "turno": fila[5],
-            "fecha_ingreso": fila[6],
-            "estado": fila[7],
-            "telefono": fila[8],
-            "email": fila[9],
-            "modulo_asignado": fila[10],
-            "nombre_modulo": fila[11],
-            "id_maquina": fila[12],
-            "nombre_maquina": fila[13]
+            "fecha_ingreso": fila[5],
+            "estado": fila[6],
+            "telefono": fila[7],
+            "email": fila[8],
+            "modulo_asignado": fila[9],
+            "nombre_modulo": fila[10],
+            "id_maquina": fila[11],
+            "nombre_maquina": fila[12]
         }
     return None
 
@@ -1252,7 +1256,7 @@ def _verificar_capacidad_modulo(cursor, id_modulo, id_empleado_excluir=None):
     return None
 
 
-def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=None,
+def insertar_empleado(nombre, numero_documento, cargo, rol='Operador',
                       fecha_ingreso=None, estado='Activo', telefono=None, email=None,
                       modulo_asignado=None, id_maquina=None):
     """Inserta un nuevo empleado.
@@ -1282,10 +1286,10 @@ def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=Non
                 return err_cap
 
         cursor.execute("""
-            INSERT INTO Empleados (nombre, numero_documento, cargo, rol, turno,
+            INSERT INTO Empleados (nombre, numero_documento, cargo, rol,
                                    fecha_ingreso, estado, telefono, email, modulo_asignado, id_maquina)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (nombre, numero_documento, cargo, rol, turno, fecha_ingreso,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (nombre, numero_documento, cargo, rol, fecha_ingreso,
               estado, telefono, email, modulo_asignado, id_maquina))
         conexion.commit()
         nuevo_id = cursor.lastrowid
@@ -1298,7 +1302,7 @@ def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=Non
 
 
 def actualizar_empleado(id_empleado, nombre, numero_documento, cargo, rol='Operador',
-                        turno=None, fecha_ingreso=None, estado='Activo', telefono=None,
+                        fecha_ingreso=None, estado='Activo', telefono=None,
                         email=None, modulo_asignado=None, id_maquina=None):
     """Actualiza un empleado existente."""
     conexion = _conexion()
@@ -1325,10 +1329,10 @@ def actualizar_empleado(id_empleado, nombre, numero_documento, cargo, rol='Opera
 
         cursor.execute("""
             UPDATE Empleados
-            SET nombre=?, numero_documento=?, cargo=?, rol=?, turno=?,
+            SET nombre=?, numero_documento=?, cargo=?, rol=?,
                 fecha_ingreso=?, estado=?, telefono=?, email=?, modulo_asignado=?, id_maquina=?
             WHERE id=?
-        """, (nombre, numero_documento, cargo, rol, turno, fecha_ingreso,
+        """, (nombre, numero_documento, cargo, rol, fecha_ingreso,
               estado, telefono, email, modulo_asignado, id_maquina, id_empleado))
         conexion.commit()
 

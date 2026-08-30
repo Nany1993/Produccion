@@ -117,26 +117,26 @@ def materiales(conn):
 
 def empleados(conn):
     cur = conn.cursor()
-    # (nombre, doc, cargo libre, rol, turno, ingres, estado, tel, email, modulo, id_maquina o None)
+    # (nombre, doc, cargo libre, rol, ingreso, estado, tel, email, modulo, id_maquina o None)
     # ids máquinas: 1=Recta,2=Fileteadora,3=Bordadora,4=Ojetera,5=Botonera,6=Ribeteadora,7=Prensa,8=Cortadora,9=Mesa
     emp = [
-        ("Carlos Rodriguez", "12345678", "Jefe de línea de ensamble", "Supervisor", "Mañana", "2022-03-15", "Activo", "3001112233", "carlos@planta.com", None, None),
-        ("Maria Gonzalez", "23456789", "Operaria de fileteado", "Operador", "Mañana", "2021-08-20", "Activo", "3002223344", "maria@planta.com", 2, 2),
-        ("Juan Martinez", "34567890", "Operario de costura recta", "Operador", "Mañana", "2020-01-10", "Activo", "3003334455", "juan@planta.com", 4, 1),
-        ("Laura Ramirez", "45678901", "Operaria de ribete y prensa", "Operador", "Mañana", "2023-06-01", "Activo", "3004445566", "laura@planta.com", 3, 6),
-        ("Pedro Sanchez", "56789012", "Operario de corte", "Operador", "Mañana", "2022-11-15", "Activo", "3005556677", "pedro@planta.com", 1, 8),
-        ("Lucia Herrera", "67890123", "Operaria de bordado", "Operador", "Tarde", "2021-04-22", "Activo", "3006667788", "lucia@planta.com", 5, 3),
-        ("Diego Torres", "78901234", "Jefe de línea de bordado", "Supervisor", "Tarde", "2019-09-05", "Activo", "3007778899", "diego@planta.com", None, None),
-        ("Ana Lopez", "89012345", "Operaria de botonera y ojetes", "Operador", "Tarde", "2023-01-18", "Activo", "3008889900", "ana@planta.com", 6, 5),
-        ("Miguel Castro", "90123456", "Mecánico de mantenimiento", "Operador", "Mañana", "2020-02-28", "Activo", "3009990011", "miguel@planta.com", 1, None),
-        ("Isabel Moreno", "01234567", "Control de calidad", "Operador", "Tarde", "2022-05-12", "Activo", "3010001122", "isabel@planta.com", 6, 9),
-        ("Roberto Jimenez", "11223344", "Operario de empaque", "Operador", "Tarde", "2021-10-30", "Activo", "3011112233", "roberto@planta.com", 6, 9),
-        ("Carmen Delgado", "22334455", "Operaria de costura recta", "Operador", "Tarde", "2022-07-14", "Activo", "3012223344", "carmen@planta.com", 4, 1),
-        ("Andres Pino", "33445566", "Operario de fileteado", "Operador", "Mañana", "2023-02-18", "Activo", "3013334455", "andres@planta.com", 2, 2),
-        ("Sofia Vargas", "44556677", "Jefe de línea de terminado", "Supervisor", "Tarde", "2019-12-08", "Activo", "3014445566", "sofia@planta.com", None, None),
-        ("Admin Sistema", "99999999", "Administrador de plataforma", "Admin", "Mañana", "2020-01-01", "Activo", "3015556677", "admin@planta.com", None, None),
+        ("Carlos Rodriguez", "12345678", "Jefe de línea de ensamble", "Supervisor", "2022-03-15", "Activo", "3001112233", "carlos@planta.com", None, None),
+        ("Maria Gonzalez", "23456789", "Operaria de fileteado", "Operador", "2021-08-20", "Activo", "3002223344", "maria@planta.com", 2, 2),
+        ("Juan Martinez", "34567890", "Operario de costura recta", "Operador", "2020-01-10", "Activo", "3003334455", "juan@planta.com", 4, 1),
+        ("Laura Ramirez", "45678901", "Operaria de ribete y prensa", "Operador", "2023-06-01", "Activo", "3004445566", "laura@planta.com", 3, 6),
+        ("Pedro Sanchez", "56789012", "Operario de corte", "Operador", "2022-11-15", "Activo", "3005556677", "pedro@planta.com", 1, 8),
+        ("Lucia Herrera", "67890123", "Operaria de bordado", "Operador", "2021-04-22", "Activo", "3006667788", "lucia@planta.com", 5, 3),
+        ("Diego Torres", "78901234", "Jefe de línea de bordado", "Supervisor", "2019-09-05", "Activo", "3007778899", "diego@planta.com", None, None),
+        ("Ana Lopez", "89012345", "Operaria de botonera y ojetes", "Operador", "2023-01-18", "Activo", "3008889900", "ana@planta.com", 6, 5),
+        ("Miguel Castro", "90123456", "Mecánico de mantenimiento", "Operador", "2020-02-28", "Activo", "3009990011", "miguel@planta.com", 1, None),
+        ("Isabel Moreno", "01234567", "Control de calidad", "Operador", "2022-05-12", "Activo", "3010001122", "isabel@planta.com", 6, 9),
+        ("Roberto Jimenez", "11223344", "Operario de empaque", "Operador", "2021-10-30", "Activo", "3011112233", "roberto@planta.com", 6, 9),
+        ("Carmen Delgado", "22334455", "Operaria de costura recta", "Operador", "2022-07-14", "Activo", "3012223344", "carmen@planta.com", 4, 1),
+        ("Andres Pino", "33445566", "Operario de fileteado", "Operador", "2023-02-18", "Activo", "3013334455", "andres@planta.com", 2, 2),
+        ("Sofia Vargas", "44556677", "Jefe de línea de terminado", "Supervisor", "2019-12-08", "Activo", "3014445566", "sofia@planta.com", None, None),
+        ("Admin Sistema", "99999999", "Administrador de plataforma", "Admin", "2020-01-01", "Activo", "3015556677", "admin@planta.com", None, None),
     ]
-    cur.executemany("INSERT INTO Empleados (nombre, numero_documento, cargo, rol, turno, fecha_ingreso, estado, telefono, email, modulo_asignado, id_maquina) VALUES (?,?,?,?,?,?,?,?,?,?,?)", emp)
+    cur.executemany("INSERT INTO Empleados (nombre, numero_documento, cargo, rol, fecha_ingreso, estado, telefono, email, modulo_asignado, id_maquina) VALUES (?,?,?,?,?,?,?,?,?,?)", emp)
 
 def usuarios(conn):
     cur = conn.cursor()

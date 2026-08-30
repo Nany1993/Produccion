@@ -171,14 +171,14 @@ def main():
     cursor.execute("DELETE FROM Empleados")
     cursor.execute("DELETE FROM Usuario")
     cursores_empleados = [
-        ("Carlos Rodriguez", "12345678", "Supervisor", "PLANA", "Manana", "2023-03-15", "Activo", "1234567890", "carlos@planta.com", modulos[0]),
-        ("Maria Gonzalez", "23456789", "Operario", "FILETEADORA", "Manana", "2022-08-20", "Activo", "2345678901", "maria@planta.com", modulos[1]),
-        ("Juan Martinez", "34567890", "Operario", "BORDADORA", "Tarde", "2021-01-10", "Activo", "3456789012", "juan@planta.com", modulos[2]),
-        ("Ana Lopez", "45678901", "Operario", "OJETERA", "Tarde", "2023-06-01", "Activo", "4567890123", "ana@planta.com", modulos[3]),
+        ("Carlos Rodriguez", "12345678", "Supervisor", "PLANA", "2023-03-15", "Activo", "1234567890", "carlos@planta.com", modulos[0]),
+        ("Maria Gonzalez", "23456789", "Operario", "FILETEADORA", "2022-08-20", "Activo", "2345678901", "maria@planta.com", modulos[1]),
+        ("Juan Martinez", "34567890", "Operario", "BORDADORA", "2021-01-10", "Activo", "3456789012", "juan@planta.com", modulos[2]),
+        ("Ana Lopez", "45678901", "Operario", "OJETERA", "2023-06-01", "Activo", "4567890123", "ana@planta.com", modulos[3]),
     ]
     cursor.executemany("""
-        INSERT INTO Empleados (nombre, numero_documento, cargo, especialidad, turno, fecha_ingreso, estado, telefono, email, modulo_asignado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO Empleados (nombre, numero_documento, cargo, especialidad, fecha_ingreso, estado, telefono, email, modulo_asignado)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, cursores_empleados)
 
     # Usuarios iniciales (login sencillo, si no existen)

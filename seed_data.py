@@ -417,32 +417,32 @@ def seed_empleados(conn):
     cursor = conn.cursor()
     
     empleados = [
-        ("Carlos Rodríguez", "12345678", "Operario", "PLANA", "Mañana", "2023-03-15", "Activo", "123-456-7890", "carlos.r@empresa.com", 1),
-        ("María González", "23456789", "Operario", "FILETEADORA", "Mañana", "2022-08-20", "Activo", "234-567-8901", "maria.g@empresa.com", 1),
-        ("Juan Martínez", "34567890", "Supervisor", "PLANA", "Mañana", "2020-01-10", "Activo", "345-678-9012", "juan.m@empresa.com", 1),
-        ("Ana López", "45678901", "Operario", "BORDADORA", "Tarde", "2023-06-01", "Activo", "456-789-0123", "ana.l@empresa.com", 2),
-        ("Pedro Sánchez", "56789012", "Operario", "OJETERA", "Tarde", "2022-11-15", "Activo", "567-890-1234", "pedro.s@empresa.com", 2),
-        ("Laura Ramírez", "67890123", "Supervisor", "FILETEADORA", "Tarde", "2021-04-22", "Activo", "678-901-2345", "laura.r@empresa.com", 2),
-        ("Diego Torres", "78901234", "Operario", "BOTONERA", "Mañana", "2023-09-05", "Activo", "789-012-3456", "diego.t@empresa.com", 3),
-        ("Sofía Vargas", "89012345", "Operario", "RIBETADORA", "Mañana", "2022-07-18", "Activo", "890-123-4567", "sofia.v@empresa.com", 3),
-        ("Miguel Ángel Castro", "90123456", "Mecánico", "PLANA", "Mañana", "2021-02-28", "Activo", "901-234-5678", "miguel.c@empresa.com", 4),
-        ("Isabel Moreno", "01234567", "Operario", "PRENSA TERMICA", "Tarde", "2023-01-12", "Activo", "012-345-6789", "isabel.m@empresa.com", 4),
-        ("Roberto Jiménez", "11223344", "Operario", "CORTADORA", "Mañana", "2022-05-30", "Activo", "112-233-4455", "roberto.j@empresa.com", 5),
-        ("Patricia Flores", "22334455", "Auxiliar", "PLANA", "Tarde", "2023-08-14", "Activo", "223-344-5566", "patricia.f@empresa.com", 5),
-        ("Fernando Ruiz", "33445566", "Operario", "FILETEADORA", "Mañana", "2021-11-08", "Activo", "334-455-6677", "fernando.r@empresa.com", 6),
-        ("Carmen Delgado", "44556677", "Operario", "BORDADORA", "Tarde", "2022-09-25", "Activo", "445-566-7788", "carmen.d@empresa.com", 6),
-        ("Alejandro Vega", "55667788", "Supervisor", "PLANA", "Mañana", "2020-06-17", "Activo", "556-677-8899", "alejandro.v@empresa.com", 7),
-        ("Lucía Herrera", "66778899", "Operario", "OJETERA", "Mañana", "2023-04-03", "Activo", "667-788-9900", "lucia.h@empresa.com", 7),
-        ("Gabriel Mendoza", "77889900", "Operario", "BOTONERA", "Tarde", "2022-12-19", "Activo", "778-899-0011", "gabriel.m@empresa.com", 8),
-        ("Valentina Ortega", "88990011", "Operario", "RIBETADORA", "Tarde", "2023-07-07", "Activo", "889-900-1122", "valentina.o@empresa.com", 8),
-        ("Ricardo Peña", "99001122", "Mecánico", "FILETEADORA", "Mañana", "2021-10-11", "Activo", "990-011-2233", "ricardo.p@empresa.com", 1),
-        ("Daniela Cruz", "10112233", "Auxiliar", "BORDADORA", "Tarde", "2023-02-26", "Activo", "101-122-3344", "daniela.c@empresa.com", 2),
+        ("Carlos Rodríguez", "12345678", "Operario", "PLANA", "2023-03-15", "Activo", "123-456-7890", "carlos.r@empresa.com", 1),
+        ("María González", "23456789", "Operario", "FILETEADORA", "2022-08-20", "Activo", "234-567-8901", "maria.g@empresa.com", 1),
+        ("Juan Martínez", "34567890", "Supervisor", "PLANA", "2020-01-10", "Activo", "345-678-9012", "juan.m@empresa.com", 1),
+        ("Ana López", "45678901", "Operario", "BORDADORA", "2023-06-01", "Activo", "456-789-0123", "ana.l@empresa.com", 2),
+        ("Pedro Sánchez", "56789012", "Operario", "OJETERA", "2022-11-15", "Activo", "567-890-1234", "pedro.s@empresa.com", 2),
+        ("Laura Ramírez", "67890123", "Supervisor", "FILETEADORA", "2021-04-22", "Activo", "678-901-2345", "laura.r@empresa.com", 2),
+        ("Diego Torres", "78901234", "Operario", "BOTONERA", "2023-09-05", "Activo", "789-012-3456", "diego.t@empresa.com", 3),
+        ("Sofía Vargas", "89012345", "Operario", "RIBETADORA", "2022-07-18", "Activo", "890-123-4567", "sofia.v@empresa.com", 3),
+        ("Miguel Ángel Castro", "90123456", "Mecánico", "PLANA", "2021-02-28", "Activo", "901-234-5678", "miguel.c@empresa.com", 4),
+        ("Isabel Moreno", "01234567", "Operario", "PRENSA TERMICA", "2023-01-12", "Activo", "012-345-6789", "isabel.m@empresa.com", 4),
+        ("Roberto Jiménez", "11223344", "Operario", "CORTADORA", "2022-05-30", "Activo", "112-233-4455", "roberto.j@empresa.com", 5),
+        ("Patricia Flores", "22334455", "Auxiliar", "PLANA", "2023-08-14", "Activo", "223-344-5566", "patricia.f@empresa.com", 5),
+        ("Fernando Ruiz", "33445566", "Operario", "FILETEADORA", "2021-11-08", "Activo", "334-455-6677", "fernando.r@empresa.com", 6),
+        ("Carmen Delgado", "44556677", "Operario", "BORDADORA", "2022-09-25", "Activo", "445-566-7788", "carmen.d@empresa.com", 6),
+        ("Alejandro Vega", "55667788", "Supervisor", "PLANA", "2020-06-17", "Activo", "556-677-8899", "alejandro.v@empresa.com", 7),
+        ("Lucía Herrera", "66778899", "Operario", "OJETERA", "2023-04-03", "Activo", "667-788-9900", "lucia.h@empresa.com", 7),
+        ("Gabriel Mendoza", "77889900", "Operario", "BOTONERA", "2022-12-19", "Activo", "778-899-0011", "gabriel.m@empresa.com", 8),
+        ("Valentina Ortega", "88990011", "Operario", "RIBETADORA", "2023-07-07", "Activo", "889-900-1122", "valentina.o@empresa.com", 8),
+        ("Ricardo Peña", "99001122", "Mecánico", "FILETEADORA", "2021-10-11", "Activo", "990-011-2233", "ricardo.p@empresa.com", 1),
+        ("Daniela Cruz", "10112233", "Auxiliar", "BORDADORA", "2023-02-26", "Activo", "101-122-3344", "daniela.c@empresa.com", 2),
     ]
     
     cursor.executemany("""
-        INSERT INTO Empleados (nombre, numero_documento, cargo, especialidad, turno,
+        INSERT INTO Empleados (nombre, numero_documento, cargo, especialidad,
                                fecha_ingreso, estado, telefono, email, modulo_asignado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, empleados)
     
     conn.commit()

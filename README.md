@@ -5,7 +5,7 @@ Sistema web para gestión y balanceo de líneas de producción en plantas de con
 ## Características
 
 - **Catálogos**: Maquinaria, secciones, módulos (líneas), horas operativas y paradas programadas
-- **Empleados**: Registro del personal con cargo, especialidad, turno y módulo asignado
+- **Empleados**: Registro del personal con cargo, especialidad y módulo asignado
 - **Materiales**: Catálogo de insumos con unidad (metros, unidades, kg) y costo
 - **Operaciones**: Registro de operaciones de confección con tiempos estándar
 - **Ingeniería de Producto**: Creación de referencias (modelos) con especificaciones técnicas, foto de prototipo, secuencia de operaciones y lista de materiales (BOM)

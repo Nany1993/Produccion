@@ -229,7 +229,6 @@ Calcula la asignación óptima de operaciones a operarios.
 │ numero_documento │
 │ cargo            │
 │ especialidad     │
-│ turno            │
 │ fecha_ingreso    │
 │ estado           │
 │ telefono         │
@@ -378,7 +377,6 @@ Personal de la planta (operarios, supervisores, auxiliares).
 | numero_documento | TEXT UNIQUE | Número de documento (único) |
 | cargo | TEXT | Cargo (Operario, Supervisor, etc.) |
 | especialidad | TEXT | Tipo de máquina que maneja |
-| turno | TEXT | Mañana, Tarde, Noche, Mixto |
 | fecha_ingreso | TEXT | Fecha de ingreso |
 | estado | TEXT | Activo, Inactivo, Vacaciones, Incapacidad |
 | telefono | TEXT | Número de contacto |
@@ -665,14 +663,13 @@ proyecto-balanceo/
 | **numero_documento** | TEXT | ✓ | Número de identificación (único) |
 | **cargo** | TEXT | ✓ | Cargo del empleado: `Operario`, `Supervisor`, `Auxiliar`, `Mecánico` |
 | **especialidad** | TEXT | No | Tipo de máquina que maneja (ej: PLANA, FILETEADORA) |
-| **turno** | TEXT | No | Turno de trabajo: `Mañana`, `Tarde`, `Noche` |
 | **fecha_ingreso** | TEXT | No | Fecha de ingreso a la empresa (YYYY-MM-DD) |
 | **estado** | TEXT | No | Estado actual: `Activo` o `Inactivo` |
 | **telefono** | TEXT | No | Número de teléfono de contacto |
 | **email** | TEXT | No | Correo electrónico del empleado |
 | **modulo_asignado** | INTEGER | No | ID del módulo donde trabaja actualmente (FK → ModuloConfeccion) |
 
-**Uso:** Gestiona el personal de la planta. Permite asignar operarios a módulos específicos y llevar control de sus especialidades y turnos.
+**Uso:** Gestiona el personal de la planta. Permite asignar operarios a módulos específicos y llevar control de sus especialidades.
 
 ---
 
