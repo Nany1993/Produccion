@@ -86,22 +86,22 @@ Asignación de lotes de referencias a módulos de producción.
 - Un módulo puede tener múltiples referencias asignadas
 
 ### 5. Registro de Producción
-Registro de producción real por día y actividad, vinculado al puesto de trabajo (máquina).
+Registro de producción **por operador** a través de una grilla por línea: el supervisor elige fecha, línea y orden, y ve todos los operadores activos de su línea con su máquina ya asociada.
 
-**Datos registrados:**
-- Fecha y marca de tiempo real (created_at)
-- Máquina / puesto de trabajo y módulo
-- Orden de producción y actividad (operación)
-- Cantidad producida y defectuosa
-- Cantidad de operarios
-- Porción de tiempo trabajada (0.1 a 1.0)
-- Paradas (programadas y no programadas) en ParadaRegistro
+**Flujo del supervisor:**
+1. Fecha (default hoy) + Línea (solo las líneas que supervisa) + Orden (preseleccionada si la línea corre una sola).
+2. En la grilla, cada operador muestra su **máquina** (autocompletada) y un select de **actividad filtrado por su máquina** dentro de la secuencia de la orden (2-3 opciones).
+3. Carga la **cantidad producida** (y defectuosas) por operador. Los que no trabajaron quedan vacíos.
+4. Un solo botón **Guardar** inserta un registro por operador con `id_operador`.
 
-**Modalidad global:** configurada por el Admin (`Diario` | `Por Hora`) desde la barra superior.
+**Acordeón opcional:** "¿Hubo paradas hoy?" — solo se registran paradas si el supervisor lo abre.
+
+**Modalidad global:** configurada por el Admin (`Diario` | `Por Hora`).
 
 **Validaciones:**
-- La suma de porciones de tiempo por módulo/fecha ≤ 1.0
-- La producción acumulada no puede exceder lo asignado a la orden
+- Solo se guardan filas con cantidad > 0
+- La actividad de cada operador debe pertenecer a su máquina y a la secuencia de la orden
+- El supervisor solo accede a sus líneas asignadas (403 si intenta otra)
 
 ### 6. Tablero de Eficiencias
 Reporte de eficiencia por módulo y hora.
@@ -251,8 +251,9 @@ Calcula la asignación óptima de operaciones a operarios.
 │ id_hora (FK → HorasProduccion, nullable)             │
 │ id_orden (FK → OrdenProduccion)                      │
 │ id_operacion (FK → Operacion)                        │
+│ id_operador (FK → Empleados)                         │
 │ porcion_tiempo                                       │
-│ cantidad_operarios                                   │
+│ cantidad_operarios (= 1 por registro de operador)    │
 │ cantidad_producida                                   │
 │ cantidad_defectuosa                                  │
 │ observaciones                                        │
@@ -415,7 +416,7 @@ Asignación de órdenes (lotes) a módulos.
 | cantidad_asignada | INTEGER | Unidades asignadas |
 
 #### RegistroProduccion
-Registro de producción real (diario o por actividad).
+Registro de producción por operador (uno por operador y actividad).
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
@@ -425,8 +426,9 @@ Registro de producción real (diario o por actividad).
 | id_hora | INTEGER FK | Hora operativa (nullable; el timestamp real va en created_at) |
 | id_orden | INTEGER FK | Orden de producción |
 | id_operacion | INTEGER FK | Actividad/operación registrada |
+| id_operador | INTEGER FK | Empleado (operador) que produjo |
 | porcion_tiempo | REAL | Fracción de tiempo trabajado (0.1 a 1.0) |
-| cantidad_operarios | INTEGER | Número de operarios |
+| cantidad_operarios | INTEGER | = 1 (cada registro es de un operador) |
 | cantidad_producida | INTEGER | Unidades producidas |
 | cantidad_defectuosa | INTEGER | Unidades defectuosas |
 | observaciones | TEXT | Notas del registro |
@@ -509,11 +511,14 @@ Registro de producción real (diario o por actividad).
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| POST | `/api/produccion` | Crear registro de producción |
+| POST | `/api/produccion` | Crear registro de producción (individual) |
+| POST | `/api/produccion/masivo` | Guardar la grilla por operador (varios registros de una vez) |
 | GET | `/api/produccion/dia?fecha=YYYY-MM-DD` | Registros del día |
 | GET | `/api/produccion/resumen?fecha=&id_modulo=&id_hora=&id_operacion=` | Resumen por módulo/hora/operación |
 | DELETE | `/api/produccion/{id}` | Eliminar registro |
 | GET | `/api/progreso/{id_orden}` | Progreso y cumplimiento de una orden |
+| GET | `/api/lineas/{id}/operadores?id_usuario=` | Operadores activos de una línea (validado por rol) |
+| GET | `/api/ordenes/{id}/actividades` | Actividades de la secuencia de la orden con su máquina |
 
 ### Reportes y Simulación
 
@@ -589,6 +594,14 @@ proyecto-balanceo/
 - Jornada dinámica desde el catálogo de horas; sin campo `turno`
 - Sistema de usuarios con roles y permisos de menú; líneas de supervisión por usuario
 - Validaciones de negocio: eficiencia por actividad, capacidad de módulos, stock por orden
+
+### v0.4 - Registro por Operador (Actual)
+- Registro de producción por OPERADOR con grilla por línea: el supervisor elige fecha/línea/orden y carga la cantidad de cada operador en una sola pantalla
+- Columna `id_operador` en RegistroProduccion; cada registro = un operador
+- Actividad por fila filtrada por la máquina del operador dentro de la secuencia de la orden
+- Orden preseleccionada cuando la línea corre una sola; acordeón opcional de paradas
+- Eficiencia con desglose por operador además del reporte por línea
+- Endpoints: `/api/lineas/{id}/operadores`, `/api/ordenes/{id}/actividades`, `/api/produccion/masivo`
 
 ### v0.1 - Prototipo Inicial
 - Implementación base del sistema
