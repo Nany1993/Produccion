@@ -807,43 +807,10 @@ async function cargarSelectMaquinaEmpleado() {
   if (val) select.value = val;
 }
 
-async function cargarCheckboxModulosSupervisor() {
-  const mods = await api('/api/modulos');
-  if (!mods) return;
-  const cont = document.getElementById('emp-modulos-supervisor');
-  cont.innerHTML = '';
-  mods.forEach(m => {
-    cont.innerHTML += `
-      <label class="linea-check">
-        <input type="checkbox" value="${m.id}"> ${m.nombre}
-      </label>`;
-  });
-}
-
-async function cargarLineasUsuarioEmpleado(idEmpleado) {
-  // Líneas del usuario ligado al empleado (para precargar módulos del supervisor)
-  const usuarios = await api('/api/usuarios');
-  if (!usuarios) return [];
-  const u = usuarios.find(x => x.id_empleado === idEmpleado);
-  if (!u) return [];
-  // Puede que lineas no venga en lista simple; buscamos por endpoint de usuario
-  if (u && u.id) {
-    const lineas = await api(`/api/usuarios/${u.id}/lineas`);
-    if (lineas) return lineas;
-  }
-  return [];
-}
-
-function leerModulosSupervisor() {
-  return Array.from(document.querySelectorAll('#emp-modulos-supervisor input:checked')).map(i => parseInt(i.value));
-}
-
 function toggleRolEmpleado() {
   const rol = document.getElementById('input-emp-rol').value;
   const esSup = rol === 'Supervisor';
   document.getElementById('form-emp-maquina').style.display = esSup ? 'none' : 'block';
-  document.getElementById('form-emp-modulos-sup').style.display = esSup ? 'block' : 'none';
-  if (!esSup) document.getElementById('emp-modulos-supervisor').querySelectorAll('input').forEach(i => i.checked = false);
 }
 
 function limpiarFormEmpleado() {
@@ -859,7 +826,6 @@ function limpiarFormEmpleado() {
   document.getElementById('input-emp-estado').value = 'Activo';
   document.getElementById('input-emp-tel').value = '';
   document.getElementById('input-emp-email').value = '';
-  document.getElementById('emp-modulos-supervisor').querySelectorAll('input').forEach(i => i.checked = false);
   toggleRolEmpleado();
   const btn = document.getElementById('btn-empleado');
   btn.textContent = 'Guardar Empleado';
@@ -877,7 +843,6 @@ async function procesarEmpleado() {
   const telefono = document.getElementById('input-emp-tel').value.trim();
   const email = document.getElementById('input-emp-email').value.trim();
   const id_maquina = document.getElementById('input-emp-maquina').value;
-  const id_modulos_supervisor = leerModulosSupervisor();
 
   let valid = true;
   if (!nombre) { showFieldError('input-emp-nombre', 'Campo requerido'); valid = false; }
@@ -893,11 +858,6 @@ async function procesarEmpleado() {
     showFieldError('input-emp-maquina', 'Un operador debe tener máquina'); valid = false;
   } else { clearFieldErrors('input-emp-maquina'); }
 
-  if (rol === 'Supervisor' && id_modulos_supervisor.length === 0) {
-    Toast.warning('Un supervisor debe marcar al menos un módulo a supervisar');
-    valid = false;
-  }
-
   if (!valid) return;
 
   const payload = {
@@ -910,8 +870,7 @@ async function procesarEmpleado() {
     estado,
     telefono: telefono || null,
     email: email || null,
-    id_maquina: rol === 'Operador' && id_maquina ? parseInt(id_maquina) : null,
-    id_modulos_supervisor: rol === 'Supervisor' ? id_modulos_supervisor : []
+    id_maquina: rol === 'Operador' && id_maquina ? parseInt(id_maquina) : null
   };
 
   let url = '/api/empleados';
@@ -951,15 +910,6 @@ function iniciarEdicionEmpleado(e) {
   document.getElementById('input-emp-email').value = e.email || '';
 
   toggleRolEmpleado();
-
-  // Cargar módulos del supervisor desde las líneas del usuario ligado
-  if ((e.rol || 'Operador') === 'Supervisor') {
-    cargarLineasUsuarioEmpleado(e.id).then(lineas => {
-      document.getElementById('emp-modulos-supervisor').querySelectorAll('input').forEach(i => {
-        i.checked = lineas.includes(parseInt(i.value));
-      });
-    });
-  }
 
   const btn = document.getElementById('btn-empleado');
   btn.textContent = 'Actualizar Empleado';
@@ -1044,38 +994,53 @@ function limpiarFormUsuario() {
   document.getElementById('input-usuario-pass').value = '';
   document.getElementById('input-usuario-rol').value = 'Supervisor';
   document.getElementById('input-usuario-empleado').value = '';
+  const chkList = document.getElementById('usuario-modulos-supervisor');
+  if (chkList) chkList.querySelectorAll('input').forEach(i => i.checked = false);
+  toggleRolUsuario();
   const btn = document.getElementById('btn-usuario');
   if (btn) { btn.textContent = 'Crear Usuario'; btn.style.background = ''; }
 }
 
-async function sincronizarLineasUsuario(idUsuario, idEmpleado) {
-  // Las líneas del usuario vienen del empleado:
-  //   - Supervisor → módulos a supervisar (AsignacionUsuarioLinea ya se sincroniza desde Empleados)
-  //   - Operador → módulo de su máquina
-  const emp = await api('/api/empleados');
-  if (!emp) return;
-  const e = emp.find(x => x.id === idEmpleado);
-  if (!e) return;
-  let modulos = [];
-  if (e.rol === 'Supervisor') {
-    const usuarios = await api('/api/usuarios');
-    const u = usuarios ? usuarios.find(x => x.id === idUsuario) : null;
-    // los módulos del supervisor ya se sincronizaron desde Empleados
-    if (u) {
-      const lineas = await api(`/api/usuarios/${u.id}/lineas`);
-      if (lineas) modulos = lineas;
-    }
-  } else if (e.id_maquina) {
-    const maq = await api('/api/maquinaria');
-    const m = maq ? maq.find(x => x.id === e.id_maquina) : null;
-    if (m && m.id_modulo) modulos = [m.id_modulo];
+async function cargarUsuarioModulosSupervisor() {
+  const mods = await api('/api/modulos');
+  if (!mods) return;
+  const cont = document.getElementById('usuario-modulos-supervisor');
+  if (!cont) return;
+  cont.innerHTML = '';
+  mods.forEach(m => {
+    cont.innerHTML += `
+      <label class="linea-check">
+        <input type="checkbox" value="${m.id}"> ${m.nombre}
+      </label>`;
+  });
+}
+
+function leerModulosUsuario() {
+  return Array.from(document.querySelectorAll('#usuario-modulos-supervisor input:checked')).map(i => parseInt(i.value));
+}
+
+function toggleRolUsuario() {
+  const rol = document.getElementById('input-usuario-rol').value;
+  const cont = document.getElementById('form-usuario-modulos-sup');
+  if (cont) cont.style.display = (rol === 'Supervisor') ? 'block' : 'none';
+  if (rol !== 'Supervisor') {
+    const chkList = document.getElementById('usuario-modulos-supervisor');
+    if (chkList) chkList.querySelectorAll('input').forEach(i => i.checked = false);
   }
-  if (modulos.length > 0) {
-    await api(`/api/usuarios/${idUsuario}/lineas`, {
-      method: 'POST',
-      body: JSON.stringify({ id_modulos: modulos })
-    });
-  }
+}
+
+async function sincronizarLineasUsuario(idUsuario, rol) {
+  // Las líneas se gestionan acá (en el módulo Usuarios), según el rol de la cuenta:
+  //   - Supervisor → las líneas que marcó (AsignacionUsuarioLinea)
+  //   - Operador/Admin → no se escriben; el operador deduce su línea de la máquina
+  //     del empleado (fallback en el backend) y el admin ve toda la planta.
+  if (rol !== 'Supervisor') return;
+  const modulos = leerModulosUsuario();
+  if (modulos.length === 0) return;
+  await api(`/api/usuarios/${idUsuario}/lineas`, {
+    method: 'POST',
+    body: JSON.stringify({ id_modulos: modulos })
+  });
 }
 
 async function procesarUsuario() {
@@ -1091,6 +1056,10 @@ async function procesarUsuario() {
   else clearFieldErrors('input-usuario-pass');
   if (!idEmpleado) { showFieldError('input-usuario-empleado', 'Seleccione empleado'); valid = false; }
   else clearFieldErrors('input-usuario-empleado');
+  if (rol === 'Supervisor' && leerModulosUsuario().length === 0) {
+    Toast.warning('Un supervisor debe marcar al menos una línea a supervisar');
+    valid = false;
+  }
   if (!valid) return;
 
   const payload = { nombre_usuario: nombre, password, rol, id_empleado: parseInt(idEmpleado) };
@@ -1105,7 +1074,7 @@ async function procesarUsuario() {
   const data = await api(url, { method, body: JSON.stringify(payload), _btn: event.target });
   if (data) {
     const nuevoId = data.id || idUsuarioEnEdicion;
-    if (nuevoId) await sincronizarLineasUsuario(nuevoId, parseInt(idEmpleado));
+    if (nuevoId) await sincronizarLineasUsuario(nuevoId, rol);
     Toast.success(data.mensaje || 'Usuario guardado');
     limpiarFormUsuario();
     cargarUsuarios();
@@ -1119,6 +1088,18 @@ async function iniciarEdicionUsuario(u) {
   document.getElementById('input-usuario-pass').value = 'cambiar';
   document.getElementById('input-usuario-rol').value = u.rol;
   document.getElementById('input-usuario-empleado').value = u.id_empleado || '';
+  toggleRolUsuario();
+
+  // Precargar líneas del supervisor desde su asignación
+  const acc = document.getElementById('form-usuario-modulos-sup');
+  if (acc) acc.style.display = (u.rol === 'Supervisor') ? 'block' : 'none';
+  if (u.rol === 'Supervisor') {
+    const lineas = await api(`/api/usuarios/${u.id}/lineas`);
+    const chkList = document.getElementById('usuario-modulos-supervisor');
+    if (chkList) chkList.querySelectorAll('input').forEach(i => {
+      i.checked = Array.isArray(lineas) && lineas.includes(parseInt(i.value));
+    });
+  }
 
   const btn = document.getElementById('btn-usuario');
   btn.textContent = 'Actualizar Usuario';
@@ -3114,7 +3095,7 @@ document.addEventListener('DOMContentLoaded', () => {
   cargarModulos();
   cargarEmpleados();
   cargarSelectMaquinaEmpleado();
-  cargarCheckboxModulosSupervisor();
+  cargarUsuarioModulosSupervisor();
   cargarMateriales();
   cargarHoras();
   cargarParadas();

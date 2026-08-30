@@ -676,8 +676,7 @@ def add_empleado():
         datos.get('telefono'),
         datos.get('email'),
         datos.get('modulo_asignado'),
-        datos.get('id_maquina'),
-        [int(x) for x in (datos.get('id_modulos_supervisor') or [])]
+        datos.get('id_maquina')
     )
     
     if "error" in res:
@@ -702,8 +701,7 @@ def update_empleado(id_empleado):
         datos.get('telefono'),
         datos.get('email'),
         datos.get('modulo_asignado'),
-        datos.get('id_maquina'),
-        [int(x) for x in (datos.get('id_modulos_supervisor') or [])]
+        datos.get('id_maquina')
     )
     
     if "error" in res:

@@ -333,10 +333,6 @@
                                 <input type="text" id="input-emp-email" placeholder="correo@empresa.com">
                             </div>
                         </div>
-                        <div class="form-group" id="form-emp-modulos-sup" style="display:none; width:100%; margin-top:4px;">
-                            <label>Módulos a supervisar</label>
-                            <div id="emp-modulos-supervisor"></div>
-                        </div>
                         <button class="btn-primary" id="btn-empleado" onclick="procesarEmpleado()" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
                         </div>
                         <div class="data-table-container">
@@ -388,7 +384,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label>Rol *</label>
-                                        <select id="input-usuario-rol">
+                                        <select id="input-usuario-rol" onchange="toggleRolUsuario()">
                                             <option value="Supervisor">Supervisor</option>
                                             <option value="Operador">Operador</option>
                                             <option value="Administrador">Administrador</option>
@@ -398,6 +394,10 @@
                                         <label>Empleado asociado *</label>
                                         <select id="input-usuario-empleado"></select>
                                     </div>
+                                </div>
+                                <div class="form-group" id="form-usuario-modulos-sup" style="display:none; margin-top:12px;">
+                                    <label>Líneas a supervisar *</label>
+                                    <div id="usuario-modulos-supervisor" class="module-check-list"></div>
                                 </div>
                                 <button class="btn-primary" id="btn-usuario" onclick="procesarUsuario()" style="max-width:280px;">Crear Usuario</button>
                             </div>
@@ -1186,7 +1186,7 @@
         </main>
     </div>
 
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=24"></script>
 </body>
 
 </html>

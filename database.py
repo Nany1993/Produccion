@@ -1228,19 +1228,6 @@ def _deducir_modulo_maquina(cursor, id_maquina):
     return r[0] if r else None
 
 
-def _sincronizar_modulos_supervisor(conexion, cursor, id_empleado, lista_modulos):
-    """Para un supervisor: sus módulos a supervisar = líneas de acceso del usuario ligado.
-    Actualiza AsignacionUsuarioLinea del usuario asociado al empleado."""
-    cursor.execute("SELECT id FROM Usuario WHERE id_empleado = ?", (id_empleado,))
-    r = cursor.fetchone()
-    if not r:
-        return
-    id_usuario = r[0]
-    cursor.execute("DELETE FROM AsignacionUsuarioLinea WHERE id_usuario = ?", (id_usuario,))
-    for mid in lista_modulos or []:
-        cursor.execute("INSERT INTO AsignacionUsuarioLinea (id_usuario, id_modulo) VALUES (?, ?)", (id_usuario, mid))
-
-
 def _verificar_capacidad_modulo(cursor, id_modulo, id_empleado_excluir=None):
     """Cuenta operadores ACTIVOS del módulo y valida contra 'capacidad_maxima'.
     Retorna None si hay cupo, o un dict de error. Excluye id_empleado_excluir (para updates)."""
@@ -1267,7 +1254,7 @@ def _verificar_capacidad_modulo(cursor, id_modulo, id_empleado_excluir=None):
 
 def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=None,
                       fecha_ingreso=None, estado='Activo', telefono=None, email=None,
-                      modulo_asignado=None, id_maquina=None, id_modulos_supervisor=None):
+                      modulo_asignado=None, id_maquina=None):
     """Inserta un nuevo empleado.
     Operador → opera una máquina (modulo_asignado = módulo de la máquina).
     Supervisor → supervisa uno o varios módulos (líneas a las que tiene acceso)."""
@@ -1276,9 +1263,6 @@ def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=Non
     try:
         # Validaciones por rol
         if rol == 'Supervisor':
-            if not id_modulos_supervisor:
-                conexion.close()
-                return {"error": "Un supervisor debe tener al menos un módulo a supervisar."}
             id_maquina = None
             modulo_asignado = None
         else:  # Operador
@@ -1306,10 +1290,6 @@ def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=Non
         conexion.commit()
         nuevo_id = cursor.lastrowid
 
-        if rol == 'Supervisor':
-            _sincronizar_modulos_supervisor(conexion, cursor, nuevo_id, id_modulos_supervisor)
-            conexion.commit()
-
         conexion.close()
         return {"mensaje": "Empleado guardado con éxito", "id": nuevo_id}
     except sqlite3.IntegrityError:
@@ -1319,15 +1299,12 @@ def insertar_empleado(nombre, numero_documento, cargo, rol='Operador', turno=Non
 
 def actualizar_empleado(id_empleado, nombre, numero_documento, cargo, rol='Operador',
                         turno=None, fecha_ingreso=None, estado='Activo', telefono=None,
-                        email=None, modulo_asignado=None, id_maquina=None, id_modulos_supervisor=None):
+                        email=None, modulo_asignado=None, id_maquina=None):
     """Actualiza un empleado existente."""
     conexion = _conexion()
     cursor = conexion.cursor()
     try:
         if rol == 'Supervisor':
-            if not id_modulos_supervisor:
-                conexion.close()
-                return {"error": "Un supervisor debe tener al menos un módulo a supervisar."}
             id_maquina = None
             modulo_asignado = None
         else:
@@ -1354,10 +1331,6 @@ def actualizar_empleado(id_empleado, nombre, numero_documento, cargo, rol='Opera
         """, (nombre, numero_documento, cargo, rol, turno, fecha_ingreso,
               estado, telefono, email, modulo_asignado, id_maquina, id_empleado))
         conexion.commit()
-
-        if rol == 'Supervisor':
-            _sincronizar_modulos_supervisor(conexion, cursor, id_empleado, id_modulos_supervisor)
-            conexion.commit()
 
         conexion.close()
         return {"mensaje": "Empleado actualizado con éxito"}

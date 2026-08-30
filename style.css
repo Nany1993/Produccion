@@ -1565,8 +1565,8 @@ select:disabled {
     border-radius: 6px;
 }
 
-/* Módulos a supervisar — listado horizontal */
-#emp-modulos-supervisor {
+/* Líneas a supervisar — listado horizontal */
+#usuario-modulos-supervisor {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 8px;
@@ -1576,7 +1576,7 @@ select:disabled {
     border-radius: 6px;
 }
 
-#emp-modulos-supervisor .linea-check {
+#usuario-modulos-supervisor .linea-check {
     padding: 8px 12px;
     background: var(--bg-deep);
     border: 1px solid var(--card-border);
@@ -1590,12 +1590,12 @@ select:disabled {
     color: var(--text-primary);
 }
 
-#emp-modulos-supervisor .linea-check:hover {
+#usuario-modulos-supervisor .linea-check:hover {
     border-color: var(--accent-blue);
     background: rgba(59, 130, 246, 0.06);
 }
 
-#emp-modulos-supervisor .linea-check:has(input:checked) {
+#usuario-modulos-supervisor .linea-check:has(input:checked) {
     border-color: var(--accent-success);
     background: rgba(74, 222, 128, 0.08);
 }
