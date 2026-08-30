@@ -1222,7 +1222,8 @@ function iniciarEdicionOperacion(operacion) {
   btn.textContent = 'Actualizar Operación';
   btn.style.background = 'var(--accent-blue)';
 
-  document.querySelector('#mod-operaciones .section-title-container').scrollIntoView({ behavior: 'smooth' });
+  const mod = document.getElementById('mod-operaciones');
+  if (mod) mod.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function procesarOperacion() {
@@ -2229,7 +2230,7 @@ function iniciarEdicionAsignacion(id, cantidad, idOrden, nombreOrden, nombreMod)
   idAsignacionEnEdicion = id;
   abrirFormColapsable('form-nueva-asignacion', 'btn-nueva-asignacion');
 
-  const btn = document.querySelector('#mod-programacion .btn-primary');
+  const btn = document.getElementById('btn-guardar-asignacion') || document.querySelector('#mod-programacion .btn-primary');
   btn.textContent = 'Actualizar Asignación';
   btn.style.backgroundColor = 'var(--accent-blue)';
 
@@ -2291,7 +2292,7 @@ function cancelarEdicionAsignacion() {
     f.classList.remove('sel');
   });
 
-  const btn = document.querySelector('#mod-programacion .btn-primary');
+  const btn = document.getElementById('btn-guardar-asignacion') || document.querySelector('#mod-programacion .btn-primary');
   btn.textContent = 'Asignar';
   btn.style.backgroundColor = '';
 
