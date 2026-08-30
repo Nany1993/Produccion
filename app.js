@@ -1083,6 +1083,13 @@ async function procesarUsuario() {
 
 async function iniciarEdicionUsuario(u) {
   idUsuarioEnEdicion = u.id;
+  // Abrir el formulario si está cerrado para que la edición sea visible
+  const form = document.getElementById('form-nuevo-usuario');
+  if (form && form.style.display !== 'block') {
+    form.style.display = 'block';
+    const btnNuevo = document.getElementById('btn-nuevo-usuario');
+    if (btnNuevo) btnNuevo.textContent = '− Cerrar';
+  }
   document.getElementById('usuario-id-edicion').value = u.id;
   document.getElementById('input-usuario-nombre').value = u.nombre_usuario;
   document.getElementById('input-usuario-pass').value = 'cambiar';
