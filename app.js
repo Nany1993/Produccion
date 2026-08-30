@@ -2488,15 +2488,13 @@ async function cargarGrillaRegistro() {
     tbody.innerHTML += `
       <tr id="${filaId}" ${(sinMaquina || ops.length === 0) ? 'class="row-disabled" style="opacity:.55;"' : ''}>
         <td>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <strong>${op.nombre}</strong>
-            <button class="btn-icon btn-paradas-op" title="Paradas individuales de este operador" onclick="abrirModalParadasOperador(${op.id_empleado}, '${op.nombre.replace(/'/g, "\\'")}')">⏱<span class="paradas-badge" data-id="${op.id_empleado}"></span></button>
-          </div>
+          <strong>${op.nombre}</strong>
           <div class="op-detalle">🔧 ${op.nombre_maquina} · ${nombreLinea}</div>
         </td>
         <td>${selAct}</td>
         <td><input type="number" class="gr-cantidad" data-id-operador="${op.id_empleado}" min="0" placeholder="0"></td>
         <td><input type="number" class="gr-defect" data-id-operador="${op.id_empleado}" min="0" value="0" placeholder="0"></td>
+        <td><button class="btn-paradas-op" onclick="abrirModalParadasOperador(${op.id_empleado}, '${op.nombre.replace(/'/g, "\\'")}')">Parada<span class="paradas-badge" data-id="${op.id_empleado}"></span></button></td>
       </tr>
     `;
   });
