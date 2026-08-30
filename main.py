@@ -60,6 +60,7 @@ from database import (
     insertar_causa_parada,
     eliminar_causa_parada,
     obtener_registros_dia,
+    obtener_fechas_con_registros,
     resumen_registros_hora,
     insertar_registro_produccion,
     eliminar_registro_produccion,
@@ -861,6 +862,10 @@ def delete_causa_parada(id_causa):
     return jsonify(eliminar_causa_parada(id_causa))
 
 # --- REGISTRO DE PRODUCCIÓN (NUEVO) ---
+
+@app.route('/api/produccion/fechas', methods=['GET'])
+def get_fechas_produccion():
+    return jsonify(obtener_fechas_con_registros())
 
 @app.route('/api/produccion/dia', methods=['GET'])
 def get_produccion_dia():

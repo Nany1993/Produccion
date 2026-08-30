@@ -1657,6 +1657,15 @@ def obtener_registros_dia(fecha, id_usuario=None):
         "paradas": paradas_dict.get(f[0], [])
     } for f in filas]
 
+def obtener_fechas_con_registros(limit=120):
+    """Fechas que tienen registros de producción, más recientes primero."""
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("SELECT DISTINCT fecha FROM RegistroProduccion ORDER BY fecha DESC LIMIT ?", (limit,))
+    filas = cursor.fetchall()
+    conexion.close()
+    return [f[0] for f in filas]
+
 def resumen_registros_hora(fecha, id_modulo, id_hora=None, id_operacion=None):
     """Devuelve la cantidad del día (módulo+operación opcional) y el total del día.
     Sin hora operativa: la marca temporal es created_at, no hay asignación por hora."""

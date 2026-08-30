@@ -983,6 +983,10 @@
                             <label>Fecha</label>
                             <input type="date" id="prod-dia-fecha" onclick="abrirCalendarioFecha(this)" onchange="cargarControlesHoy()" style="margin-bottom:0;">
                         </div>
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Fechas con registros</label>
+                            <select id="prod-dia-fechas" onchange="seleccionarFechaConRegistros()"></select>
+                        </div>
                     </div>
 
                     <div class="report-table-container" id="container-lista-controles">

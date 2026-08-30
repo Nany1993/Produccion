@@ -423,7 +423,7 @@ function showModule(moduleId) {
   if (moduleId === 'mod-causas') cargarCausas();
   if (moduleId === 'mod-control-hora') initControlHora();
   if (moduleId === 'mod-progreso') cargarOrdenesReporte();
-  if (moduleId === 'mod-produccion-dia') cargarControlesHoy();
+  if (moduleId === 'mod-produccion-dia') initProduccionDia();
   if (moduleId === 'mod-configuracion') initConfiguracion();
   if (moduleId === 'mod-eficiencia') {
     const hoy = new Date();
@@ -2755,11 +2755,41 @@ function abrirCalendarioFecha(input) {
   }
 }
 
+async function initProduccionDia() {
+  const fechas = await api('/api/produccion/fechas');
+  const sel = document.getElementById('prod-dia-fechas');
+  const fechaInput = document.getElementById('prod-dia-fecha');
+  if (sel) {
+    sel.innerHTML = '<option value="">— Elegir fecha —</option>';
+    (fechas || []).forEach(f => {
+      sel.innerHTML += `<option value="${f}">${f}</option>`;
+    });
+  }
+  // Si hoy no tiene registros, preseleccionar la fecha más reciente con datos
+  if (fechas && fechas.length > 0 && fechaInput) {
+    const hoy = new Date().toISOString().split('T')[0];
+    if (!fechas.includes(hoy)) {
+      fechaInput.value = fechas[0];
+      if (sel) sel.value = fechas[0];
+    }
+  }
+  cargarControlesHoy();
+}
+
+function seleccionarFechaConRegistros() {
+  const sel = document.getElementById('prod-dia-fechas');
+  if (sel && sel.value) {
+    document.getElementById('prod-dia-fecha').value = sel.value;
+    cargarControlesHoy();
+  }
+}
+
 async function cargarControlesHoy() {
   const fechaSel = document.getElementById('prod-dia-fecha');
   if (fechaSel && !fechaSel.value) fechaSel.valueAsDate = new Date();
   const fecha = fechaSel ? fechaSel.value : new Date().toISOString().split('T')[0];
-  const usr = sesionActual ? `&id_usuario=${sesionActual.id}` : '';
+  // El Admin ve toda la planta; supervisores/operadores solo sus registros
+  const usr = (sesionActual && sesionActual.rol === 'Admin') ? '' : (sesionActual ? `&id_usuario=${sesionActual.id}` : '');
   const data = await api(`/api/produccion/dia?fecha=${fecha}${usr}`);
   if (!data) return;
 
