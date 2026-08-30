@@ -271,27 +271,19 @@ function guardarSesion(usuario) {
   sesionActual = usuario;
   localStorage.setItem('sesion', JSON.stringify(usuario));
   document.getElementById('login-overlay').classList.add('hidden');
-  const bar = document.getElementById('session-bar');
+  const bar = document.getElementById('topbar');
   bar.style.display = 'flex';
   document.getElementById('session-info').innerText = `${usuario.nombre_empleado || usuario.nombre_usuario} · ${usuario.rol}`;
-  // Control de modalidad global: visible solo para Admin
-  const ctrlAdmin = document.getElementById('admin-modalidad');
-  if (ctrlAdmin) {
-    ctrlAdmin.style.display = (usuario.rol === 'Admin') ? 'inline-flex' : 'none';
-  }
   aplicarPermisosMenu();
   Toast.success(`Bienvenido, ${usuario.nombre_usuario}`);
-  initControlHora();
-  cargarControlesHoy();
 }
 
 async function cambiarModalidadRegistro() {
-  const sel = document.getElementById('select-modalidad');
+  const sel = document.getElementById('config-modalidad');
   if (sesionActual && sesionActual.rol !== 'Admin') { Toast.error('Solo el administrador puede cambiar la modalidad'); return; }
   const data = await api('/api/configuracion', {
     method: 'PUT',
-    body: JSON.stringify({ modalidad_registro: sel.value }),
-    _btn: sel
+    body: JSON.stringify({ modalidad_registro: sel.value })
   });
   if (data) {
     window.modalidadRegistro = data.modalidad_registro || sel.value;
@@ -302,11 +294,17 @@ async function cambiarModalidadRegistro() {
   }
 }
 
+async function initConfiguracion() {
+  const cfg = await api('/api/configuracion');
+  window.modalidadRegistro = (cfg && cfg.modalidad_registro) || 'Diario';
+  aplicarModalidadRegistro();
+}
+
 function cerrarSesion() {
   sesionActual = null;
   localStorage.removeItem('sesion');
   document.getElementById('login-overlay').classList.remove('hidden');
-  document.getElementById('session-bar').style.display = 'none';
+  document.getElementById('topbar').style.display = 'none';
 }
 
 async function iniciarSesion() {
@@ -346,10 +344,8 @@ function ocultarSesionInicial() {
     try {
       sesionActual = JSON.parse(guardada);
       document.getElementById('login-overlay').classList.add('hidden');
-      document.getElementById('session-bar').style.display = 'flex';
+      document.getElementById('topbar').style.display = 'flex';
       document.getElementById('session-info').innerText = `${sesionActual.nombre_empleado || sesionActual.nombre_usuario} · ${sesionActual.rol}`;
-      const ctrlAdmin2 = document.getElementById('admin-modalidad');
-      if (ctrlAdmin2) ctrlAdmin2.style.display = (sesionActual.rol === 'Admin') ? 'inline-flex' : 'none';
       aplicarPermisosMenu();
       return true;
     } catch (e) { localStorage.removeItem('sesion'); }
@@ -427,6 +423,8 @@ function showModule(moduleId) {
   if (moduleId === 'mod-causas') cargarCausas();
   if (moduleId === 'mod-control-hora') initControlHora();
   if (moduleId === 'mod-progreso') cargarOrdenesReporte();
+  if (moduleId === 'mod-produccion-dia') cargarControlesHoy();
+  if (moduleId === 'mod-configuracion') initConfiguracion();
   if (moduleId === 'mod-eficiencia') {
     const hoy = new Date();
     const fi = document.getElementById('eff-fecha-inicio');
@@ -2385,37 +2383,14 @@ let catalogoParadasCache = [
 let causasParadaCache = [];
 
 function aplicarModalidadRegistro() {
-  const porHora = (window.modalidadRegistro || 'Diario') === 'Por Hora';
-  const grupo = document.getElementById('grupo-ctrl-hora');
-  const selHora = document.getElementById('ctrl-hora');
-  if (grupo) grupo.style.display = porHora ? '' : 'none';
-  if (selHora) selHora.disabled = !porHora;
-}
-
-function abrirModalRegistroProduccion() {
-  const fechaSel = document.getElementById('ctrl-fecha');
-  if (fechaSel && !fechaSel.value) fechaSel.valueAsDate = new Date();
-  cancelarEdicionControl();
-  const overlay = document.getElementById('reg-modal-overlay');
-  if (overlay) overlay.classList.add('reg-modal-visible');
-}
-
-function cerrarModalRegistroProduccion() {
-  const overlay = document.getElementById('reg-modal-overlay');
-  if (overlay) overlay.classList.remove('reg-modal-visible');
+  const sel = document.getElementById('config-modalidad');
+  if (sel) sel.value = window.modalidadRegistro || 'Diario';
 }
 
 async function initControlHora() {
   // Fecha default hoy
   const fechaSel = document.getElementById('ctrl-fecha');
   if (fechaSel) fechaSel.valueAsDate = new Date();
-
-  // Modalidad global de la plataforma (Diario | Por Hora)
-  const cfg = await api('/api/configuracion');
-  window.modalidadRegistro = (cfg && cfg.modalidad_registro) || 'Diario';
-  const selModalidad = document.getElementById('select-modalidad');
-  if (selModalidad) selModalidad.value = window.modalidadRegistro;
-  aplicarModalidadRegistro();
 
   // Líneas: las del usuario (supervisor) o todas (admin/operador)
   const modulos = await api('/api/modulos');
@@ -2430,14 +2405,18 @@ async function initControlHora() {
   });
   if (selLinea.options.length === 2) selLinea.selectedIndex = 1;
 
-  // Paradas y causas (para el acordeón opcional)
-  actualizarSelectParadas(catalogoParadasCache);
+  // Paradas reales del catálogo (programadas) para el acordeón opcional
+  const paradas = await api('/api/paradas');
+  if (paradas) {
+    catalogoParadasCache = paradas;
+    actualizarSelectParadas(paradas);
+  }
+  // Causas de paradas no programadas
   const causas = await api('/api/causas-parada');
   causasParadaCache = causas || [];
   document.querySelectorAll('.parada-np-causa').forEach(sel => llenarSelectCausas(sel));
 
   cargarGrillaRegistro();
-  cargarControlesHoy();
 }
 
 async function cargarGrillaRegistro() {
@@ -2653,186 +2632,10 @@ function agregarFilaParadaNP() {
   llenarSelectCausas(fila.querySelector('.parada-np-causa'));
 }
 
-async function cargarReferenciasPorModulo() {
-  const selMaq = document.getElementById('ctrl-maquina');
-  const selRef = document.getElementById('ctrl-referencia');
-  const optMaq = selMaq.options[selMaq.selectedIndex];
-
-  const idModulo = optMaq ? parseInt(optMaq.getAttribute('data-modulo') || 0) : 0;
-  const nombreModulo = optMaq ? optMaq.getAttribute('data-modulo-nombre') || '' : '';
-
-  // Mostrar módulo deducido de la máquina
-  const infoModulo = document.getElementById('ctrl-modulo-info');
-  const hiddenModulo = document.getElementById('ctrl-modulo');
-  if (infoModulo) {
-    infoModulo.value = idModulo ? nombreModulo : '';
-  }
-  if (hiddenModulo) hiddenModulo.value = idModulo || '';
-
-  // Limpiar dependientes
-  if (!idModulo) {
-    selRef.innerHTML = '<option value="">Seleccione Máquina primero...</option>';
-    selRef.disabled = true;
-    document.getElementById('ctrl-actividad').innerHTML = '<option value="">Seleccione la orden primero...</option>';
-    document.getElementById('ctrl-actividad').disabled = true;
-    actualizarTiempoCiclo();
-    return;
-  }
-
-  const refs = await api(`/api/modulos/${idModulo}/referencias-asignadas`);
-  if (!refs) return;
-
-  selRef.innerHTML = '<option value="">Seleccione Asignación...</option>';
-  refs.forEach(r => {
-    const etiqueta = r.nombre_orden ? `${r.nombre_orden} - ${r.nombre}` : r.nombre;
-    selRef.innerHTML += `<option value="${r.id}" data-ref-id="${r.id_referencia}" data-orden-id="${r.id_orden}">${etiqueta}</option>`;
-  });
-  selRef.disabled = false;
-
-  document.getElementById('ctrl-actividad').innerHTML = '<option value="">Seleccione la orden primero...</option>';
-  document.getElementById('ctrl-actividad').disabled = true;
-  cargarOpcionesActividad();
-}
-
-async function cargarOpcionesActividad() {
-  const selRef = document.getElementById('ctrl-referencia');
-  const selAct = document.getElementById('ctrl-actividad');
-  const selMaq = document.getElementById('ctrl-maquina');
-  const optRef = selRef.options[selRef.selectedIndex];
-  const idReferencia = optRef ? optRef.getAttribute('data-ref-id') : null;
-  const idMaquina = parseInt(selMaq.value) || 0;
-
-  if (!idReferencia) {
-    selAct.innerHTML = '<option value="">Seleccione la orden primero...</option>';
-    selAct.disabled = true;
-    return;
-  }
-
-  const detalles = await api(`/api/referencias/${idReferencia}/detalles`);
-  if (!detalles) { selAct.disabled = true; return; }
-
-  // Mostrar SOLO las actividades que se ejecutan en la MÁQUINA seleccionada.
-  // (Si la operación no tiene máquina definida, se muestra por si acaso.)
-  const disponibles = detalles.filter(d => !d.id_maquina || d.id_maquina === idMaquina);
-
-  selAct.innerHTML = '<option value="">Seleccione actividad...</option>';
-  disponibles.forEach(d => {
-    selAct.innerHTML += `<option value="${d.id_operacion}" data-letra="${d.letra}" data-tc="${d.tiempo || 0}">${d.letra} - ${d.nombre_operacion}</option>`;
-  });
-  if (disponibles.length === 0) {
-    selAct.innerHTML = '<option value="">Esta máquina no ejecuta ninguna actividad de esta referencia...</option>';
-  }
-  selAct.disabled = false;
-  actualizarTiempoCiclo();
-}
-
-function actualizarTiempoCiclo() {
-  // Muestra el TIEMPO de la actividad seleccionada en el campo ctrl-ciclo (antes manejado por actualizarOpcionesCiclo, que no existía)
-  const selAct = document.getElementById('ctrl-actividad');
-  const ctrlCiclo = document.getElementById('ctrl-ciclo');
-  if (!ctrlCiclo) return;
-  const opt = selAct.options[selAct.selectedIndex];
-  const tc = opt ? (parseInt(opt.getAttribute('data-tc')) || 0) : 0;
-  if (tc > 0) {
-    const mm = Math.floor(tc / 60);
-    const ss = tc % 60;
-    ctrlCiclo.innerHTML = `<option value="${tc}" selected>${tc}s (${mm}min ${String(ss).padStart(2, '0')}s)</option>`;
-  } else {
-    ctrlCiclo.innerHTML = '<option value="" selected>-</option>';
-  }
-}
-
-async function guardarControlHora(btn = null) {
-  const fecha = document.getElementById('ctrl-fecha').value;
-  const idMaquina = document.getElementById('ctrl-maquina').value;
-  const idMod = document.getElementById('ctrl-modulo').value;
-  const selRef = document.getElementById('ctrl-referencia');
-  const optRef = selRef.options[selRef.selectedIndex];
-  const idOrden = optRef ? optRef.getAttribute('data-orden-id') : null;
-  const idOperacion = document.getElementById('ctrl-actividad').value;
-  const cantidad = document.getElementById('ctrl-cantidad').value;
-  const defectuosas = document.getElementById('ctrl-defectuosas').value;
-  const porHora = (window.modalidadRegistro || 'Diario') === 'Por Hora';
-  const idHora = porHora ? document.getElementById('ctrl-hora').value : '';
-
-  let valid = true;
-  if (!fecha) { showFieldError('ctrl-fecha', 'Requerido'); valid = false; } else clearFieldErrors('ctrl-fecha');
-  if (!idMaquina) { showFieldError('ctrl-maquina', 'Seleccione la máquina'); valid = false; } else clearFieldErrors('ctrl-maquina');
-  if (!idOrden) { showFieldError('ctrl-referencia', 'Seleccione una orden'); valid = false; } else clearFieldErrors('ctrl-referencia');
-  if (!idOperacion) { showFieldError('ctrl-actividad', 'Seleccione la actividad'); valid = false; } else clearFieldErrors('ctrl-actividad');
-  if (porHora && !idHora) { showFieldError('ctrl-hora', 'Seleccione la hora'); valid = false; } else if (porHora) clearFieldErrors('ctrl-hora');
-  if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) { showFieldError('ctrl-cantidad', 'Ingrese cantidad'); valid = false; } else clearFieldErrors('ctrl-cantidad');
-  if (!sesionActual) { Toast.error('Debe iniciar sesión para registrar'); return; }
-  if (!valid) return;
-
-  const paradasNP = [];
-  document.querySelectorAll('.parada-np-row').forEach(fila => {
-    const causa = fila.querySelector('.parada-np-causa').value;
-    const tiempo = fila.querySelector('.parada-np-tiempo').value;
-    const causaTexto = fila.querySelector('.parada-np-causa').options[fila.querySelector('.parada-np-causa').selectedIndex];
-    const esOtro = causaTexto && causaTexto.text === 'Otro';
-    const descripcion = fila.querySelector('.parada-np-desc').value.trim();
-    if (causa && tiempo) {
-      paradasNP.push({
-        id_causa: parseInt(causa),
-        tiempo_segundos: parseInt(tiempo),
-        descripcion: esOtro ? (descripcion || '') : null
-      });
-    }
-  });
-
-  const idParadaP = document.getElementById('ctrl-parada-p').value;
-  const tiempoP = document.getElementById('ctrl-tiempo-p').value;
-  const paradas = [];
-  if (idParadaP && parseInt(tiempoP) > 0) {
-    paradas.push({ id_parada_programada: parseInt(idParadaP), tiempo_segundos: parseInt(tiempoP) });
-  }
-  paradasNP.forEach(p => paradas.push(p));
-
-  // VALIDACIÓN: aviso si ya hay registro de esta actividad hoy (módulo, y hora si es por hora)
-  const horaQ = porHora ? `&id_hora=${idHora}` : '';
-  const resumen = await api(`/api/produccion/resumen?fecha=${fecha}&id_modulo=${idMod}&id_operacion=${idOperacion}${horaQ}`);
-  let continuar = true;
-  if (resumen && resumen.hora > 0) {
-    const sufijo = porHora ? ` en esta hora` : ' hoy en este módulo';
-    continuar = await Modal.confirm(
-      'Ya hay registro',
-      `Ya registraste ${resumen.hora} unidades de esta actividad${sufijo}.\nEn el día llevas ${resumen.dia} unidades registradas.\n¿Deseas continuar?`
-    );
-  }
-  if (!continuar) return;
-
-  const payload = {
-    fecha,
-    id_modulo: parseInt(idMod),
-    id_orden: parseInt(idOrden),
-    id_operacion: parseInt(idOperacion),
-    id_maquina: parseInt(idMaquina),
-    id_hora: porHora ? parseInt(idHora) : null,
-    porcion_tiempo: 1.0,
-    cantidad_operarios: parseInt(document.getElementById('ctrl-operarios').value || 0),
-    cantidad_producida: parseInt(cantidad),
-    cantidad_defectuosa: defectuosas ? parseInt(defectuosas) : 0,
-    observaciones: document.getElementById('ctrl-obs').value.trim(),
-    id_usuario: sesionActual.id,
-    paradas
-  };
-
-  const data = await api('/api/produccion', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    _btn: btn
-  });
-
-  if (data) {
-    Toast.success(data.mensaje || 'Registro guardado');
-    cancelarEdicionControl();
-    cargarControlesHoy();
-  }
-}
-
 async function cargarControlesHoy() {
-  const fecha = document.getElementById('ctrl-fecha').value || new Date().toISOString().split('T')[0];
+  const fechaSel = document.getElementById('prod-dia-fecha');
+  if (fechaSel && !fechaSel.value) fechaSel.valueAsDate = new Date();
+  const fecha = fechaSel ? fechaSel.value : new Date().toISOString().split('T')[0];
   const usr = sesionActual ? `&id_usuario=${sesionActual.id}` : '';
   const data = await api(`/api/produccion/dia?fecha=${fecha}${usr}`);
   if (!data) return;
@@ -2885,32 +2688,6 @@ async function eliminarControlHora(id) {
     Toast.success('Registro eliminado');
     cargarControlesHoy();
   }
-}
-
-function cancelarEdicionControl() {
-  document.getElementById('ctrl-cantidad').value = '';
-  document.getElementById('ctrl-defectuosas').value = '0';
-  document.getElementById('ctrl-obs').value = '';
-  document.getElementById('ctrl-maquina').value = '';
-  document.getElementById('ctrl-modulo').value = '';
-  const infoModulo = document.getElementById('ctrl-modulo-info');
-  if (infoModulo) infoModulo.value = '';
-  document.getElementById('ctrl-operarios').value = '';
-  document.getElementById('ctrl-parada-p').value = '1';
-  actualizarTiempoParadaP();
-  document.querySelectorAll('.parada-np-row:not(:first-child)').forEach(r => r.remove());
-  const fila1 = document.querySelector('.parada-np-row');
-  if (fila1) {
-    fila1.querySelector('.parada-np-causa').value = '';
-    fila1.querySelector('.parada-np-tiempo').value = '';
-    fila1.querySelector('.parada-np-desc').value = '';
-    fila1.querySelector('.parada-np-desc').style.display = 'none';
-  }
-
-  const selRef = document.getElementById('ctrl-referencia');
-  selRef.value = '';
-  selRef.innerHTML = '<option value="">Seleccione Máquina primero...</option>';
-  selRef.disabled = true;
 }
 
 // ============================================================

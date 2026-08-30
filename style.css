@@ -254,39 +254,6 @@ body {
     transform: scale(1);
 }
 
-#reg-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    z-index: 10001;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.2s ease;
-}
-
-#reg-modal-overlay.reg-modal-visible {
-    opacity: 1;
-    visibility: visible;
-}
-
-#reg-modal-overlay.reg-modal-visible .content-modal-box {
-    transform: scale(1);
-}
-
-#reg-modal-overlay .content-modal-box {
-    width: 92%;
-    max-width: 820px;
-}
-
-#reg-modal-overlay .content-modal-body {
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
 .content-modal-header {
     display: flex;
     align-items: center;
@@ -1751,24 +1718,35 @@ select:disabled {
    SESIÓN
    ============================================================ */
 
-.session-bar {
+.topbar {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 10002;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-top: 12px;
-    padding: 8px 10px;
-    background: var(--bg-deep);
-    border-radius: 6px;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--bg-card);
     border: 1px solid var(--card-border);
-    font-size: 0.8rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    font-size: 0.85rem;
 }
 
-.session-bar span {
+.topbar span {
     color: var(--text-secondary);
     white-space: nowrap;
+    max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.btn-salir {
+    width: auto;
+    padding: 6px 16px;
+    font-size: 0.8rem;
+    background: var(--accent-danger);
 }
 
 /* ============================================================

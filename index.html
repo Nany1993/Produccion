@@ -52,90 +52,10 @@
         </div>
     </div>
 
-    <div id="reg-modal-overlay">
-        <div class="content-modal-box reg-modal-box">
-            <div class="content-modal-header">
-                <h3 class="content-modal-title">Registrar Producción</h3>
-                <button class="content-modal-close" onclick="cerrarModalRegistroProduccion()" title="Cerrar">✕</button>
-            </div>
-            <div class="content-modal-body">
-                <input type="hidden" id="ctrl-id-edicion">
-                <div class="form-group">
-                    <label>Fecha del Registro</label>
-                    <input type="date" id="ctrl-fecha">
-                </div>
-                <div class="form-group">
-                    <label>Máquina / Puesto de Trabajo</label>
-                    <select id="ctrl-maquina" onchange="cargarReferenciasPorModulo()"></select>
-                </div>
-                <div class="form-group">
-                    <label>Módulo (línea)</label>
-                    <input type="text" id="ctrl-modulo-info" readonly placeholder="Se deduce de la máquina" style="background:var(--bg-input,#fafafa);color:var(--text-muted);">
-                    <input type="hidden" id="ctrl-modulo">
-                </div>
-                <div class="form-group">
-                    <label>Orden / Lote</label>
-                    <select id="ctrl-referencia" disabled onchange="cargarOpcionesActividad()">
-                        <option value="">Seleccione Máquina primero...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Actividad (operación)</label>
-                    <select id="ctrl-actividad" disabled onchange="actualizarTiempoCiclo()">
-                        <option value="">Seleccione la orden primero...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Tiempo de ciclo</label>
-                    <select id="ctrl-ciclo">
-                        <option value="">-</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Cantidad de Operarios</label>
-                    <input type="number" step="1" id="ctrl-operarios" placeholder="Ej: 5">
-                </div>
-                <div class="form-group" id="grupo-ctrl-hora" style="display:none;">
-                    <label>Hora</label>
-                    <select id="ctrl-hora" disabled></select>
-                </div>
-                <div class="form-group">
-                    <label>Cantidad Producida *</label>
-                    <input type="number" id="ctrl-cantidad" placeholder="Unidades">
-                </div>
-                <div class="form-group">
-                    <label>Unidades Defectuosas</label>
-                    <input type="number" id="ctrl-defectuosas" placeholder="0" value="0">
-                </div>
-                <div class="form-group">
-                    <label>Observaciones</label>
-                    <input type="text" id="ctrl-obs" placeholder="Opcional">
-                </div>
-                <div class="separator-title">PARADAS PROGRAMADAS</div>
-                <div class="form-group">
-                    <label>Parada</label>
-                    <select id="ctrl-parada-p" onchange="actualizarTiempoParadaP()"></select>
-                    <label style="margin-top:8px;">Tiempo (seg)</label>
-                    <input type="number" id="ctrl-tiempo-p" readonly style="background-color: var(--bg-card); opacity: 0.7;">
-                </div>
-                <div class="separator-title">PARADAS NO PROGRAMADAS</div>
-                <div id="lista-paradas-np">
-                    <div class="parada-np-row">
-                        <select class="parada-np-causa" onchange="toggleDescripcionParada(this)">
-                            <option value="">Seleccione causa...</option>
-                        </select>
-                        <input type="number" class="parada-np-tiempo" placeholder="Segundos" min="0">
-                        <input type="text" class="parada-np-desc" placeholder="¿Qué pasó?" style="display:none;">
-                    </div>
-                </div>
-                <button class="btn-secondary" onclick="agregarFilaParadaNP()" type="button" style="margin-bottom:14px;">+ Agregar otra parada</button>
-                <div class="content-modal-actions">
-                    <button class="btn-secondary" onclick="cerrarModalRegistroProduccion()">Cancelar</button>
-                    <button class="btn-primary" onclick="guardarControlHora(this)">Guardar Registro</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <header class="topbar" id="topbar" style="display:none;">
+        <span id="session-info"></span>
+        <button class="btn-primary btn-salir" onclick="cerrarSesion()" title="Cerrar sesión">Salir</button>
+    </header>
 
     <div class="app-layout">
         <aside class="sidebar">
@@ -144,17 +64,6 @@
                     PROYECTO <span>BALANCEO</span>
                 </div>
                 <div class="brand-subtitle">Gestión de Producción</div>
-                <div class="session-bar" id="session-bar" style="display:none;">
-                    <span id="session-info"></span>
-                    <span id="admin-modalidad" style="display:none; font-size:0.8rem; color:var(--text-muted); margin-left:8px;">
-                        Registro:
-                        <select id="select-modalidad" onchange="cambiarModalidadRegistro()" style="padding:3px 8px; border-radius:4px; border:1px solid var(--card-border); background:var(--bg-deep); color:var(--text-primary);">
-                            <option value="Diario">Diario</option>
-                            <option value="Por Hora">Por Hora</option>
-                        </select>
-                    </span>
-                    <button class="btn-primary" onclick="cerrarSesion()" style="width:auto; padding:6px 12px; font-size:0.8rem; background:var(--accent-danger);">Salir</button>
-                </div>
             </div>
 
             <nav class="sidebar-nav">
@@ -176,6 +85,7 @@
                         <li><a href="#" class="nav-link" onclick="showModule('mod-materiales')" id="link-materiales">Materiales</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-horas')" id="link-horas">Horas</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-paradas')" id="link-paradas">Paradas Programadas</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-configuracion')" id="link-configuracion">Configuración de Registro</a></li>
                     </ul>
                 </div>
 
@@ -207,6 +117,7 @@
                     <ul class="nav-list">
                         <li><a href="#" class="nav-link" onclick="showModule('mod-eficiencia')" id="link-eficiencia">Tablero Eficiencias</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-progreso')" id="link-progreso">Progreso de Producción</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-produccion-dia')" id="link-produccion-dia">Producción del Día</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-simulador')" id="link-simulador">Simulador Balanceo</a></li>
                     </ul>
                 </div>
@@ -679,6 +590,24 @@
                     </div>
                 </div>
 
+                <!-- CONFIGURACIÓN DE REGISTRO -->
+                <div id="mod-configuracion" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Configuración de Registro</h1>
+                        <p class="page-subtitle">Modalidad global de cómo se registra la producción</p>
+                    </div>
+                    <div class="catalog-card" style="max-width: 560px;">
+                        <div class="form-group">
+                            <label>Modalidad de Registro</label>
+                            <select id="config-modalidad" onchange="cambiarModalidadRegistro()">
+                                <option value="Diario">Diario</option>
+                                <option value="Por Hora">Por Hora</option>
+                            </select>
+                            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:8px;">Define cómo se interpreta la producción registrada en la plataforma. Controlado por el Administrador.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- OPERACIONES -->
                 <div id="mod-operaciones" class="module-section">
                     <div class="page-header">
@@ -898,7 +827,7 @@
                             <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;">
                                 <div class="form-group" style="margin-bottom:0;">
                                     <label>Fecha</label>
-                                    <input type="date" id="ctrl-fecha" onchange="cargarControlesHoy()">
+                                    <input type="date" id="ctrl-fecha">
                                 </div>
                                 <div class="form-group" style="margin-bottom:0;">
                                     <label>Línea</label>
@@ -950,31 +879,6 @@
 
                             <div style="display:flex; gap:8px; margin-top:6px;">
                                 <button class="btn-primary" onclick="guardarGrilla(this)">Guardar Producción</button>
-                            </div>
-                        </div>
-
-                        <div class="catalog-card">
-                            <div class="ref-header">
-                                <h2 class="form-title" style="margin:0;">Producción de Hoy</h2>
-                            </div>
-                            <div class="table-container" id="container-lista-controles">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>HORA REG.</th>
-                                            <th>OPERADOR</th>
-                                            <th>MOD.</th>
-                                            <th>ORDEN</th>
-                                            <th>ACT.</th>
-                                            <th>CANT.</th>
-                                            <th>DEFECT.</th>
-                                            <th>PARADAS</th>
-                                            <th>ACC.</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="lista-controles"></tbody>
-                                </table>
-                                <div id="empty-controles" class="empty-state" style="display: none;">No hay registros para hoy.</div>
                             </div>
                         </div>
                     </div>
@@ -1059,6 +963,41 @@
                         <div class="empty-state" style="text-align:center; padding:40px;">
                             Seleccione un lote para ver el avance por actividad y el total de gorras completas.
                         </div>
+                    </div>
+                </div>
+
+                <!-- PRODUCCIÓN DEL DÍA -->
+                <div id="mod-produccion-dia" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Producción del Día</h1>
+                        <p class="page-subtitle">Registros de producción por operador, con paradas</p>
+                    </div>
+
+                    <div class="report-controls">
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Fecha</label>
+                            <input type="date" id="prod-dia-fecha" onchange="cargarControlesHoy()" style="margin-bottom:0;">
+                        </div>
+                    </div>
+
+                    <div class="report-table-container" id="container-lista-controles">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>HORA REG.</th>
+                                    <th>OPERADOR</th>
+                                    <th>MOD.</th>
+                                    <th>ORDEN</th>
+                                    <th>ACT.</th>
+                                    <th>CANT.</th>
+                                    <th>DEFECT.</th>
+                                    <th>PARADAS</th>
+                                    <th>ACC.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-controles"></tbody>
+                        </table>
+                        <div id="empty-controles" class="empty-state" style="display: none;">No hay registros para esta fecha.</div>
                     </div>
                 </div>
 
