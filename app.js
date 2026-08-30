@@ -2488,7 +2488,10 @@ async function cargarGrillaRegistro() {
     tbody.innerHTML += `
       <tr id="${filaId}" ${(sinMaquina || ops.length === 0) ? 'class="row-disabled" style="opacity:.55;"' : ''}>
         <td>
-          <strong>${op.nombre}</strong>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <strong>${op.nombre}</strong>
+            <button class="btn-icon btn-paradas-op" title="Paradas individuales de este operador" onclick="abrirModalParadasOperador(${op.id_empleado}, '${op.nombre.replace(/'/g, "\\'")}')">⏱<span class="paradas-badge" data-id="${op.id_empleado}"></span></button>
+          </div>
           <div class="op-detalle">🔧 ${op.nombre_maquina} · ${nombreLinea}</div>
         </td>
         <td>${selAct}</td>
@@ -2497,6 +2500,8 @@ async function cargarGrillaRegistro() {
       </tr>
     `;
   });
+
+  actualizarBadgesParadas();
 
   if (empty) empty.style.display = 'none';
 }
@@ -2519,12 +2524,17 @@ async function guardarGrilla(btn = null) {
     if (!cant || !act) return;
     const cantidad = parseInt(cant.value) || 0;
     if (cantidad <= 0) return;
-    registros.push({
-      id_operador: parseInt(cant.dataset.idOperador),
+    const idOp = parseInt(cant.dataset.idOperador);
+    const item = {
+      id_operador: idOp,
       id_operacion: parseInt(act.value),
       cantidad,
       defectuosas: def ? (parseInt(def.value) || 0) : 0
-    });
+    };
+    if (paradasOperadorStore[idOp] && paradasOperadorStore[idOp].length > 0) {
+      item.paradas = paradasOperadorStore[idOp];
+    }
+    registros.push(item);
   });
 
   if (registros.length === 0) {
@@ -2532,31 +2542,10 @@ async function guardarGrilla(btn = null) {
     return;
   }
 
-  // Paradas (acordeón opcional): solo si el supervisor lo abre
+  // Paradas de línea (acordeón opcional): solo si el supervisor lo abre
   const detParadas = document.getElementById('det-paradas');
   const paradasAplicar = detParadas ? detParadas.open : false;
-  const paradas = [];
-  if (paradasAplicar) {
-    // Programadas (del catálogo)
-    document.querySelectorAll('#lista-paradas-p .parada-row').forEach(fila => {
-      const sel = fila.querySelector('.parada-p-select');
-      const valor = sel.value;
-      const tiempo = fila.querySelector('.parada-tiempo').value;
-      if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
-      paradas.push({ id_parada_programada: parseInt(valor), tiempo_segundos: parseInt(tiempo) });
-    });
-    // No programadas (causas)
-    document.querySelectorAll('#lista-paradas-np .parada-row').forEach(fila => {
-      const sel = fila.querySelector('.parada-np-select');
-      const valor = sel.value;
-      const tiempo = fila.querySelector('.parada-tiempo').value;
-      const texto = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
-      const esOtro = texto === 'Otro';
-      const descripcion = fila.querySelector('.parada-desc').value.trim();
-      if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
-      paradas.push({ id_causa: parseInt(valor), tiempo_segundos: parseInt(tiempo), descripcion: esOtro ? (descripcion || '') : null });
-    });
-  }
+  const paradas = paradasAplicar ? recolectarParadas('lista-paradas-p', 'lista-paradas-np') : [];
 
   const payload = {
     fecha,
@@ -2619,8 +2608,9 @@ function toggleDescripcionParada(select) {
   desc.style.display = esOtro ? 'block' : 'none';
 }
 
-function agregarFilaParadaP() {
-  const cont = document.getElementById('lista-paradas-p');
+function agregarFilaParadaP(contId) {
+  const cont = document.getElementById(contId);
+  if (!cont) return;
   const fila = document.createElement('div');
   fila.className = 'parada-row';
   fila.innerHTML = `
@@ -2632,8 +2622,9 @@ function agregarFilaParadaP() {
   llenarSelectParadas(fila.querySelector('.parada-p-select'));
 }
 
-function agregarFilaParadaNP() {
-  const cont = document.getElementById('lista-paradas-np');
+function agregarFilaParadaNP(contId) {
+  const cont = document.getElementById(contId);
+  if (!cont) return;
   const fila = document.createElement('div');
   fila.className = 'parada-row';
   fila.innerHTML = `
@@ -2644,6 +2635,103 @@ function agregarFilaParadaNP() {
   `;
   cont.appendChild(fila);
   llenarSelectCausas(fila.querySelector('.parada-np-select'));
+}
+
+function recolectarParadas(contIdP, contIdNP) {
+  const paradas = [];
+  document.querySelectorAll(`#${contIdP} .parada-row`).forEach(fila => {
+    const sel = fila.querySelector('.parada-p-select');
+    const valor = sel ? sel.value : '';
+    const tiempo = fila.querySelector('.parada-tiempo').value;
+    if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
+    paradas.push({ id_parada_programada: parseInt(valor), tiempo_segundos: parseInt(tiempo) });
+  });
+  document.querySelectorAll(`#${contIdNP} .parada-row`).forEach(fila => {
+    const sel = fila.querySelector('.parada-np-select');
+    const valor = sel ? sel.value : '';
+    const tiempo = fila.querySelector('.parada-tiempo').value;
+    const texto = sel && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+    const esOtro = texto === 'Otro';
+    const descripcion = fila.querySelector('.parada-desc').value.trim();
+    if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
+    paradas.push({ id_causa: parseInt(valor), tiempo_segundos: parseInt(tiempo), descripcion: esOtro ? (descripcion || '') : null });
+  });
+  return paradas;
+}
+
+// --- Paradas individuales por operador ---
+let paradasOperadorStore = {};
+let operadorParadasActivo = null;
+
+function abrirModalParadasOperador(idEmpleado, nombre) {
+  operadorParadasActivo = idEmpleado;
+  const existentes = paradasOperadorStore[idEmpleado] || [];
+  const body = `
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;">Paradas individuales de <strong>${nombre}</strong>. Si no cargás ninguna, se aplican las paradas de la línea.</p>
+    <div class="separator-title">PARADAS PROGRAMADAS</div>
+    <div id="modal-lista-paradas-p"></div>
+    <button class="btn-secondary btn-agregar-parada" onclick="agregarFilaParadaP('modal-lista-paradas-p')" type="button">+ Agregar parada programada</button>
+    <div class="separator-title">PARADAS NO PROGRAMADAS</div>
+    <div id="modal-lista-paradas-np"></div>
+    <button class="btn-secondary btn-agregar-parada" onclick="agregarFilaParadaNP('modal-lista-paradas-np')" type="button">+ Agregar parada no programada</button>
+    <div class="content-modal-actions">
+      <button class="btn-secondary" onclick="ContentModal.cerrar()">Cancelar</button>
+      <button class="btn-primary" onclick="guardarParadasOperadorModal()">Guardar paradas</button>
+    </div>
+  `;
+  ContentModal.abrir({ title: `Paradas de ${nombre}`, body });
+
+  const divP = document.getElementById('modal-lista-paradas-p');
+  const divNP = document.getElementById('modal-lista-paradas-np');
+  divP.innerHTML = '<div class="parada-row"><select class="parada-p-select" onchange="autollenarTiempoP(this)"></select><input type="number" class="parada-tiempo" placeholder="Segundos" min="0"><button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>';
+  divNP.innerHTML = '<div class="parada-row"><select class="parada-np-select" onchange="toggleDescripcionParada(this)"></select><input type="number" class="parada-tiempo" placeholder="Segundos" min="0"><input type="text" class="parada-desc" placeholder="¿Qué pasó?" style="display:none;"><button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>';
+  llenarSelectParadas(divP.querySelector('.parada-p-select'));
+  llenarSelectCausas(divNP.querySelector('.parada-np-select'));
+
+  const prog = existentes.filter(p => p.id_parada_programada);
+  const noprog = existentes.filter(p => p.id_causa);
+  if (prog.length > 0) divP.querySelector('.parada-row').remove();
+  if (noprog.length > 0) divNP.querySelector('.parada-row').remove();
+  prog.forEach(p => {
+    agregarFilaParadaP('modal-lista-paradas-p');
+    const f = divP.lastElementChild;
+    f.querySelector('.parada-p-select').value = String(p.id_parada_programada);
+    f.querySelector('.parada-tiempo').value = p.tiempo_segundos;
+  });
+  noprog.forEach(p => {
+    agregarFilaParadaNP('modal-lista-paradas-np');
+    const f = divNP.lastElementChild;
+    f.querySelector('.parada-np-select').value = String(p.id_causa);
+    f.querySelector('.parada-tiempo').value = p.tiempo_segundos;
+    if (p.descripcion) {
+      const d = f.querySelector('.parada-desc');
+      d.value = p.descripcion;
+      d.style.display = 'block';
+    }
+  });
+}
+
+function guardarParadasOperadorModal() {
+  if (operadorParadasActivo == null) { ContentModal.cerrar(); return; }
+  const paradas = recolectarParadas('modal-lista-paradas-p', 'modal-lista-paradas-np');
+  if (paradas.length > 0) {
+    paradasOperadorStore[operadorParadasActivo] = paradas;
+  } else {
+    delete paradasOperadorStore[operadorParadasActivo];
+  }
+  actualizarBadgesParadas();
+  ContentModal.cerrar();
+  Toast.success(paradas.length > 0 ? 'Paradas individuales guardadas' : 'Paradas individuales quitadas');
+}
+
+function actualizarBadgesParadas() {
+  document.querySelectorAll('.paradas-badge').forEach(b => {
+    const id = parseInt(b.dataset.id || 0);
+    const n = paradasOperadorStore[id] ? paradasOperadorStore[id].length : 0;
+    b.textContent = n > 0 ? n : '';
+    const btn = b.closest('button');
+    if (btn) btn.classList.toggle('has-paradas', n > 0);
+  });
 }
 
 function resetearParadas() {
@@ -2659,6 +2747,8 @@ function resetearParadas() {
   }
   const det = document.getElementById('det-paradas');
   if (det) det.open = false;
+  paradasOperadorStore = {};
+  actualizarBadgesParadas();
 }
 
 async function cargarControlesHoy() {

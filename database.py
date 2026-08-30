@@ -1761,11 +1761,14 @@ def insertar_registro_produccion(datos, id_usuario):
 
 def insertar_registros_masivo(datos, id_usuario):
     """Guarda varios registros de producción a la vez (grilla por operador).
-    Cada item de `registros` es {id_operador, id_operacion, cantidad, defectuosas}."""
+    Cada item de `registros` es {id_operador, id_operacion, cantidad, defectuosas, [paradas]}.
+    Si un item trae `paradas` propias, se usan esas; si no, se aplican las paradas de línea (datos['paradas'])."""
     registros = datos.get('registros') or []
     registros = [r for r in registros if (r.get('cantidad') or 0) > 0]
     if not registros:
         return {"error": "No hay cantidades para guardar"}
+
+    paradas_linea = datos.get('paradas') or []
 
     conexion = _conexion()
     cursor = conexion.cursor()
@@ -1790,8 +1793,11 @@ def insertar_registros_masivo(datos, id_usuario):
         ))
         registro_id = cursor.lastrowid
 
-        # Paradas comunes a la línea (si hubo)
-        for par in (datos.get('paradas') or []):
+        # Paradas: las propias del operador si vienen en el item, si no las de línea
+        paradas_reg = r.get('paradas')
+        if paradas_reg is None:
+            paradas_reg = paradas_linea
+        for par in paradas_reg:
             cursor.execute("""
                 INSERT INTO ParadaRegistro (id_registro, id_parada_programada, id_causa, tiempo_segundos, descripcion)
                 VALUES (?, ?, ?, ?, ?)

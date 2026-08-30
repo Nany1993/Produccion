@@ -2012,3 +2012,33 @@ select:disabled {
     margin-top: 2px;
     white-space: nowrap;
 }
+
+.btn-paradas-op {
+    font-size: 0.85rem;
+    padding: 2px 6px;
+    background: var(--bg-deep);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1.2;
+}
+
+.btn-paradas-op:hover {
+    border-color: var(--accent-blue);
+}
+
+.btn-paradas-op.has-paradas {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.paradas-badge {
+    font-size: 0.65rem;
+    margin-left: 2px;
+    color: var(--text-muted);
+}
+
+.btn-paradas-op.has-paradas .paradas-badge {
+    color: var(--accent-blue);
+    font-weight: 700;
+}
