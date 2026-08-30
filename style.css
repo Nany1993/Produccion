@@ -959,6 +959,10 @@ select:disabled {
     margin-top: 12px;
 }
 
+#mod-ingenieria .master-detail-container {
+    grid-template-columns: 1fr;
+}
+
 @media (max-width: 900px) {
     .master-detail-container {
         grid-template-columns: 1fr;
