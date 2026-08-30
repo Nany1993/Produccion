@@ -1429,7 +1429,7 @@ function iniciarEdicionReferencia(ref) {
   document.getElementById('input-ref-espec').value = ref.especificaciones || '';
   document.getElementById('input-ref-foto').value = '';
 
-  const btn = document.querySelector('#input-ref-nombre').parentElement.querySelector('button');
+  const btn = document.getElementById('btn-ref-guardar');
   if (btn) btn.innerText = 'Actualizar Referencia';
 }
 
@@ -1440,7 +1440,7 @@ function limpiarFormularioReferencia() {
   document.getElementById('input-ref-foto').value = '';
   const preview = document.getElementById('preview-ref-foto');
   if (preview) { preview.style.display = 'none'; preview.src = ''; }
-  const btn = document.querySelector('#input-ref-nombre').parentElement.querySelector('button');
+  const btn = document.getElementById('btn-ref-guardar');
   if (btn) btn.innerText = 'Crear Referencia';
 }
 
@@ -2160,8 +2160,10 @@ async function guardarAsignacion() {
 
   // Limpiar filas marcadas
   document.querySelectorAll('#prog-lineas-checks .prog-linea-fila').forEach(f => {
-    f.querySelector('.prog-linea-marca').checked = false;
-    f.querySelector('.prog-linea-cantidad').value = '';
+    const marca = f.querySelector('.prog-linea-marca');
+    const cant = f.querySelector('.prog-linea-cantidad');
+    if (marca) marca.checked = false;
+    if (cant) cant.value = '';
     f.classList.remove('sel');
   });
 
@@ -2865,7 +2867,7 @@ function mostrarDetalleModulo(nombreId) {
     detalleEl = document.createElement('div');
     detalleEl.id = 'eff-detalle-modulo';
     const tarjetas = document.querySelector('.eff-tarjetas');
-    tarjetas.parentNode.insertBefore(detalleEl, tarjetas.nextSibling);
+    if (tarjetas) tarjetas.parentNode.insertBefore(detalleEl, tarjetas.nextSibling);
   }
   detalleEl.innerHTML = `<div style="margin-top:16px; padding:16px; background:var(--bg-secondary); border:1px solid var(--card-border); border-radius:12px;">${html}</div>`;
   detalleEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
