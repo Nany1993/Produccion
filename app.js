@@ -2405,16 +2405,12 @@ async function initControlHora() {
   });
   if (selLinea.options.length === 2) selLinea.selectedIndex = 1;
 
-  // Paradas reales del catálogo (programadas) para el acordeón opcional
+  // Paradas reales del catálogo (programadas + causas) para el acordeón opcional
   const paradas = await api('/api/paradas');
-  if (paradas) {
-    catalogoParadasCache = paradas;
-    actualizarSelectParadas(paradas);
-  }
-  // Causas de paradas no programadas
+  if (paradas) catalogoParadasCache = paradas;
   const causas = await api('/api/causas-parada');
   causasParadaCache = causas || [];
-  document.querySelectorAll('.parada-np-causa').forEach(sel => llenarSelectCausas(sel));
+  document.querySelectorAll('#lista-paradas .parada-causa').forEach(sel => llenarSelectParadas(sel));
 
   cargarGrillaRegistro();
 }
@@ -2538,27 +2534,21 @@ async function guardarGrilla(btn = null) {
   const paradasAplicar = detParadas ? detParadas.open : false;
   const paradas = [];
   if (paradasAplicar) {
-    const paradasNP = [];
-    document.querySelectorAll('#det-paradas .parada-np-row').forEach(fila => {
-      const causa = fila.querySelector('.parada-np-causa').value;
-      const tiempo = fila.querySelector('.parada-np-tiempo').value;
-      const causaTexto = fila.querySelector('.parada-np-causa').options[fila.querySelector('.parada-np-causa').selectedIndex];
-      const esOtro = causaTexto && causaTexto.text === 'Otro';
-      const descripcion = fila.querySelector('.parada-np-desc').value.trim();
-      if (causa && tiempo) {
-        paradasNP.push({
-          id_causa: parseInt(causa),
-          tiempo_segundos: parseInt(tiempo),
-          descripcion: esOtro ? (descripcion || '') : null
-        });
+    document.querySelectorAll('#lista-paradas .parada-row').forEach(fila => {
+      const tipo = fila.querySelector('.parada-tipo').value;
+      const selCausa = fila.querySelector('.parada-causa');
+      const valor = selCausa.value;
+      const tiempo = fila.querySelector('.parada-tiempo').value;
+      const texto = selCausa.options[selCausa.selectedIndex] ? selCausa.options[selCausa.selectedIndex].text : '';
+      const esOtro = tipo === 'NP' && texto === 'Otro';
+      const descripcion = fila.querySelector('.parada-desc').value.trim();
+      if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
+      if (tipo === 'P') {
+        paradas.push({ id_parada_programada: parseInt(valor), tiempo_segundos: parseInt(tiempo) });
+      } else {
+        paradas.push({ id_causa: parseInt(valor), tiempo_segundos: parseInt(tiempo), descripcion: esOtro ? (descripcion || '') : null });
       }
     });
-    const idParadaP = document.getElementById('ctrl-parada-p').value;
-    const tiempoP = document.getElementById('ctrl-tiempo-p').value;
-    if (idParadaP && parseInt(tiempoP) > 0) {
-      paradas.push({ id_parada_programada: parseInt(idParadaP), tiempo_segundos: parseInt(tiempoP) });
-    }
-    paradasNP.forEach(p => paradas.push(p));
   }
 
   const payload = {
@@ -2595,41 +2585,53 @@ function llenarSelectCausas(select) {
   if (val) select.value = val;
 }
 
+function llenarSelectParadas(select) {
+  const val = select.value;
+  select.innerHTML = '<option value="">Seleccione parada...</option>';
+  catalogoParadasCache.forEach(p => {
+    const etiqueta = p.tiempo ? `${p.nombre} (${formatTime(p.tiempo)})` : p.nombre;
+    select.innerHTML += `<option value="${p.id}" data-tiempo="${p.tiempo}">${etiqueta}</option>`;
+  });
+  if (val) select.value = val;
+}
+
+function onTipoParadaChange(select) {
+  const fila = select.closest('.parada-row');
+  const selCausa = fila ? fila.querySelector('.parada-causa') : null;
+  const desc = fila ? fila.querySelector('.parada-desc') : null;
+  if (!selCausa) return;
+  if (select.value === 'P') {
+    llenarSelectParadas(selCausa);
+  } else {
+    llenarSelectCausas(selCausa);
+  }
+  if (desc) desc.style.display = 'none';
+}
+
 function toggleDescripcionParada(select) {
-  const fila = select.closest('.parada-np-row');
-  const desc = fila ? fila.querySelector('.parada-np-desc') : null;
+  const fila = select.closest('.parada-row');
+  const desc = fila ? fila.querySelector('.parada-desc') : null;
   if (!desc) return;
   const esOtro = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text === 'Otro' : false;
   desc.style.display = esOtro ? 'block' : 'none';
 }
 
-function actualizarSelectParadas(paradas) {
-  const selParada = document.getElementById('ctrl-parada-p');
-  selParada.innerHTML = '';
-  paradas.forEach(p => {
-    selParada.innerHTML += `<option value="${p.id}" data-tiempo="${p.tiempo}">${p.nombre}</option>`;
-  });
-  actualizarTiempoParadaP();
-}
-
-function actualizarTiempoParadaP() {
-  const sel = document.getElementById('ctrl-parada-p');
-  const opt = sel.options[sel.selectedIndex];
-  document.getElementById('ctrl-tiempo-p').value = opt ? opt.dataset.tiempo || 0 : 0;
-}
-
-function agregarFilaParadaNP() {
-  const cont = document.getElementById('lista-paradas-np');
+function agregarFilaParada() {
+  const cont = document.getElementById('lista-paradas');
   const fila = document.createElement('div');
-  fila.className = 'parada-np-row';
+  fila.className = 'parada-row';
   fila.innerHTML = `
-    <select class="parada-np-causa" onchange="toggleDescripcionParada(this)"></select>
-    <input type="number" class="parada-np-tiempo" placeholder="Segundos" min="0">
-    <input type="text" class="parada-np-desc" placeholder="¿Qué pasó?" style="display:none;">
+    <select class="parada-tipo" onchange="onTipoParadaChange(this)">
+      <option value="P">Programada</option>
+      <option value="NP">No programada</option>
+    </select>
+    <select class="parada-causa" onchange="toggleDescripcionParada(this)"></select>
+    <input type="number" class="parada-tiempo" placeholder="Segundos" min="0">
+    <input type="text" class="parada-desc" placeholder="¿Qué pasó?" style="display:none;">
     <button class="btn-icon btn-delete" onclick="this.parentElement.remove()">✕</button>
   `;
   cont.appendChild(fila);
-  llenarSelectCausas(fila.querySelector('.parada-np-causa'));
+  llenarSelectParadas(fila.querySelector('.parada-causa'));
 }
 
 async function cargarControlesHoy() {

@@ -1938,23 +1938,34 @@ select:disabled {
     border-top: 1px solid var(--card-border);
 }
 
-.parada-np-row {
+.parada-row {
     display: flex;
     gap: 8px;
     margin-bottom: 8px;
     align-items: center;
 }
 
-.parada-np-row select {
+.parada-row .parada-tipo {
+    width: 130px;
+    flex-shrink: 0;
+    margin-bottom: 0;
+}
+
+.parada-row .parada-causa {
     flex: 1;
     margin-bottom: 0;
 }
 
-.parada-np-row input {
+.parada-row .parada-tiempo {
     width: 110px;
     margin-bottom: 0;
 }
 
-.parada-np-row .btn-icon {
+.parada-row .parada-desc {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.parada-row .btn-icon {
     flex-shrink: 0;
 }
