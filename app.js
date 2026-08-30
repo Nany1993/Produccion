@@ -2410,7 +2410,7 @@ async function initControlHora() {
   if (paradas) catalogoParadasCache = paradas;
   const causas = await api('/api/causas-parada');
   causasParadaCache = causas || [];
-  document.querySelectorAll('#lista-paradas .parada-causa').forEach(sel => llenarSelectParadas(sel));
+  resetearParadas();
 
   cargarGrillaRegistro();
 }
@@ -2534,20 +2534,24 @@ async function guardarGrilla(btn = null) {
   const paradasAplicar = detParadas ? detParadas.open : false;
   const paradas = [];
   if (paradasAplicar) {
-    document.querySelectorAll('#lista-paradas .parada-row').forEach(fila => {
-      const tipo = fila.querySelector('.parada-tipo').value;
-      const selCausa = fila.querySelector('.parada-causa');
-      const valor = selCausa.value;
+    // Programadas (del catálogo)
+    document.querySelectorAll('#lista-paradas-p .parada-row').forEach(fila => {
+      const sel = fila.querySelector('.parada-p-select');
+      const valor = sel.value;
       const tiempo = fila.querySelector('.parada-tiempo').value;
-      const texto = selCausa.options[selCausa.selectedIndex] ? selCausa.options[selCausa.selectedIndex].text : '';
-      const esOtro = tipo === 'NP' && texto === 'Otro';
+      if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
+      paradas.push({ id_parada_programada: parseInt(valor), tiempo_segundos: parseInt(tiempo) });
+    });
+    // No programadas (causas)
+    document.querySelectorAll('#lista-paradas-np .parada-row').forEach(fila => {
+      const sel = fila.querySelector('.parada-np-select');
+      const valor = sel.value;
+      const tiempo = fila.querySelector('.parada-tiempo').value;
+      const texto = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+      const esOtro = texto === 'Otro';
       const descripcion = fila.querySelector('.parada-desc').value.trim();
       if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
-      if (tipo === 'P') {
-        paradas.push({ id_parada_programada: parseInt(valor), tiempo_segundos: parseInt(tiempo) });
-      } else {
-        paradas.push({ id_causa: parseInt(valor), tiempo_segundos: parseInt(tiempo), descripcion: esOtro ? (descripcion || '') : null });
-      }
+      paradas.push({ id_causa: parseInt(valor), tiempo_segundos: parseInt(tiempo), descripcion: esOtro ? (descripcion || '') : null });
     });
   }
 
@@ -2571,6 +2575,7 @@ async function guardarGrilla(btn = null) {
   if (data) {
     Toast.success(data.mensaje || 'Producción guardada');
     if (data.orden_completada) Toast.success('🎉 La orden se completó');
+    resetearParadas();
     cargarControlesHoy();
     cargarGrillaRegistro();
   }
@@ -2595,17 +2600,12 @@ function llenarSelectParadas(select) {
   if (val) select.value = val;
 }
 
-function onTipoParadaChange(select) {
+function autollenarTiempoP(select) {
   const fila = select.closest('.parada-row');
-  const selCausa = fila ? fila.querySelector('.parada-causa') : null;
-  const desc = fila ? fila.querySelector('.parada-desc') : null;
-  if (!selCausa) return;
-  if (select.value === 'P') {
-    llenarSelectParadas(selCausa);
-  } else {
-    llenarSelectCausas(selCausa);
-  }
-  if (desc) desc.style.display = 'none';
+  const opt = select.options[select.selectedIndex];
+  const tiempo = opt && opt.dataset.tiempo ? parseInt(opt.dataset.tiempo) : 0;
+  const input = fila ? fila.querySelector('.parada-tiempo') : null;
+  if (input && tiempo > 0) input.value = tiempo;
 }
 
 function toggleDescripcionParada(select) {
@@ -2616,22 +2616,46 @@ function toggleDescripcionParada(select) {
   desc.style.display = esOtro ? 'block' : 'none';
 }
 
-function agregarFilaParada() {
-  const cont = document.getElementById('lista-paradas');
+function agregarFilaParadaP() {
+  const cont = document.getElementById('lista-paradas-p');
   const fila = document.createElement('div');
   fila.className = 'parada-row';
   fila.innerHTML = `
-    <select class="parada-tipo" onchange="onTipoParadaChange(this)">
-      <option value="P">Programada</option>
-      <option value="NP">No programada</option>
-    </select>
-    <select class="parada-causa" onchange="toggleDescripcionParada(this)"></select>
+    <select class="parada-p-select" onchange="autollenarTiempoP(this)"></select>
     <input type="number" class="parada-tiempo" placeholder="Segundos" min="0">
-    <input type="text" class="parada-desc" placeholder="¿Qué pasó?" style="display:none;">
-    <button class="btn-icon btn-delete" onclick="this.parentElement.remove()">✕</button>
+    <button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button>
   `;
   cont.appendChild(fila);
-  llenarSelectParadas(fila.querySelector('.parada-causa'));
+  llenarSelectParadas(fila.querySelector('.parada-p-select'));
+}
+
+function agregarFilaParadaNP() {
+  const cont = document.getElementById('lista-paradas-np');
+  const fila = document.createElement('div');
+  fila.className = 'parada-row';
+  fila.innerHTML = `
+    <select class="parada-np-select" onchange="toggleDescripcionParada(this)"></select>
+    <input type="number" class="parada-tiempo" placeholder="Segundos" min="0">
+    <input type="text" class="parada-desc" placeholder="¿Qué pasó?" style="display:none;">
+    <button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button>
+  `;
+  cont.appendChild(fila);
+  llenarSelectCausas(fila.querySelector('.parada-np-select'));
+}
+
+function resetearParadas() {
+  const lp = document.getElementById('lista-paradas-p');
+  const lnp = document.getElementById('lista-paradas-np');
+  if (lp) {
+    lp.innerHTML = '<div class="parada-row"><select class="parada-p-select" onchange="autollenarTiempoP(this)"></select><input type="number" class="parada-tiempo" placeholder="Segundos" min="0"><button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>';
+    llenarSelectParadas(lp.querySelector('.parada-p-select'));
+  }
+  if (lnp) {
+    lnp.innerHTML = '<div class="parada-row"><select class="parada-np-select" onchange="toggleDescripcionParada(this)"></select><input type="number" class="parada-tiempo" placeholder="Segundos" min="0"><input type="text" class="parada-desc" placeholder="¿Qué pasó?" style="display:none;"><button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>';
+    llenarSelectCausas(lnp.querySelector('.parada-np-select'));
+  }
+  const det = document.getElementById('det-paradas');
+  if (det) det.open = false;
 }
 
 async function cargarControlesHoy() {

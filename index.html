@@ -857,22 +857,27 @@
 
                             <details id="det-paradas" class="accordion" style="margin-top:14px;">
                                 <summary style="cursor:pointer; font-weight:600;">¿Hubo paradas hoy? (opcional)</summary>
-                                <div class="separator-title">PARADAS</div>
-                                <div id="lista-paradas">
+
+                                <div class="separator-title">PARADAS PROGRAMADAS</div>
+                                <div id="lista-paradas-p">
                                     <div class="parada-row">
-                                        <select class="parada-tipo" onchange="onTipoParadaChange(this)">
-                                            <option value="P">Programada</option>
-                                            <option value="NP">No programada</option>
-                                        </select>
-                                        <select class="parada-causa" onchange="toggleDescripcionParada(this)">
-                                            <option value="">Seleccione...</option>
-                                        </select>
+                                        <select class="parada-p-select" onchange="autollenarTiempoP(this)"></select>
                                         <input type="number" class="parada-tiempo" placeholder="Segundos" min="0">
-                                        <input type="text" class="parada-desc" placeholder="¿Qué pasó?" style="display:none;">
-                                        <button class="btn-icon btn-delete" onclick="this.parentElement.remove()">✕</button>
+                                        <button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button>
                                     </div>
                                 </div>
-                                <button class="btn-secondary" onclick="agregarFilaParada()" type="button" style="margin:10px 0 14px;">+ Agregar parada</button>
+                                <button class="btn-secondary btn-agregar-parada" onclick="agregarFilaParadaP()" type="button">+ Agregar parada programada</button>
+
+                                <div class="separator-title">PARADAS NO PROGRAMADAS</div>
+                                <div id="lista-paradas-np">
+                                    <div class="parada-row">
+                                        <select class="parada-np-select" onchange="toggleDescripcionParada(this)"></select>
+                                        <input type="number" class="parada-tiempo" placeholder="Segundos" min="0">
+                                        <input type="text" class="parada-desc" placeholder="¿Qué pasó?" style="display:none;">
+                                        <button class="btn-icon btn-delete" onclick="this.parentElement.remove()" title="Quitar">✕</button>
+                                    </div>
+                                </div>
+                                <button class="btn-secondary btn-agregar-parada" onclick="agregarFilaParadaNP()" type="button">+ Agregar parada no programada</button>
                             </details>
 
                             <div style="display:flex; gap:8px; margin-top:6px;">
