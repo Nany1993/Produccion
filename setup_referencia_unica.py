@@ -33,12 +33,12 @@ def main():
 
     for i in range(1, 9):
         cursor.execute("INSERT INTO ModuloConfeccion (nombre) VALUES (?)", (f"Línea {i}",))
-    hor = [("Hora 1", "07:00", "08:00", "Mañana"), ("Hora 2", "08:00", "09:00", "Mañana"),
-           ("Hora 3", "09:00", "10:00", "Mañana"), ("Hora 4", "10:00", "11:00", "Mañana"),
-           ("Hora 5", "11:00", "12:00", "Mañana"), ("Hora 6", "13:00", "14:00", "Tarde"),
-           ("Hora 7", "14:00", "15:00", "Tarde"), ("Hora 8", "15:00", "16:00", "Tarde"),
-           ("Hora 9", "16:00", "17:00", "Tarde"), ("Hora Extra", "17:00", "18:00", "Extra")]
-    cursor.executemany("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin, turno) VALUES (?, ?, ?, ?)", hor)
+    hor = [("Hora 1", "07:00", "08:00"), ("Hora 2", "08:00", "09:00"),
+           ("Hora 3", "09:00", "10:00"), ("Hora 4", "10:00", "11:00"),
+           ("Hora 5", "11:00", "12:00"), ("Hora 6", "13:00", "14:00"),
+           ("Hora 7", "14:00", "15:00"), ("Hora 8", "15:00", "16:00"),
+           ("Hora 9", "16:00", "17:00"), ("Hora Extra", "17:00", "18:00")]
+    cursor.executemany("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)", hor)
 
     paradas = [("Desayuno", 900, "Obligatoria", "Diaria"), ("Almuerzo", 1800, "Obligatoria", "Diaria"),
                ("Pausa Activa", 300, "Opcional", "Diaria"), ("Cambio de Referencia", 600, "Obligatoria", "Por cambio de ref"),

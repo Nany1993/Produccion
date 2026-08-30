@@ -51,6 +51,13 @@
                 <div class="brand-subtitle">Gestión de Producción</div>
                 <div class="session-bar" id="session-bar" style="display:none;">
                     <span id="session-info"></span>
+                    <span id="admin-modalidad" style="display:none; font-size:0.8rem; color:var(--text-muted); margin-left:8px;">
+                        Registro:
+                        <select id="select-modalidad" onchange="cambiarModalidadRegistro()" style="padding:3px 8px; border-radius:4px; border:1px solid var(--card-border); background:var(--bg-deep); color:var(--text-primary);">
+                            <option value="Diario">Diario</option>
+                            <option value="Por Hora">Por Hora</option>
+                        </select>
+                    </span>
                     <button class="btn-primary" onclick="cerrarSesion()" style="width:auto; padding:6px 12px; font-size:0.8rem; background:var(--accent-danger);">Salir</button>
                 </div>
             </div>
@@ -90,7 +97,7 @@
                         <li><a href="#" class="nav-link" onclick="showModule('mod-ordenes')" id="link-ordenes">Órdenes de Producción</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-ingenieria')" id="link-ingenieria">Ingeniería de Producto</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-programacion')" id="link-programacion">Programación de Líneas</a></li>
-                        <li><a href="#" class="nav-link" onclick="showModule('mod-control-hora')" id="link-control-hora">Control Hora a Hora</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-control-hora')" id="link-control-hora">Registro de Producción</a></li>
                     </ul>
                 </div>
 
@@ -525,22 +532,12 @@
                                 <label>Hora fin</label>
                                 <input type="time" id="input-hora-fin">
                             </div>
-                            <div class="form-group">
-                                <label>Turno</label>
-                                <select id="input-hora-turno">
-                                    <option value="">Seleccione...</option>
-                                    <option value="Mañana">Mañana</option>
-                                    <option value="Tarde">Tarde</option>
-                                    <option value="Noche">Noche</option>
-                                    <option value="Extra">Extra</option>
-                                </select>
-                            </div>
                         </div>
                         <button class="btn-primary" onclick="guardarHora()" style="margin-top: 12px; max-width: 250px;">Guardar Hora</button>
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Nombre</th><th>Inicio</th><th>Fin</th><th>Turno</th></tr></thead>
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Inicio</th><th>Fin</th></tr></thead>
                                 <tbody id="lista-horas"></tbody>
                             </table>
                             <div id="empty-horas" class="empty-state" style="display: none;">No hay horas registradas.</div>
@@ -935,8 +932,8 @@
                 <!-- CONTROL HORA A HORA -->
                 <div id="mod-control-hora" class="module-section">
                     <div class="page-header">
-                        <h1 class="page-title">Control Hora a Hora</h1>
-                        <p class="page-subtitle">Registro de producción y paradas por hora operativa</p>
+                        <h1 class="page-title">Registro de Producción</h1>
+                        <p class="page-subtitle">Registro por máquina y paradas. Marca de tiempo automática al guardar</p>
                     </div>
 
                     <div class="programacion-grid">
@@ -949,17 +946,18 @@
                                 <input type="date" id="ctrl-fecha">
                             </div>
                             <div class="form-group">
-                                <label>Módulo de Producción</label>
-                                <select id="ctrl-modulo" onchange="cargarReferenciasPorModulo()"></select>
+                                <label>Máquina / Puesto de Trabajo</label>
+                                <select id="ctrl-maquina" onchange="cargarReferenciasPorModulo()"></select>
                             </div>
                             <div class="form-group">
-                                <label>Cantidad de Operarios</label>
-                                <input type="number" step="1" id="ctrl-operarios" placeholder="Ej: 5">
+                                <label>Módulo (línea)</label>
+                                <input type="text" id="ctrl-modulo-info" readonly placeholder="Se deduce de la máquina" style="background:var(--bg-input,#fafafa);color:var(--text-muted);">
+                                <input type="hidden" id="ctrl-modulo">
                             </div>
                             <div class="form-group">
                                 <label>Orden / Lote</label>
                                 <select id="ctrl-referencia" disabled onchange="cargarOpcionesActividad()">
-                                    <option value="">Seleccione Módulo primero...</option>
+                                    <option value="">Seleccione Máquina primero...</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -975,23 +973,12 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Hora Operativa</label>
-                                <select id="ctrl-hora"></select>
+                                <label>Cantidad de Operarios</label>
+                                <input type="number" step="1" id="ctrl-operarios" placeholder="Ej: 5">
                             </div>
-                            <div class="form-group">
-                                <label>Porción de Tiempo</label>
-                                <select id="ctrl-porcion">
-                                    <option value="1.0">1.0</option>
-                                    <option value="0.9">0.9</option>
-                                    <option value="0.8">0.8</option>
-                                    <option value="0.7">0.7</option>
-                                    <option value="0.6">0.6</option>
-                                    <option value="0.5">0.5</option>
-                                    <option value="0.4">0.4</option>
-                                    <option value="0.3">0.3</option>
-                                    <option value="0.2">0.2</option>
-                                    <option value="0.1">0.1</option>
-                                </select>
+                            <div class="form-group" id="grupo-ctrl-hora" style="display:none;">
+                                <label>Hora</label>
+                                <select id="ctrl-hora" disabled></select>
                             </div>
                             <div class="form-group">
                                 <label>Cantidad Producida *</label>
@@ -1035,7 +1022,7 @@
                                 <table class="data-table">
                                     <thead>
                                         <tr>
-                                            <th>HORA</th>
+                                            <th>HORA REG.</th>
                                             <th>MOD.</th>
                                             <th>ORDEN</th>
                                             <th>ACT.</th>
@@ -1199,7 +1186,7 @@
         </main>
     </div>
 
-    <script src="app.js?v=18"></script>
+    <script src="app.js?v=23"></script>
 </body>
 
 </html>

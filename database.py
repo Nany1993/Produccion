@@ -87,26 +87,25 @@ def inicializar_base_de_datos():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre TEXT NOT NULL,
                 hora_inicio TEXT,
-                hora_fin TEXT,
-                turno TEXT
+                hora_fin TEXT
             );
         """)
         # Seed Horas Produccion
         cursor.execute("SELECT COUNT(*) FROM HorasProduccion")
         if cursor.fetchone()[0] == 0:
             horas = [
-                ('Hora 1', '07:00', '08:00', 'Mañana'),
-                ('Hora 2', '08:00', '09:00', 'Mañana'),
-                ('Hora 3', '09:00', '10:00', 'Mañana'),
-                ('Hora 4', '10:00', '11:00', 'Mañana'),
-                ('Hora 5', '11:00', '12:00', 'Mañana'),
-                ('Hora 6', '13:00', '14:00', 'Tarde'),
-                ('Hora 7', '14:00', '15:00', 'Tarde'),
-                ('Hora 8', '15:00', '16:00', 'Tarde'),
-                ('Hora 9', '16:00', '17:00', 'Tarde'),
-                ('Hora Extra', '17:00', '18:00', 'Extra')
+                ('Hora 1', '07:00', '08:00'),
+                ('Hora 2', '08:00', '09:00'),
+                ('Hora 3', '09:00', '10:00'),
+                ('Hora 4', '10:00', '11:00'),
+                ('Hora 5', '11:00', '12:00'),
+                ('Hora 6', '13:00', '14:00'),
+                ('Hora 7', '14:00', '15:00'),
+                ('Hora 8', '15:00', '16:00'),
+                ('Hora 9', '16:00', '17:00'),
+                ('Hora Extra', '17:00', '18:00')
             ]
-            cursor.executemany("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin, turno) VALUES (?, ?, ?, ?)", horas)
+            cursor.executemany("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)", horas)
         print("- Tabla 'HorasProduccion' lista.")
 
         # 2f. Tabla Empleados (NUEVA)
@@ -172,12 +171,13 @@ def inicializar_base_de_datos():
         print("- Tabla 'CausaParada' lista.")
 
         # 2fd. Tabla RegistroProduccion (NUEVA - reemplaza ControlHoraHora)
+        # id_hora quedó nullable: ya no se registra por hora operativa (marca real en created_at)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS RegistroProduccion (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 fecha TEXT NOT NULL,
                 id_modulo INTEGER NOT NULL,
-                id_hora INTEGER NOT NULL,
+                id_hora INTEGER,
                 id_orden INTEGER NOT NULL,
                 id_operacion INTEGER,
                 porcion_tiempo REAL,
@@ -282,6 +282,19 @@ def inicializar_base_de_datos():
         """)
         print("- Tabla 'ReferenciaDetalle' lista.")
 
+        # 5b. Tabla Configuracion (parámetros globales de la plataforma)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Configuracion (
+                clave TEXT PRIMARY KEY,
+                valor TEXT
+            );
+        """)
+        # Seed: modalidad de registro global (Diario | Por Hora)
+        cursor.execute("SELECT COUNT(*) FROM Configuracion WHERE clave = 'modalidad_registro'")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("INSERT INTO Configuracion (clave, valor) VALUES ('modalidad_registro', 'Diario')")
+        print("- Tabla 'Configuracion' lista.")
+
         # 2h. Tabla Materiales (catálogo de insumos) [NUEVA]
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Materiales (
@@ -323,7 +336,6 @@ def inicializar_base_de_datos():
             ("ModuloConfeccion", "estado", "TEXT DEFAULT 'Activo'"),
             ("HorasProduccion", "hora_inicio", "TEXT"),
             ("HorasProduccion", "hora_fin", "TEXT"),
-            ("HorasProduccion", "turno", "TEXT"),
             ("ParadasProgramadas", "tipo", "TEXT DEFAULT 'Opcional'"),
             ("ParadasProgramadas", "frecuencia", "TEXT DEFAULT 'Diaria'"),
             ("ReferenciaProducto", "especificaciones", "TEXT"),
@@ -511,18 +523,39 @@ def duplicar_referencia(id_origen, nuevo_nombre):
 def obtener_horas():
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("SELECT id, nombre, hora_inicio, hora_fin, turno FROM HorasProduccion ORDER BY id")
+    cursor.execute("SELECT id, nombre, hora_inicio, hora_fin FROM HorasProduccion ORDER BY id")
     filas = cursor.fetchall()
     conexion.close()
-    return [{"id": f[0], "nombre": f[1], "hora_inicio": f[2], "hora_fin": f[3], "turno": f[4]} for f in filas]
+    return [{"id": f[0], "nombre": f[1], "hora_inicio": f[2], "hora_fin": f[3]} for f in filas]
 
-def insertar_hora(nombre, hora_inicio=None, hora_fin=None, turno=None):
+def insertar_hora(nombre, hora_inicio=None, hora_fin=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin, turno) VALUES (?, ?, ?, ?)",
-                   (nombre, hora_inicio, hora_fin, turno))
+    cursor.execute("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)",
+                   (nombre, hora_inicio, hora_fin))
     conexion.commit()
     conexion.close()
+
+def obtener_jornada_segundos():
+    """Duración de la jornada (en segundos) según el catálogo de horas.
+    Suma las duraciones (hora_fin - hora_inicio) de todas las horas del catálogo."""
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("SELECT hora_inicio, hora_fin FROM HorasProduccion WHERE hora_inicio IS NOT NULL AND hora_fin IS NOT NULL")
+    filas = cursor.fetchall()
+    conexion.close()
+
+    from datetime import datetime
+    total = 0
+    formato = "%H:%M"
+    for inicio, fin in filas:
+        try:
+            t0 = datetime.strptime(inicio.strip(), formato)
+            t1 = datetime.strptime(fin.strip(), formato)
+            total += (t1 - t0).total_seconds()
+        except ValueError:
+            continue
+    return max(0, int(total))
 
 def obtener_paradas():
     conexion = _conexion()
@@ -1023,7 +1056,8 @@ def obtener_detalles_referencia(id_ref):
             rd.predecesoras,
             rd.orden_fila,
             o.id as id_operacion,
-            tm.id_modulo as id_modulo_maquina
+            tm.id_modulo as id_modulo_maquina,
+            tm.id as id_maquina
         FROM ReferenciaDetalle rd
         INNER JOIN Operacion o ON rd.id_operacion = o.id
         LEFT JOIN TipoMaquinaria tm ON o.id_maquina = tm.id
@@ -1043,7 +1077,8 @@ def obtener_detalles_referencia(id_ref):
             "predecesoras": f[5],
             "orden": f[6],
             "id_operacion": f[7],
-            "id_modulo_maquina": f[8]
+            "id_modulo_maquina": f[8],
+            "id_maquina": f[9]
         } for f in filas
     ]
 
@@ -1370,6 +1405,13 @@ def verificar_login(nombre_usuario, password):
         "empleado_rol": fila[6]
     }
 
+    # Admin ve TODAS las líneas de la planta
+    if usuario["rol"] == 'Admin':
+        cursor.execute("SELECT id, nombre FROM ModuloConfeccion ORDER BY id")
+        usuario["lineas"] = [{"id": r[0], "nombre": r[1]} for r in cursor.fetchall()]
+        conexion.close()
+        return usuario
+
     # Líneas habilitadas: para supervisor SIEMPRE desde AsignacionUsuarioLinea;
     # para operador fallback al módulo del empleado si no hay asignación explícita.
     cursor.execute("SELECT m.id, m.nombre FROM AsignacionUsuarioLinea aul JOIN ModuloConfeccion m ON aul.id_modulo = m.id WHERE aul.id_usuario = ?", (usuario["id"],))
@@ -1383,6 +1425,21 @@ def verificar_login(nombre_usuario, password):
     usuario["lineas"] = lineas
     conexion.close()
     return usuario
+
+def obtener_configuracion(clave, default=None):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("SELECT valor FROM Configuracion WHERE clave = ?", (clave,))
+    fila = cursor.fetchone()
+    conexion.close()
+    return fila[0] if fila else default
+
+def guardar_configuracion(clave, valor):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("INSERT INTO Configuracion (clave, valor) VALUES (?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor", (clave, valor))
+    conexion.commit()
+    conexion.close()
 
 def obtener_usuarios():
     conexion = _conexion()
@@ -1512,19 +1569,21 @@ def obtener_registros_dia(fecha, id_usuario=None):
     cursor = conexion.cursor()
     query = """
         SELECT r.id, r.fecha, m.nombre, o.nombre_orden, ref.nombre_referencia,
-               h.nombre, r.porcion_tiempo, r.cantidad_operarios,
+               r.porcion_tiempo, r.cantidad_operarios,
                r.cantidad_producida, r.cantidad_defectuosa, r.observaciones,
-               u.nombre_usuario, r.id_modulo, r.id_hora, r.id_orden, r.id_operacion,
+               u.nombre_usuario, r.id_modulo, r.id_orden, r.id_operacion,
                op.nombre_operacion, rdl.letra_secuencia,
                (SELECT SUM(t.tiempo_segundos) FROM Operacion t
-                WHERE t.id IN (SELECT id_operacion FROM ReferenciaDetalle WHERE id_referencia = ref.id)) as tc
+                WHERE t.id IN (SELECT id_operacion FROM ReferenciaDetalle WHERE id_referencia = ref.id)) as tc,
+               tm.nombre as maquina_nombre, r.created_at, r.id_hora,
+               (SELECT nombre FROM HorasProduccion WHERE id = r.id_hora) as hora_nombre
         FROM RegistroProduccion r
         JOIN ModuloConfeccion m ON r.id_modulo = m.id
         JOIN OrdenProduccion o ON r.id_orden = o.id
         JOIN ReferenciaProducto ref ON o.id_referencia = ref.id
-        JOIN HorasProduccion h ON r.id_hora = h.id
         JOIN Usuario u ON r.id_usuario = u.id
         LEFT JOIN Operacion op ON r.id_operacion = op.id
+        LEFT JOIN TipoMaquinaria tm ON op.id_maquina = tm.id
         LEFT JOIN ReferenciaDetalle rdl ON r.id_operacion = rdl.id_operacion AND rdl.id_referencia = ref.id
         WHERE r.fecha = ?
     """
@@ -1553,23 +1612,29 @@ def obtener_registros_dia(fecha, id_usuario=None):
 
     return [{
         "id": f[0], "fecha": f[1], "modulo": f[2], "orden": f[3], "referencia": f[4],
-        "hora": f[5], "porcion_tiempo": f[6], "cantidad_operarios": f[7],
-        "cantidad_producida": f[8], "cantidad_defectuosa": f[9], "observaciones": f[10],
-        "usuario": f[11], "id_modulo": f[12], "id_hora": f[13], "id_orden": f[14],
-        "id_operacion": f[15], "nombre_operacion": f[16], "letra": f[17],
-        "tc": f[18] or 0,
+        "timestamp": f[18] or f[1],
+        "porcion_tiempo": f[5], "cantidad_operarios": f[6],
+        "cantidad_producida": f[7], "cantidad_defectuosa": f[8], "observaciones": f[9],
+        "usuario": f[10], "id_modulo": f[11], "id_orden": f[12],
+        "id_operacion": f[13], "nombre_operacion": f[14], "letra": f[15],
+        "tc": f[16] or 0, "maquina": f[17] or '',
+        "id_hora": f[19], "hora_nombre": f[20] or '',
         "paradas": paradas_dict.get(f[0], [])
     } for f in filas]
 
-def resumen_registros_hora(fecha, id_modulo, id_hora, id_operacion=None):
-    """Devuelve la cantidad de esa hora/actividad y el total del día para la advertencia."""
+def resumen_registros_hora(fecha, id_modulo, id_hora=None, id_operacion=None):
+    """Devuelve la cantidad del día (módulo+operación opcional) y el total del día.
+    Sin hora operativa: la marca temporal es created_at, no hay asignación por hora."""
     conexion = _conexion()
     cursor = conexion.cursor()
-    params = [fecha, id_modulo, id_hora]
+    params = [fecha, id_modulo]
     query = """
         SELECT COALESCE(SUM(cantidad_producida), 0) FROM RegistroProduccion
-        WHERE fecha = ? AND id_modulo = ? AND id_hora = ?
+        WHERE fecha = ? AND id_modulo = ?
     """
+    if id_hora:
+        query += " AND id_hora = ?"
+        params.append(id_hora)
     if id_operacion:
         query += " AND id_operacion = ?"
         params.append(id_operacion)
@@ -1583,13 +1648,13 @@ def resumen_registros_hora(fecha, id_modulo, id_hora, id_operacion=None):
     conexion.close()
     return {"hora": hora, "dia": dia}
 
-def _validar_operacion_en_modulo(cursor, id_operacion, id_modulo):
-    """Valida que la máquina de la operación pertenezca al módulo de registro.
-    Retorna None si es válido, o un dict de error si no coincide."""
+def _validar_operacion_en_modulo(cursor, id_operacion, id_modulo, id_maquina=None):
+    """Valida que la operación se ejecute en la máquina indicada y que esa máquina
+    pertenezca al módulo de registro. Retorna None si es válido, o un dict de error."""
     if not id_operacion:
         return {"error": "Debe seleccionar una actividad (operación)"}
     cursor.execute("""
-        SELECT tm.id_modulo, tm.nombre
+        SELECT o.id_maquina, tm.id_modulo, tm.nombre
         FROM Operacion o
         LEFT JOIN TipoMaquinaria tm ON o.id_maquina = tm.id
         WHERE o.id = ?
@@ -1597,9 +1662,15 @@ def _validar_operacion_en_modulo(cursor, id_operacion, id_modulo):
     fila = cursor.fetchone()
     if not fila:
         return {"error": "La actividad seleccionada no existe"}
-    modulo_maquina = fila[0]
-    nombre_maquina = fila[1]
-    # Permite registrar operaciones cuya máquina NO tiene módulo asignado (especial)
+    id_maquina_op = fila[0]
+    modulo_maquina = fila[1]
+    nombre_maquina = fila[2]
+
+    # La operación debe ejecutarse en la máquina seleccionada (si se envía)
+    if id_maquina and id_maquina_op and int(id_maquina) != id_maquina_op:
+        return {"error": f"La actividad '{nombre_maquina}' no se ejecuta en la máquina seleccionada. Verifique que la máquina coincida con la actividad."}
+    # La máquina de la operación debe pertenecer al módulo de registro
+    # (se permite si la máquina NO tiene módulo definido)
     if modulo_maquina and modulo_maquina != int(id_modulo):
         return {"error": f"La actividad usa '{nombre_maquina}' que pertenece a otro módulo. Verifique que la línea de registro coincida con la actividad."}
     return None
@@ -1608,8 +1679,8 @@ def insertar_registro_produccion(datos, id_usuario):
     conexion = _conexion()
     cursor = conexion.cursor()
 
-    # Validar que la operación (actividad) corresponde al módulo de registro
-    err_op = _validar_operacion_en_modulo(cursor, datos.get('id_operacion'), datos.get('id_modulo'))
+    # Validar que la operación (actividad) corresponde a la máquina y al módulo de registro
+    err_op = _validar_operacion_en_modulo(cursor, datos.get('id_operacion'), datos.get('id_modulo'), datos.get('id_maquina'))
     if err_op:
         conexion.close()
         return err_op
@@ -1621,7 +1692,7 @@ def insertar_registro_produccion(datos, id_usuario):
             observaciones, id_usuario
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        datos['fecha'], datos['id_modulo'], datos['id_hora'], datos['id_orden'],
+        datos['fecha'], datos['id_modulo'], datos.get('id_hora'), datos['id_orden'],
         datos.get('id_operacion'), datos.get('porcion_tiempo', 1.0), datos.get('cantidad_operarios', 0),
         datos['cantidad_producida'], datos.get('cantidad_defectuosa', 0),
         datos.get('observaciones', ''), id_usuario
@@ -1691,23 +1762,26 @@ def obtener_registros_rango(fecha_inicio, fecha_fin, id_orden=None):
     cursor = conexion.cursor()
     query = """
         SELECT r.id, r.fecha, m.nombre, o.nombre_orden, ref.nombre_referencia,
-               h.nombre, r.porcion_tiempo, r.cantidad_operarios,
+               r.porcion_tiempo, r.cantidad_operarios,
                r.cantidad_producida, r.cantidad_defectuosa,
-               ref.id as id_referencia, r.id_hora, r.id_operacion,
-               COALESCE(op.tiempo_segundos, 0) as tiempo_operacion
+               ref.id as id_referencia, r.id_operacion,
+               COALESCE(op.tiempo_segundos, 0) as tiempo_operacion,
+               COALESCE(tm.nombre, '') as maquina_nombre,
+               COALESCE(op.nombre_operacion, '') as operacion_nombre,
+               r.created_at
         FROM RegistroProduccion r
         JOIN ModuloConfeccion m ON r.id_modulo = m.id
         JOIN OrdenProduccion o ON r.id_orden = o.id
         JOIN ReferenciaProducto ref ON o.id_referencia = ref.id
-        JOIN HorasProduccion h ON r.id_hora = h.id
         LEFT JOIN Operacion op ON r.id_operacion = op.id
+        LEFT JOIN TipoMaquinaria tm ON op.id_maquina = tm.id
         WHERE r.fecha BETWEEN ? AND ?
     """
     params = [fecha_inicio, fecha_fin]
     if id_orden:
         query += " AND r.id_orden = ?"
         params.append(id_orden)
-    query += " ORDER BY h.id ASC, m.id ASC"
+    query += " ORDER BY m.id ASC"
     cursor.execute(query, params)
     filas = cursor.fetchall()
 
@@ -1724,9 +1798,11 @@ def obtener_registros_rango(fecha_inicio, fecha_fin, id_orden=None):
     conexion.close()
     return [{
         "id": f[0], "fecha": f[1], "modulo": f[2], "orden": f[3], "referencia": f[4],
-        "hora": f[5], "porcion_tiempo": f[6] or 1.0, "cantidad_operarios": f[7] or 0,
-        "cantidad": f[8], "cantidad_defectuosa": f[9] or 0,
-        "id_referencia": f[10], "id_operacion": f[12], "tiempo_operacion": f[13] or 0,
+        "timestamp": f[14] or f[1],
+        "porcion_tiempo": f[5] or 1.0, "cantidad_operarios": f[6] or 0,
+        "cantidad": f[7], "cantidad_defectuosa": f[8] or 0,
+        "id_referencia": f[9], "id_operacion": f[10], "tiempo_operacion": f[11] or 0,
+        "maquina": f[12] or '', "operacion_nombre": f[13] or '',
         "tiempo_total_parada": paradas.get(f[0], 0)
     } for f in filas]
 

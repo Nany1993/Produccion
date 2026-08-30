@@ -18,6 +18,7 @@ from database import (
     agregar_detalle_referencia,
     obtener_horas,
     insertar_hora,
+    obtener_jornada_segundos,
     obtener_paradas,
     insertar_parada,
     obtener_asignaciones,
@@ -42,7 +43,10 @@ from database import (
     calcular_materiales_orden,
     obtener_modulos,
     insertar_modulo,
+    obtener_referencias_por_modulo,
     verificar_login,
+    obtener_configuracion,
+    guardar_configuracion,
     obtener_usuarios,
     crear_usuario,
     actualizar_usuario,
@@ -193,8 +197,7 @@ def add_horas():
     insertar_hora(
         datos['nombre'],
         datos.get('hora_inicio'),
-        datos.get('hora_fin'),
-        datos.get('turno')
+        datos.get('hora_fin')
     )
     return jsonify({"mensaje": "Hora guardada con éxito"}), 201
 
@@ -525,6 +528,10 @@ def delete_referencia_detalle(id_detalle):
     eliminar_detalle(id_detalle)
     return jsonify({"mensaje": "Detalle eliminado"}), 200
 
+@app.route('/api/modulos/<int:id_mod>/referencias-asignadas', methods=['GET'])
+def get_referencias_asignadas(id_mod):
+    return jsonify(obtener_referencias_por_modulo(id_mod))
+
 # --- REPORTE TABLERO DE EFICIENCIAS ---
 
 @app.route('/api/reportes/eficiencia', methods=['GET'])
@@ -533,64 +540,81 @@ def get_reporte_eficiencia():
     fecha_fin = request.args.get('fecha_fin')
     id_referencia = request.args.get('id_referencia', type=int)
     id_orden = request.args.get('id_orden', type=int)
-    
+
     if not fecha_inicio or not fecha_fin:
         from datetime import date
         hoy = date.today().isoformat()
         fecha_inicio = fecha_inicio or hoy
         fecha_fin = fecha_fin or hoy
 
+    # Jornada en segundos según el catálogo de horas (suma de duraciones de las horas del catálogo)
+    jornada_seg = obtener_jornada_segundos()
+    if jornada_seg <= 0:
+        jornada_seg = 8 * 3600  # fallback: 8 horas
+
     controles = obtener_registros_rango(fecha_inicio, fecha_fin, id_orden)
     if id_referencia:
         controles = [c for c in controles if c['id_referencia'] == id_referencia]
-    
-    # 1. Identificar módulos y horas presentes
-    modulos_set = set()
-    horas_dict = {} # {hora_nombre: {modulo_nombre: {cantidad:0, meta:0, defectos:0}}}
 
+    # 1. Identificar módulos y días presentes
+    #    Meta por DÍA: TD = operarios × jornada_seg − paradas  (tiempo total disponible del módulo ese día)
+    #    La jornada (del catálogo de horas) se REPARTE entre las distintas actividades que un módulo registró ese día,
+    #    porque los operarios de un módulo se distribuyen entre sus operaciones. Así la meta no se infla.
+    modulos_set = set()
+    # Primera pasada: contar actividades distintas y acumular cantidad/defectos por (fecha, modulo)
+    resumen_dia = {}   # {(fecha, modulo): {"actividades": set, "cantidad":0, "defectos":0}}
     for c in controles:
-        # Meta por ACTIVIDAD: el tiempo de la operación registrada.
-        # Una unidad de esa actividad se hace en 'tiempo_operacion' segundos.
-        tc_actividad = c.get('tiempo_operacion') or 0
-        num_op = c['cantidad_operarios'] or 0
-        porcion = c['porcion_tiempo'] or 1.0
-        p_total = c.get('tiempo_total_parada') or 0
-        # Fórmula: TD = (Num_Op * 3600 * Porcion) - Paradas
-        td = (num_op * 3600 * porcion) - p_total
-        meta = int(td / tc_actividad) if tc_actividad and tc_actividad > 0 else 0
-        
-        hora = c['hora']
+        dia = c['fecha']
         modulo = c['modulo']
         modulos_set.add(modulo)
-        
-        if hora not in horas_dict:
-            horas_dict[hora] = {}
-        
-        if modulo not in horas_dict[hora]:
-            horas_dict[hora][modulo] = {"cantidad": 0, "meta": 0, "defectos": 0}
-            
-        horas_dict[hora][modulo]["cantidad"] += c['cantidad']
-        horas_dict[hora][modulo]["meta"] += meta
-        horas_dict[hora][modulo]["defectos"] += c.get('cantidad_defectuosa') or 0
+        clave = (dia, modulo)
+        if clave not in resumen_dia:
+            resumen_dia[clave] = {"actividades": set(), "cantidad": 0, "defectos": 0}
+        resumen_dia[clave]["actividades"].add(c['id_operacion'])
+        resumen_dia[clave]["cantidad"] += c['cantidad']
+        resumen_dia[clave]["defectos"] += c.get('cantidad_defectuosa') or 0
+
+    # Segunda pasada: meta por actividad con jornada repartida
+    #    para la METAtotal del módulo, sumamos la meta de cada operación:
+    #    meta_op = (operarios × (jornada/num_actividades) − paradas) / tc_op
+    metas_dia = {}   # {(fecha, modulo): meta acumulada}
+    for c in controles:
+        dia = c['fecha']
+        modulo = c['modulo']
+        num_actividades = max(1, len(resumen_dia[(dia, modulo)]["actividades"]))
+        tc_actividad = c.get('tiempo_operacion') or 0
+        num_op = c['cantidad_operarios'] or 0
+        # Paradas del registro: se descuentan proporcionalmente (ya incluidas en cada registro)
+        p_total = c.get('tiempo_total_parada') or 0
+        jornada_act = jornada_seg / num_actividades
+        td = (num_op * jornada_act) - p_total
+        meta = int(td / tc_actividad) if tc_actividad and tc_actividad > 0 else 0
+        meta = max(0, meta)
+        clave = (dia, modulo)
+        if clave not in metas_dia:
+            metas_dia[clave] = 0
+        metas_dia[clave] += meta
 
     # 2. Estructurar respuesta para el frontend
     modulos_lista = sorted(list(modulos_set))
+    fechas = sorted({dia for (dia, _) in resumen_dia.keys()})
     reporte = []
-    
-    for hora_nombre in sorted(horas_dict.keys(), key=lambda x: int(x.split()[1]) if len(x.split()) > 1 and x.split()[1].isdigit() else 99):
+
+    for dia in fechas:
         datos_modulos = {}
         total_planta_cantidad = 0
         total_planta_meta = 0
         total_planta_defectos = 0
-        
+
         for mod in modulos_lista:
-            val = horas_dict[hora_nombre].get(mod, {"cantidad": 0, "meta": 0, "defectos": 0})
-            cantidad = val["cantidad"]
-            meta = val["meta"]
-            defectos = val["defectos"]
+            clave = (dia, mod)
+            datos = resumen_dia.get(clave, {"cantidad": 0, "defectos": 0})
+            cantidad = datos["cantidad"]
+            defectos = datos["defectos"]
+            meta = metas_dia.get(clave, 0)
             eficiencia = round((cantidad / meta * 100), 1) if meta > 0 else 0
             calidad = round(((cantidad - defectos) / cantidad * 100), 1) if cantidad > 0 else 0
-            
+
             datos_modulos[mod] = {
                 "cantidad": cantidad,
                 "meta": meta,
@@ -601,12 +625,12 @@ def get_reporte_eficiencia():
             total_planta_cantidad += cantidad
             total_planta_meta += meta
             total_planta_defectos += defectos
-            
+
         eficiencia_total = round((total_planta_cantidad / total_planta_meta * 100), 1) if total_planta_meta > 0 else 0
         calidad_total = round(((total_planta_cantidad - total_planta_defectos) / total_planta_cantidad * 100), 1) if total_planta_cantidad > 0 else 0
-        
+
         reporte.append({
-            "hora": hora_nombre,
+            "fecha": dia,
             "datos_modulos": datos_modulos,
             "total_planta": {
                 "cantidad": total_planta_cantidad,
@@ -616,7 +640,7 @@ def get_reporte_eficiencia():
                 "calidad": calidad_total
             }
         })
-        
+
     return jsonify({
         "modulos": modulos_lista,
         "reporte": reporte
@@ -703,6 +727,25 @@ def login():
         return jsonify({"error": "Credenciales inválidas"}), 401
     return jsonify(usuario)
 
+# --- CONFIGURACIÓN DE PLATAFORMA ---
+
+@app.route('/api/configuracion', methods=['GET'])
+def get_configuracion():
+    return jsonify({
+        "modalidad_registro": obtener_configuracion('modalidad_registro', 'Diario')
+    })
+
+@app.route('/api/configuracion', methods=['PUT'])
+def update_configuracion():
+    datos = request.json
+    if not datos or 'modalidad_registro' not in datos:
+        return jsonify({"error": "Falta modalidad_registro"}), 400
+    modalidad = datos['modalidad_registro']
+    if modalidad not in ('Diario', 'Por Hora'):
+        return jsonify({"error": "Modalidad inválida (use 'Diario' o 'Por Hora')"}), 400
+    guardar_configuracion('modalidad_registro', modalidad)
+    return jsonify({"mensaje": "Configuración actualizada", "modalidad_registro": modalidad})
+
 # --- USUARIOS ---
 
 @app.route('/api/usuarios', methods=['GET'])
@@ -782,14 +825,14 @@ def get_resumen_produccion():
     id_modulo = request.args.get('id_modulo', type=int)
     id_hora = request.args.get('id_hora', type=int)
     id_operacion = request.args.get('id_operacion', type=int)
-    if not fecha or not id_modulo or not id_hora:
+    if not fecha or not id_modulo:
         return jsonify({"error": "Faltan parámetros"}), 400
     return jsonify(resumen_registros_hora(fecha, id_modulo, id_hora, id_operacion))
 
 @app.route('/api/produccion', methods=['POST'])
 def add_produccion():
     datos = request.json
-    if not datos.get('fecha') or not datos.get('id_modulo') or not datos.get('id_hora') or not datos.get('id_orden'):
+    if not datos.get('fecha') or not datos.get('id_modulo') or not datos.get('id_orden'):
         return jsonify({"error": "Faltan datos requeridos"}), 400
     id_usuario = datos.get('id_usuario')
     if not id_usuario:

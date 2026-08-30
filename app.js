@@ -215,7 +215,7 @@ const SELECTS_BUSCABLES = [
   'prog-referencia',
   'input-usuario-empleado',
   'input-emp-maquina',
-  'ctrl-modulo', 'ctrl-referencia',
+  'ctrl-maquina', 'ctrl-referencia',
   'input-orden-ref',
   'sim-referencia',
   'eff-referencia', 'eff-orden',
@@ -231,6 +231,44 @@ function conectarBuscadores() {
 // ============================================================
 
 let sesionActual = null;
+let moduloActual = 'mod-maquinaria';
+
+// Módulos permitidos por rol. Admin lo ve todo.
+// Supervisor/Operador: solo registro + reportes (sin configuración ni datos maestros).
+const MODULOS_BASICOS = ['mod-control-hora', 'mod-eficiencia', 'mod-progreso'];
+
+function aplicarPermisosMenu() {
+  const esAdmin = sesionActual && sesionActual.rol === 'Admin';
+  const esBasico = !esAdmin; // supervisores y operadores → solo lo básico
+
+  // Sección CONFIGURACIÓN completa: solo Admin
+  const navConfig = document.getElementById('nav-config');
+  if (navConfig) navConfig.style.display = esAdmin ? '' : 'none';
+
+  if (esBasico) {
+    // En OPERACIONES: ocultar todo menos Registro de Producción
+    ['link-operaciones', 'link-ordenes', 'link-ingenieria', 'link-programacion'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    // En ANÁLISIS: ocultar Simulador Balanceo (dejar Tablero y Progreso)
+    const linkSim = document.getElementById('link-simulador');
+    if (linkSim) linkSim.style.display = 'none';
+    // Si el módulo actual no le corresponde al rol (p.ej. quedó Maquinaria
+    // como activo), mostrar el Registro de Producción por defecto.
+    if (!MODULOS_BASICOS.includes(moduloActual)) {
+      showModule('mod-control-hora');
+    }
+  } else {
+    // Admin: restaurar todo
+    ['link-operaciones', 'link-ordenes', 'link-ingenieria', 'link-programacion'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+    const linkSim2 = document.getElementById('link-simulador');
+    if (linkSim2) linkSim2.style.display = '';
+  }
+}
 
 function guardarSesion(usuario) {
   sesionActual = usuario;
@@ -239,9 +277,32 @@ function guardarSesion(usuario) {
   const bar = document.getElementById('session-bar');
   bar.style.display = 'flex';
   document.getElementById('session-info').innerText = `${usuario.nombre_empleado || usuario.nombre_usuario} · ${usuario.rol}`;
+  // Control de modalidad global: visible solo para Admin
+  const ctrlAdmin = document.getElementById('admin-modalidad');
+  if (ctrlAdmin) {
+    ctrlAdmin.style.display = (usuario.rol === 'Admin') ? 'inline-flex' : 'none';
+  }
+  aplicarPermisosMenu();
   Toast.success(`Bienvenido, ${usuario.nombre_usuario}`);
   initControlHora();
   cargarControlesHoy();
+}
+
+async function cambiarModalidadRegistro() {
+  const sel = document.getElementById('select-modalidad');
+  if (sesionActual && sesionActual.rol !== 'Admin') { Toast.error('Solo el administrador puede cambiar la modalidad'); return; }
+  const data = await api('/api/configuracion', {
+    method: 'PUT',
+    body: JSON.stringify({ modalidad_registro: sel.value }),
+    _btn: sel
+  });
+  if (data) {
+    window.modalidadRegistro = data.modalidad_registro || sel.value;
+    aplicarModalidadRegistro();
+    Toast.success(`Modalidad de registro: ${window.modalidadRegistro}`);
+  } else if (sel) {
+    sel.value = window.modalidadRegistro || 'Diario';
+  }
 }
 
 function cerrarSesion() {
@@ -290,6 +351,9 @@ function ocultarSesionInicial() {
       document.getElementById('login-overlay').classList.add('hidden');
       document.getElementById('session-bar').style.display = 'flex';
       document.getElementById('session-info').innerText = `${sesionActual.nombre_empleado || sesionActual.nombre_usuario} · ${sesionActual.rol}`;
+      const ctrlAdmin2 = document.getElementById('admin-modalidad');
+      if (ctrlAdmin2) ctrlAdmin2.style.display = (sesionActual.rol === 'Admin') ? 'inline-flex' : 'none';
+      aplicarPermisosMenu();
       return true;
     } catch (e) { localStorage.removeItem('sesion'); }
   }
@@ -328,6 +392,7 @@ function expandParentSection(linkId) {
 }
 
 function showModule(moduleId) {
+  moduloActual = moduleId;
   document.querySelectorAll('.module-section').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
@@ -595,7 +660,6 @@ async function cargarHoras() {
           <td><strong>${h.nombre}</strong></td>
           <td>${h.hora_inicio || '-'}</td>
           <td>${h.hora_fin || '-'}</td>
-          <td>${h.turno ? `<span class="badge badge-hour">${h.turno}</span>` : '-'}</td>
         </tr>
       `;
     });
@@ -606,7 +670,6 @@ async function guardarHora() {
   const nombre = document.getElementById('input-hora').value.trim();
   const horaInicio = document.getElementById('input-hora-inicio').value;
   const horaFin = document.getElementById('input-hora-fin').value;
-  const turno = document.getElementById('input-hora-turno').value;
 
   if (!nombre) { showFieldError('input-hora', 'Ingrese un nombre'); return; }
   clearFieldErrors('input-hora');
@@ -616,8 +679,7 @@ async function guardarHora() {
     body: JSON.stringify({
       nombre,
       hora_inicio: horaInicio || null,
-      hora_fin: horaFin || null,
-      turno: turno || null
+      hora_fin: horaFin || null
     }),
     _btn: event.target
   });
@@ -626,7 +688,6 @@ async function guardarHora() {
     document.getElementById('input-hora').value = '';
     document.getElementById('input-hora-inicio').value = '';
     document.getElementById('input-hora-fin').value = '';
-    document.getElementById('input-hora-turno').value = '';
     Toast.success(data.mensaje || 'Hora guardada');
     cargarHoras();
   }
@@ -2249,27 +2310,51 @@ let catalogoParadasCache = [
 
 let causasParadaCache = [];
 
-async function initControlHora() {
-  // Usar líneas del usuario logueado; si no hay sesión, todas
-  let mods = null;
-  if (sesionActual && sesionActual.lineas && sesionActual.lineas.length > 0) {
-    mods = sesionActual.lineas;
-  } else {
-    mods = await api('/api/modulos');
-  }
-  if (!mods) return;
+function aplicarModalidadRegistro() {
+  const porHora = (window.modalidadRegistro || 'Diario') === 'Por Hora';
+  const grupo = document.getElementById('grupo-ctrl-hora');
+  const selHora = document.getElementById('ctrl-hora');
+  if (grupo) grupo.style.display = porHora ? '' : 'none';
+  if (selHora) selHora.disabled = !porHora;
+}
 
-  const selMod = document.getElementById('ctrl-modulo');
-  selMod.innerHTML = '<option value="">Seleccione Módulo...</option>';
-  mods.forEach(m => selMod.innerHTML += `<option value="${m.id}">${m.nombre}</option>`);
+async function initControlHora() {
+  // Máquinas: si el usuario tiene líneas asignadas, solo las de esas líneas; si no, todas
+  const maquinas = await api('/api/maquinaria');
+  if (!maquinas) return;
+
+  // Modalidad de registro global de la plataforma (Diario | Por Hora)
+  const cfg = await api('/api/configuracion');
+  window.modalidadRegistro = (cfg && cfg.modalidad_registro) || 'Diario';
+  const selModalidad = document.getElementById('select-modalidad');
+  if (selModalidad) selModalidad.value = window.modalidadRegistro;
+  aplicarModalidadRegistro();
+
+  // Select de horas (para modalidad Por Hora)
+  const horas = await api('/api/horas');
+  const selHora = document.getElementById('ctrl-hora');
+  selHora.innerHTML = '<option value="">Seleccione hora...</option>';
+  (horas || []).forEach(h => {
+    const etiqueta = h.nombre;
+    selHora.innerHTML += `<option value="${h.id}">${etiqueta}</option>`;
+  });
+
+  const lineasUsuario = sesionActual && sesionActual.lineas && sesionActual.lineas.length > 0
+    ? sesionActual.lineas.map(l => l.id)
+    : null;
+
+  const filtradas = lineasUsuario
+    ? maquinas.filter(m => m.id_modulo && lineasUsuario.includes(m.id_modulo))
+    : maquinas;
+
+  const selMaq = document.getElementById('ctrl-maquina');
+  selMaq.innerHTML = '<option value="">Seleccione Máquina...</option>';
+  filtradas.forEach(m => {
+    const etiqueta = m.nombre_modulo ? `${m.nombre} (${m.nombre_modulo})` : m.nombre;
+    selMaq.innerHTML += `<option value="${m.id}" data-modulo="${m.id_modulo || ''}" data-modulo-nombre="${m.nombre_modulo || ''}">${etiqueta}</option>`;
+  });
 
   document.getElementById('ctrl-fecha').valueAsDate = new Date();
-
-  const selHora = document.getElementById('ctrl-hora');
-  selHora.innerHTML = '';
-  ['Hora 1', 'Hora 2', 'Hora 3', 'Hora 4', 'Hora 5', 'Hora 6', 'Hora 7', 'Hora 8', 'Hora 9', 'Hora Extra'].forEach((h, i) => {
-    selHora.innerHTML += `<option value="${i + 1}">${h}</option>`;
-  });
 
   const paradas = catalogoParadasCache;
   actualizarSelectParadas(paradas);
@@ -2328,18 +2413,32 @@ function agregarFilaParadaNP() {
 }
 
 async function cargarReferenciasPorModulo() {
-  const idMod = document.getElementById('ctrl-modulo').value;
+  const selMaq = document.getElementById('ctrl-maquina');
   const selRef = document.getElementById('ctrl-referencia');
+  const optMaq = selMaq.options[selMaq.selectedIndex];
 
-  if (!idMod) {
-    selRef.innerHTML = '<option value="">Seleccione Módulo primero...</option>';
+  const idModulo = optMaq ? parseInt(optMaq.getAttribute('data-modulo') || 0) : 0;
+  const nombreModulo = optMaq ? optMaq.getAttribute('data-modulo-nombre') || '' : '';
+
+  // Mostrar módulo deducido de la máquina
+  const infoModulo = document.getElementById('ctrl-modulo-info');
+  const hiddenModulo = document.getElementById('ctrl-modulo');
+  if (infoModulo) {
+    infoModulo.value = idModulo ? nombreModulo : '';
+  }
+  if (hiddenModulo) hiddenModulo.value = idModulo || '';
+
+  // Limpiar dependientes
+  if (!idModulo) {
+    selRef.innerHTML = '<option value="">Seleccione Máquina primero...</option>';
     selRef.disabled = true;
     document.getElementById('ctrl-actividad').innerHTML = '<option value="">Seleccione la orden primero...</option>';
     document.getElementById('ctrl-actividad').disabled = true;
+    actualizarTiempoCiclo();
     return;
   }
 
-  const refs = await api(`/api/modulos/${idMod}/referencias-asignadas`);
+  const refs = await api(`/api/modulos/${idModulo}/referencias-asignadas`);
   if (!refs) return;
 
   selRef.innerHTML = '<option value="">Seleccione Asignación...</option>';
@@ -2357,10 +2456,10 @@ async function cargarReferenciasPorModulo() {
 async function cargarOpcionesActividad() {
   const selRef = document.getElementById('ctrl-referencia');
   const selAct = document.getElementById('ctrl-actividad');
-  const selMod = document.getElementById('ctrl-modulo');
+  const selMaq = document.getElementById('ctrl-maquina');
   const optRef = selRef.options[selRef.selectedIndex];
   const idReferencia = optRef ? optRef.getAttribute('data-ref-id') : null;
-  const idModulo = parseInt(selMod.value) || 0;
+  const idMaquina = parseInt(selMaq.value) || 0;
 
   if (!idReferencia) {
     selAct.innerHTML = '<option value="">Seleccione la orden primero...</option>';
@@ -2371,16 +2470,16 @@ async function cargarOpcionesActividad() {
   const detalles = await api(`/api/referencias/${idReferencia}/detalles`);
   if (!detalles) { selAct.disabled = true; return; }
 
-  // Filtrar actividades cuyas máquinas pertenecen al módulo seleccionado
-  // (las que no tienen módulo definido se muestran para permitir su registro)
-  const disponibles = detalles.filter(d => !d.id_modulo_maquina || d.id_modulo_maquina === idModulo);
+  // Mostrar SOLO las actividades que se ejecutan en la MÁQUINA seleccionada.
+  // (Si la operación no tiene máquina definida, se muestra por si acaso.)
+  const disponibles = detalles.filter(d => !d.id_maquina || d.id_maquina === idMaquina);
 
   selAct.innerHTML = '<option value="">Seleccione actividad...</option>';
   disponibles.forEach(d => {
     selAct.innerHTML += `<option value="${d.id_operacion}" data-letra="${d.letra}" data-tc="${d.tiempo || 0}">${d.letra} - ${d.nombre_operacion}</option>`;
   });
   if (disponibles.length === 0) {
-    selAct.innerHTML = '<option value="">Este módulo no tiene actividades para esta referencia...</option>';
+    selAct.innerHTML = '<option value="">Esta máquina no ejecuta ninguna actividad de esta referencia...</option>';
   }
   selAct.disabled = false;
   actualizarTiempoCiclo();
@@ -2404,21 +2503,23 @@ function actualizarTiempoCiclo() {
 
 async function guardarControlHora(btn = null) {
   const fecha = document.getElementById('ctrl-fecha').value;
+  const idMaquina = document.getElementById('ctrl-maquina').value;
   const idMod = document.getElementById('ctrl-modulo').value;
   const selRef = document.getElementById('ctrl-referencia');
   const optRef = selRef.options[selRef.selectedIndex];
   const idOrden = optRef ? optRef.getAttribute('data-orden-id') : null;
-  const idHora = document.getElementById('ctrl-hora').value;
   const idOperacion = document.getElementById('ctrl-actividad').value;
   const cantidad = document.getElementById('ctrl-cantidad').value;
   const defectuosas = document.getElementById('ctrl-defectuosas').value;
+  const porHora = (window.modalidadRegistro || 'Diario') === 'Por Hora';
+  const idHora = porHora ? document.getElementById('ctrl-hora').value : '';
 
   let valid = true;
   if (!fecha) { showFieldError('ctrl-fecha', 'Requerido'); valid = false; } else clearFieldErrors('ctrl-fecha');
-  if (!idMod) { showFieldError('ctrl-modulo', 'Requerido'); valid = false; } else clearFieldErrors('ctrl-modulo');
-  if (!idOrden || !optRef.value) { showFieldError('ctrl-referencia', 'Seleccione una orden'); valid = false; } else clearFieldErrors('ctrl-referencia');
+  if (!idMaquina) { showFieldError('ctrl-maquina', 'Seleccione la máquina'); valid = false; } else clearFieldErrors('ctrl-maquina');
+  if (!idOrden) { showFieldError('ctrl-referencia', 'Seleccione una orden'); valid = false; } else clearFieldErrors('ctrl-referencia');
   if (!idOperacion) { showFieldError('ctrl-actividad', 'Seleccione la actividad'); valid = false; } else clearFieldErrors('ctrl-actividad');
-  if (!idHora) { showFieldError('ctrl-hora', 'Requerido'); valid = false; } else clearFieldErrors('ctrl-hora');
+  if (porHora && !idHora) { showFieldError('ctrl-hora', 'Seleccione la hora'); valid = false; } else if (porHora) clearFieldErrors('ctrl-hora');
   if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) { showFieldError('ctrl-cantidad', 'Ingrese cantidad'); valid = false; } else clearFieldErrors('ctrl-cantidad');
   if (!sesionActual) { Toast.error('Debe iniciar sesión para registrar'); return; }
   if (!valid) return;
@@ -2447,13 +2548,15 @@ async function guardarControlHora(btn = null) {
   }
   paradasNP.forEach(p => paradas.push(p));
 
-  // VALIDACIÓN: aviso si ya hay registro en esta hora+actividad
-  const resumen = await api(`/api/produccion/resumen?fecha=${fecha}&id_modulo=${idMod}&id_hora=${idHora}&id_operacion=${idOperacion}`);
+  // VALIDACIÓN: aviso si ya hay registro de esta actividad hoy (módulo, y hora si es por hora)
+  const horaQ = porHora ? `&id_hora=${idHora}` : '';
+  const resumen = await api(`/api/produccion/resumen?fecha=${fecha}&id_modulo=${idMod}&id_operacion=${idOperacion}${horaQ}`);
   let continuar = true;
   if (resumen && resumen.hora > 0) {
+    const sufijo = porHora ? ` en esta hora` : ' hoy en este módulo';
     continuar = await Modal.confirm(
-      'Ya hay registro en esta hora',
-      `Ya registraste ${resumen.hora} unidades de esta actividad en esta hora.\nEn el día llevas ${resumen.dia} unidades registradas.\n¿Deseas continuar?`
+      'Ya hay registro',
+      `Ya registraste ${resumen.hora} unidades de esta actividad${sufijo}.\nEn el día llevas ${resumen.dia} unidades registradas.\n¿Deseas continuar?`
     );
   }
   if (!continuar) return;
@@ -2461,10 +2564,11 @@ async function guardarControlHora(btn = null) {
   const payload = {
     fecha,
     id_modulo: parseInt(idMod),
-    id_hora: parseInt(idHora),
     id_orden: parseInt(idOrden),
     id_operacion: parseInt(idOperacion),
-    porcion_tiempo: parseFloat(document.getElementById('ctrl-porcion').value),
+    id_maquina: parseInt(idMaquina),
+    id_hora: porHora ? parseInt(idHora) : null,
+    porcion_tiempo: 1.0,
     cantidad_operarios: parseInt(document.getElementById('ctrl-operarios').value || 0),
     cantidad_producida: parseInt(cantidad),
     cantidad_defectuosa: defectuosas ? parseInt(defectuosas) : 0,
@@ -2507,10 +2611,16 @@ async function cargarControlesHoy() {
 
     const defectClass = c.cantidad_defectuosa > 0 ? 'badge-machine' : 'badge-module';
     const actividad = c.letra ? `<span class="badge badge-hour">${c.letra}</span> ${c.nombre_operacion || ''}` : '-';
+    const maquinaCell = c.maquina ? `<span title="${c.maquina}" style="font-size:0.72rem;color:var(--text-muted);">🔧 ${c.maquina}</span>` : '-';
+    // Marca de tiempo real: si hay created_at muestro su hora, si no la fecha.
+    // Si el registro es POR HORA, muestro la hora del catálogo (ej: Hora 3) + marca.
+    let marca = c.hora_nombre || c.timestamp || c.fecha;
+    if (marca && !c.hora_nombre && marca.includes(' ')) marca = marca.split(' ')[1].substring(0, 5);
+    const badgeHora = c.hora_nombre ? 'badge-machine' : 'badge-hour';
     tbody.innerHTML += `
       <tr>
-        <td><span class="badge badge-hour">${c.hora}</span></td>
-        <td>${c.modulo}</td>
+        <td><span class="badge ${badgeHora}">${marca}</span></td>
+        <td>${c.modulo}<br>${maquinaCell}</td>
         <td>${c.orden}</td>
         <td>${actividad}</td>
         <td class="text-accent">${c.cantidad_producida}</td>
@@ -2540,10 +2650,11 @@ function cancelarEdicionControl() {
   document.getElementById('ctrl-cantidad').value = '';
   document.getElementById('ctrl-defectuosas').value = '0';
   document.getElementById('ctrl-obs').value = '';
+  document.getElementById('ctrl-maquina').value = '';
   document.getElementById('ctrl-modulo').value = '';
-  document.getElementById('ctrl-hora').value = '';
+  const infoModulo = document.getElementById('ctrl-modulo-info');
+  if (infoModulo) infoModulo.value = '';
   document.getElementById('ctrl-operarios').value = '';
-  document.getElementById('ctrl-porcion').value = '1.0';
   document.getElementById('ctrl-parada-p').value = '1';
   actualizarTiempoParadaP();
   document.querySelectorAll('.parada-np-row:not(:first-child)').forEach(r => r.remove());
@@ -2557,7 +2668,7 @@ function cancelarEdicionControl() {
 
   const selRef = document.getElementById('ctrl-referencia');
   selRef.value = '';
-  selRef.innerHTML = '<option value="">Seleccione Módulo primero...</option>';
+  selRef.innerHTML = '<option value="">Seleccione Máquina primero...</option>';
   selRef.disabled = true;
 
   const btn = document.querySelector('#mod-control-hora .btn-primary');
@@ -2644,7 +2755,7 @@ function renderizarTablaEficiencia(data) {
       resumenMod[m].meta += d.meta || 0;
       resumenMod[m].defectos += d.defectos || 0;
       window.effDetalleModulos[m].push({
-        hora: row.hora,
+        dia: row.fecha,
         cant: d.cantidad || 0,
         meta: d.meta || 0,
         eff: d.eficiencia || 0,
@@ -2664,7 +2775,7 @@ function renderizarTablaEficiencia(data) {
     const colorName = eff >= 100 ? 'var(--eff-super)' : (eff >= 90 ? 'var(--eff-good)' : (eff >= 80 ? 'var(--eff-warn)' : 'var(--eff-critical)'));
     const nombreId = m.replace(/[^a-zA-Z0-9]/g, '_');
     html += `
-      <div class="eff-tarjeta" onclick="mostrarDetalleModulo('${nombreId}')" title="Clic para ver detalle por hora">
+      <div class="eff-tarjeta" onclick="mostrarDetalleModulo('${nombreId}')" title="Clic para ver detalle por día">
         <div class="eff-tarjeta-nombre">${m}</div>
         <div class="eff-tarjeta-num" style="color:${colorName};">${eff}%</div>
         <div class="eff-tarjeta-label">Eficiencia</div>
@@ -2675,22 +2786,22 @@ function renderizarTablaEficiencia(data) {
           <span>${r.cant} uds</span>
           <span>Calidad ${cal}%</span>
         </div>
-        <div class="eff-tarjeta-ver">Ver detalle por hora →</div>
+        <div class="eff-tarjeta-ver">Ver detalle por día →</div>
       </div>`;
     window['effTarjeta_' + nombreId] = m;
   });
   html += '</div>';
 
-  // Tabla consolidada por hora (solo totales, ligera)
+  // Tabla consolidada por día (solo totales, ligera)
   html += `<div class="report-table-container" style="margin-top:20px;"><table class="report-table"><thead>
-    <tr><th class="header-hora">HORA</th><th>CANT</th><th>META</th><th>EFF</th><th>CALID</th></tr>
+    <tr><th class="header-hora">FECHA</th><th>CANT</th><th>META</th><th>EFF</th><th>CALID</th></tr>
   </thead><tbody>`;
 
   reporte.forEach(row => {
     const t = row.total_planta;
     const tCalidClass = t.calidad >= 95 ? 'bg-eff-good' : (t.calidad >= 90 ? 'bg-eff-warn' : 'bg-eff-critical');
     html += `<tr>
-      <td class="header-hora">${row.hora}</td>
+      <td class="header-hora">${row.fecha}</td>
       <td>${t.cantidad}</td>
       <td>${t.meta}</td>
       <td class="cell-eff ${obtenerClaseEficiencia(t.eficiencia)}">${t.eficiencia}%</td>
@@ -2724,17 +2835,17 @@ function mostrarDetalleModulo(nombreId) {
   const detalle = window.effDetalleModulos[modulo];
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-      <div style="font-weight:700; font-size:1.1rem; color:var(--text-primary);">${modulo} — detalle por hora</div>
+      <div style="font-weight:700; font-size:1.1rem; color:var(--text-primary);">${modulo} — detalle por día</div>
       <button class="btn-secondary" onclick="cerrarDetalleModulo()" style="width:auto; padding:6px 14px;">✕ Cerrar</button>
     </div>
     <div class="report-table-container"><table class="report-table"><thead>
-      <tr><th class="header-hora">HORA</th><th>CANT</th><th>META</th><th>EFF</th><th>CALID</th></tr>
+      <tr><th class="header-hora">FECHA</th><th>CANT</th><th>META</th><th>EFF</th><th>CALID</th></tr>
     </thead><tbody>`;
 
   detalle.forEach(h => {
     const cClass = h.calidad >= 95 ? 'bg-eff-good' : (h.calidad >= 90 ? 'bg-eff-warn' : 'bg-eff-critical');
     html += `<tr>
-      <td class="header-hora">${h.hora}</td>
+      <td class="header-hora">${h.dia}</td>
       <td>${h.cant}</td>
       <td>${h.meta}</td>
       <td class="cell-eff ${obtenerClaseEficiencia(h.eff)}">${h.eff}%</td>
