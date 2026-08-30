@@ -85,20 +85,23 @@ Asignación de lotes de referencias a módulos de producción.
 - Una referencia puede asignarse a múltiples módulos
 - Un módulo puede tener múltiples referencias asignadas
 
-### 5. Control Hora a Hora
-Registro de producción real por hora operativa.
+### 5. Registro de Producción
+Registro de producción real por día y actividad, vinculado al puesto de trabajo (máquina).
 
 **Datos registrados:**
-- Fecha y hora
-- Módulo y referencia
-- Cantidad producida
+- Fecha y marca de tiempo real (created_at)
+- Máquina / puesto de trabajo y módulo
+- Orden de producción y actividad (operación)
+- Cantidad producida y defectuosa
 - Cantidad de operarios
-- Paradas programadas y no programadas
-- Porción de tiempo (0.1 a 1.0 = 10% a 100% de la hora)
+- Porción de tiempo trabajada (0.1 a 1.0)
+- Paradas (programadas y no programadas) en ParadaRegistro
+
+**Modalidad global:** configurada por el Admin (`Diario` | `Por Hora`) desde la barra superior.
 
 **Validaciones:**
-- Suma de porciones de tiempo por módulo/hora ≤ 1.0
-- Producción acumulada no puede exceder la asignación
+- La suma de porciones de tiempo por módulo/fecha ≤ 1.0
+- La producción acumulada no puede exceder lo asignado a la orden
 
 ### 6. Tablero de Eficiencias
 Reporte de eficiencia por módulo y hora.
@@ -214,8 +217,8 @@ Calcula la asignación óptima de operaciones a operarios.
 │ nombre       │ │ nombre       │ │ nombre           │
 │ capacidad_   │ │ hora_inicio  │ │ tiempo_segundos  │
 │   maxima     │ │ hora_fin     │ │ tipo             │
-│ ubicacion    │ │ turno        │ │ frecuencia       │
-│ supervisor   │ └──────────────┘ └──────────────────┘
+│ ubicacion    │ └──────────────┘ │ frecuencia       │
+│ supervisor   │                  └──────────────────┘
 │ estado       │
 └──────┬───────┘
        │
@@ -228,33 +231,33 @@ Calcula la asignación óptima de operaciones a operarios.
 │ nombre           │
 │ numero_documento │
 │ cargo            │
-│ especialidad     │
+│ rol              │
 │ fecha_ingreso    │
 │ estado           │
 │ telefono         │
 │ email            │
 │ modulo_asignado  │
-│   (FK)           │
+│ id_maquina (FK)  │
 └──────────────────┘
          │             │                 │
          │ FK          │ FK              │ FK
          ▼             ▼                 ▼
 ┌──────────────────────────────────────────────────────┐
-│                   ControlHoraHora                     │
+│                  RegistroProduccion                   │
 ├──────────────────────────────────────────────────────┤
 │ id (PK)                                              │
 │ fecha                                                │
 │ id_modulo (FK → ModuloConfeccion)                    │
-│ id_asignacion (FK → AsignacionModulo)                │
-│ id_hora (FK → HorasProduccion)                       │
+│ id_hora (FK → HorasProduccion, nullable)             │
+│ id_orden (FK → OrdenProduccion)                      │
+│ id_operacion (FK → Operacion)                        │
 │ porcion_tiempo                                       │
 │ cantidad_operarios                                   │
 │ cantidad_producida                                   │
-│ id_parada_programada (FK → ParadasProgramadas)       │
-│ descripcion_parada_no_programada                     │
-│ tiempo_parada_no_programada                          │
+│ cantidad_defectuosa                                  │
+│ observaciones                                        │
+│ id_usuario (FK → Usuario)                            │
 │ created_at                                           │
-│ updated_at                                           │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -376,12 +379,13 @@ Personal de la planta (operarios, supervisores, auxiliares).
 | nombre | TEXT | Nombre completo |
 | numero_documento | TEXT UNIQUE | Número de documento (único) |
 | cargo | TEXT | Cargo (Operario, Supervisor, etc.) |
-| especialidad | TEXT | Tipo de máquina que maneja |
+| rol | TEXT | Rol de acceso a la plataforma: Operador, Supervisor, Admin |
 | fecha_ingreso | TEXT | Fecha de ingreso |
 | estado | TEXT | Activo, Inactivo, Vacaciones, Incapacidad |
 | telefono | TEXT | Número de contacto |
 | email | TEXT | Correo electrónico |
 | modulo_asignado | INTEGER FK | Módulo de producción asignado |
+| id_maquina | INTEGER FK | Máquina (puesto de trabajo) que opera |
 
 #### HorasProduccion
 Horas operativas del día.
@@ -410,24 +414,26 @@ Asignación de órdenes (lotes) a módulos.
 | id_modulo | INTEGER FK | Módulo destino |
 | cantidad_asignada | INTEGER | Unidades asignadas |
 
-#### ControlHoraHora
-Registro de producción hora a hora.
+#### RegistroProduccion
+Registro de producción real (diario o por actividad).
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | INTEGER PK | Identificador único |
 | fecha | TEXT | Fecha del registro (YYYY-MM-DD) |
 | id_modulo | INTEGER FK | Módulo de producción |
-| id_asignacion | INTEGER FK | Asignación (ref+módulo) |
-| id_hora | INTEGER FK | Hora operativa |
-| porcion_tiempo | REAL | Fracción de hora (0.1 a 1.0) |
-| cantidad_operarios | REAL | Número de operarios |
+| id_hora | INTEGER FK | Hora operativa (nullable; el timestamp real va en created_at) |
+| id_orden | INTEGER FK | Orden de producción |
+| id_operacion | INTEGER FK | Actividad/operación registrada |
+| porcion_tiempo | REAL | Fracción de tiempo trabajado (0.1 a 1.0) |
+| cantidad_operarios | INTEGER | Número de operarios |
 | cantidad_producida | INTEGER | Unidades producidas |
-| id_parada_programada | INTEGER FK | Tipo de parada programada |
-| descripcion_parada_no_programada | TEXT | Causa de parada no planificada |
-| tiempo_parada_no_programada | INTEGER | Duración parada no programada |
-| created_at | TIMESTAMP | Fecha de creación del registro |
-| updated_at | TIMESTAMP | Fecha de última modificación |
+| cantidad_defectuosa | INTEGER | Unidades defectuosas |
+| observaciones | TEXT | Notas del registro |
+| id_usuario | INTEGER FK | Usuario que registró |
+| created_at | TIMESTAMP | Marca de tiempo real del registro |
+
+> Las paradas del registro viven en la tabla **ParadaRegistro** (varias por registro).
 
 ---
 
@@ -499,14 +505,15 @@ Registro de producción hora a hora.
 | DELETE | `/api/asignaciones/{id}` | Eliminar asignación |
 | GET | `/api/modulos/{id}/referencias-asignadas` | Referencias en un módulo |
 
-### Control Hora a Hora
+### Registro de Producción
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| POST | `/api/control-hora` | Crear registro |
-| GET | `/api/control-hora/hoy?fecha=YYYY-MM-DD` | Registros del día |
-| PUT | `/api/control-hora/{id}` | Actualizar registro |
-| DELETE | `/api/control-hora/{id}` | Eliminar registro |
+| POST | `/api/produccion` | Crear registro de producción |
+| GET | `/api/produccion/dia?fecha=YYYY-MM-DD` | Registros del día |
+| GET | `/api/produccion/resumen?fecha=&id_modulo=&id_hora=&id_operacion=` | Resumen por módulo/hora/operación |
+| DELETE | `/api/produccion/{id}` | Eliminar registro |
+| GET | `/api/progreso/{id_orden}` | Progreso y cumplimiento de una orden |
 
 ### Reportes y Simulación
 
@@ -573,6 +580,16 @@ proyecto-balanceo/
 - Badges visuales para máquinas, módulos y horas
 - Eliminación de código duplicado y archivos obsoletos
 
+### v0.3 - Sistema de Producción (Actual)
+- Registro de producción por máquina (puesto de trabajo) y actividad, con timestamp real
+- Ingeniería de Producto rediseñada: lista al ancho con Ver detalle / Editar / Eliminar en modales
+- Gestión de materiales (BOM), órdenes de producción y cálculo de materiales por lote
+- Cumplimiento de órdenes por gorras completas (mínimo entre actividades)
+- Modalidad global de registro (Diario | Por Hora) controlada por el Admin
+- Jornada dinámica desde el catálogo de horas; sin campo `turno`
+- Sistema de usuarios con roles y permisos de menú; líneas de supervisión por usuario
+- Validaciones de negocio: eficiencia por actividad, capacidad de módulos, stock por orden
+
 ### v0.1 - Prototipo Inicial
 - Implementación base del sistema
 - 7 módulos funcionales
@@ -634,9 +651,8 @@ proyecto-balanceo/
 | **nombre** | TEXT | ✓ | Nombre de la hora operativa (ej: Hora 1, Hora 2, Hora Extra) |
 | **hora_inicio** | TEXT | No | Hora de inicio en formato HH:MM (ej: "07:00") |
 | **hora_fin** | TEXT | No | Hora de fin en formato HH:MM (ej: "08:00") |
-| **turno** | TEXT | No | Turno al que pertenece: `Mañana`, `Tarde`, `Noche` o `Extra` |
 
-**Uso:** Define las horas operativas del día para el registro de producción hora a hora.
+**Uso:** Define las horas operativas del día que alimentan la jornada disponible (ya no se registra producción por hora; el registro usa marca de tiempo real).
 
 ---
 
@@ -662,14 +678,15 @@ proyecto-balanceo/
 | **nombre** | TEXT | ✓ | Nombre completo del empleado |
 | **numero_documento** | TEXT | ✓ | Número de identificación (único) |
 | **cargo** | TEXT | ✓ | Cargo del empleado: `Operario`, `Supervisor`, `Auxiliar`, `Mecánico` |
-| **especialidad** | TEXT | No | Tipo de máquina que maneja (ej: PLANA, FILETEADORA) |
+| **rol** | TEXT | No | Rol de acceso a la plataforma: `Operador`, `Supervisor`, `Admin` |
 | **fecha_ingreso** | TEXT | No | Fecha de ingreso a la empresa (YYYY-MM-DD) |
 | **estado** | TEXT | No | Estado actual: `Activo` o `Inactivo` |
 | **telefono** | TEXT | No | Número de teléfono de contacto |
 | **email** | TEXT | No | Correo electrónico del empleado |
 | **modulo_asignado** | INTEGER | No | ID del módulo donde trabaja actualmente (FK → ModuloConfeccion) |
+| **id_maquina** | INTEGER | No | ID de la máquina (puesto de trabajo) que opera (FK → TipoMaquinaria) |
 
-**Uso:** Gestiona el personal de la planta. Permite asignar operarios a módulos específicos y llevar control de sus especialidades.
+**Uso:** Gestiona el personal de la planta y su vínculo con los puestos de trabajo (máquina) y líneas. El acceso a la plataforma (usuario/rol) se gestiona desde el módulo **Usuarios**.
 
 ---
 
@@ -776,19 +793,18 @@ Hora 1 a Hora 9 + Hora Extra
 ## Próximas Mejoras Planificadas
 
 1. **Normalización de datos**
-   - Eliminar redundancia de `tiempo_parada_programada` en ControlHoraHora
-   - Tabla separada para paradas no programadas recurrentes
+   - Tabla separada para paradas no programadas recurrentes (por tipo de causa)
+   - Unificar criterio de `porcion_tiempo` con el tiempo disponible real de la jornada
 
 2. **Predecesoras relacionales**
    - Migrar campo texto a tabla de relaciones para mejor integridad
 
-3. **Autenticación y roles**
-   - Sistema de usuarios
-   - Permisos por rol (operador, supervisor, administrador)
+3. **Autenticación y roles** ✅ (implementado)
+   - Sistema de usuarios con roles (operador, supervisor, administrador)
+   - Permisos de menú por rol y líneas de supervisión por usuario
 
 4. **Auditoría completa**
-   - Timestamps en todas las tablas
-   - Log de cambios
+   - Log de cambios y registro de usuario en todas las operaciones de catálogo
 
 5. **Escalabilidad**
    - Migrar de SQLite a PostgreSQL para producción
