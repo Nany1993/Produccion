@@ -52,6 +52,91 @@
         </div>
     </div>
 
+    <div id="reg-modal-overlay">
+        <div class="content-modal-box reg-modal-box">
+            <div class="content-modal-header">
+                <h3 class="content-modal-title">Registrar Producción</h3>
+                <button class="content-modal-close" onclick="cerrarModalRegistroProduccion()" title="Cerrar">✕</button>
+            </div>
+            <div class="content-modal-body">
+                <input type="hidden" id="ctrl-id-edicion">
+                <div class="form-group">
+                    <label>Fecha del Registro</label>
+                    <input type="date" id="ctrl-fecha">
+                </div>
+                <div class="form-group">
+                    <label>Máquina / Puesto de Trabajo</label>
+                    <select id="ctrl-maquina" onchange="cargarReferenciasPorModulo()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Módulo (línea)</label>
+                    <input type="text" id="ctrl-modulo-info" readonly placeholder="Se deduce de la máquina" style="background:var(--bg-input,#fafafa);color:var(--text-muted);">
+                    <input type="hidden" id="ctrl-modulo">
+                </div>
+                <div class="form-group">
+                    <label>Orden / Lote</label>
+                    <select id="ctrl-referencia" disabled onchange="cargarOpcionesActividad()">
+                        <option value="">Seleccione Máquina primero...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Actividad (operación)</label>
+                    <select id="ctrl-actividad" disabled onchange="actualizarTiempoCiclo()">
+                        <option value="">Seleccione la orden primero...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tiempo de ciclo</label>
+                    <select id="ctrl-ciclo">
+                        <option value="">-</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Cantidad de Operarios</label>
+                    <input type="number" step="1" id="ctrl-operarios" placeholder="Ej: 5">
+                </div>
+                <div class="form-group" id="grupo-ctrl-hora" style="display:none;">
+                    <label>Hora</label>
+                    <select id="ctrl-hora" disabled></select>
+                </div>
+                <div class="form-group">
+                    <label>Cantidad Producida *</label>
+                    <input type="number" id="ctrl-cantidad" placeholder="Unidades">
+                </div>
+                <div class="form-group">
+                    <label>Unidades Defectuosas</label>
+                    <input type="number" id="ctrl-defectuosas" placeholder="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Observaciones</label>
+                    <input type="text" id="ctrl-obs" placeholder="Opcional">
+                </div>
+                <div class="separator-title">PARADAS PROGRAMADAS</div>
+                <div class="form-group">
+                    <label>Parada</label>
+                    <select id="ctrl-parada-p" onchange="actualizarTiempoParadaP()"></select>
+                    <label style="margin-top:8px;">Tiempo (seg)</label>
+                    <input type="number" id="ctrl-tiempo-p" readonly style="background-color: var(--bg-card); opacity: 0.7;">
+                </div>
+                <div class="separator-title">PARADAS NO PROGRAMADAS</div>
+                <div id="lista-paradas-np">
+                    <div class="parada-np-row">
+                        <select class="parada-np-causa" onchange="toggleDescripcionParada(this)">
+                            <option value="">Seleccione causa...</option>
+                        </select>
+                        <input type="number" class="parada-np-tiempo" placeholder="Segundos" min="0">
+                        <input type="text" class="parada-np-desc" placeholder="¿Qué pasó?" style="display:none;">
+                    </div>
+                </div>
+                <button class="btn-secondary" onclick="agregarFilaParadaNP()" type="button" style="margin-bottom:14px;">+ Agregar otra parada</button>
+                <div class="content-modal-actions">
+                    <button class="btn-secondary" onclick="cerrarModalRegistroProduccion()">Cancelar</button>
+                    <button class="btn-primary" onclick="guardarControlHora(this)">Guardar Registro</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="app-layout">
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -805,88 +890,12 @@
                         <p class="page-subtitle">Registro por máquina y paradas. Marca de tiempo automática al guardar</p>
                     </div>
 
-                    <div class="programacion-grid">
+                    <div class="programacion-grid" style="grid-template-columns: 1fr;">
                         <div class="catalog-card">
-                            <h2 class="form-title">Registro de Producción</h2>
-                            <input type="hidden" id="ctrl-id-edicion">
-
-                            <div class="form-group">
-                                <label>Fecha del Registro</label>
-                                <input type="date" id="ctrl-fecha">
+                            <div class="ref-header">
+                                <h2 class="form-title" style="margin:0;">Producción de Hoy</h2>
+                                <button class="btn-primary" onclick="abrirModalRegistroProduccion()" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Registrar Producción</button>
                             </div>
-                            <div class="form-group">
-                                <label>Máquina / Puesto de Trabajo</label>
-                                <select id="ctrl-maquina" onchange="cargarReferenciasPorModulo()"></select>
-                            </div>
-                            <div class="form-group">
-                                <label>Módulo (línea)</label>
-                                <input type="text" id="ctrl-modulo-info" readonly placeholder="Se deduce de la máquina" style="background:var(--bg-input,#fafafa);color:var(--text-muted);">
-                                <input type="hidden" id="ctrl-modulo">
-                            </div>
-                            <div class="form-group">
-                                <label>Orden / Lote</label>
-                                <select id="ctrl-referencia" disabled onchange="cargarOpcionesActividad()">
-                                    <option value="">Seleccione Máquina primero...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Actividad (operación)</label>
-                                <select id="ctrl-actividad" disabled onchange="actualizarTiempoCiclo()">
-                                    <option value="">Seleccione la orden primero...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Tiempo de ciclo</label>
-                                <select id="ctrl-ciclo">
-                                    <option value="">-</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Cantidad de Operarios</label>
-                                <input type="number" step="1" id="ctrl-operarios" placeholder="Ej: 5">
-                            </div>
-                            <div class="form-group" id="grupo-ctrl-hora" style="display:none;">
-                                <label>Hora</label>
-                                <select id="ctrl-hora" disabled></select>
-                            </div>
-                            <div class="form-group">
-                                <label>Cantidad Producida *</label>
-                                <input type="number" id="ctrl-cantidad" placeholder="Unidades">
-                            </div>
-                            <div class="form-group">
-                                <label>Unidades Defectuosas</label>
-                                <input type="number" id="ctrl-defectuosas" placeholder="0" value="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Observaciones</label>
-                                <input type="text" id="ctrl-obs" placeholder="Opcional">
-                            </div>
-
-                            <div class="separator-title">PARADAS PROGRAMADAS</div>
-                            <div class="form-group">
-                                <label>Parada</label>
-                                <select id="ctrl-parada-p" onchange="actualizarTiempoParadaP()"></select>
-                                <label style="margin-top:8px;">Tiempo (seg)</label>
-                                <input type="number" id="ctrl-tiempo-p" readonly style="background-color: var(--bg-card); opacity: 0.7;">
-                            </div>
-
-                            <div class="separator-title">PARADAS NO PROGRAMADAS</div>
-                            <div id="lista-paradas-np">
-                                <div class="parada-np-row">
-                                    <select class="parada-np-causa" onchange="toggleDescripcionParada(this)">
-                                        <option value="">Seleccione causa...</option>
-                                    </select>
-                                    <input type="number" class="parada-np-tiempo" placeholder="Segundos" min="0">
-                                    <input type="text" class="parada-np-desc" placeholder="¿Qué pasó?" style="display:none;">
-                                </div>
-                            </div>
-                            <button class="btn-secondary" onclick="agregarFilaParadaNP()" type="button" style="margin-bottom:14px;">+ Agregar otra parada</button>
-
-                            <button class="btn-primary" onclick="guardarControlHora(this)" style="margin-top:6px;">Guardar Registro</button>
-                        </div>
-
-                        <div class="catalog-card">
-                            <h2 class="form-title">Producción de Hoy</h2>
                             <div class="table-container" id="container-lista-controles">
                                 <table class="data-table">
                                     <thead>

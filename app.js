@@ -2393,6 +2393,22 @@ function aplicarModalidadRegistro() {
   if (selHora) selHora.disabled = !porHora;
 }
 
+function abrirModalRegistroProduccion() {
+  const fechaSel = document.getElementById('ctrl-fecha');
+  if (fechaSel && !fechaSel.value) fechaSel.valueAsDate = new Date();
+  cancelarEdicionControl();
+  const overlay = document.getElementById('reg-modal-overlay');
+  if (overlay) overlay.classList.add('reg-modal-visible');
+}
+  const overlay = document.getElementById('reg-modal-overlay');
+  if (overlay) overlay.classList.add('reg-modal-visible');
+}
+
+function cerrarModalRegistroProduccion() {
+  const overlay = document.getElementById('reg-modal-overlay');
+  if (overlay) overlay.classList.remove('reg-modal-visible');
+}
+
 async function initControlHora() {
   // Máquinas: si el usuario tiene líneas asignadas, solo las de esas líneas; si no, todas
   const maquinas = await api('/api/maquinaria');
@@ -2745,9 +2761,6 @@ function cancelarEdicionControl() {
   selRef.value = '';
   selRef.innerHTML = '<option value="">Seleccione Máquina primero...</option>';
   selRef.disabled = true;
-
-  const btn = document.querySelector('#mod-control-hora .btn-primary');
-  if (btn) btn.textContent = 'Guardar Registro';
 }
 
 // ============================================================
