@@ -1,6 +1,10 @@
 # Base de datos (se regenera con seed_data.py)
 balanceo_produccion.db
 
+# Backups locales de BD (no versionar; suelen quedar de migraciones manuales)
+*.db.backup_*
+balanceo_produccion.db.backup_*
+
 # Cargas del navegador (prototipo, fotos)
 uploads/
 
