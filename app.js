@@ -373,6 +373,16 @@ function toggleFormColapsable(formId, btnId, textoCrear) {
   }
 }
 
+function abrirFormColapsable(formId, btnId) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  if (form.style.display !== 'block') {
+    form.style.display = 'block';
+    const btn = document.getElementById(btnId);
+    if (btn) btn.textContent = '− Cerrar';
+  }
+}
+
 // ============================================================
 // NAVEGACIÓN
 // ============================================================
@@ -897,6 +907,7 @@ async function procesarEmpleado() {
 
 function iniciarEdicionEmpleado(e) {
   idEmpleadoEnEdicion = e.id;
+  abrirFormColapsable('form-nuevo-empleado', 'btn-nuevo-empleado');
   document.getElementById('empleado-id-edicion').value = e.id;
   document.getElementById('input-emp-nombre').value = e.nombre;
   document.getElementById('input-emp-doc').value = e.numero_documento;
@@ -1201,6 +1212,7 @@ async function cargarOperaciones() {
 
 function iniciarEdicionOperacion(operacion) {
   idOperacionEnEdicion = operacion.id;
+  abrirFormColapsable('form-nueva-operacion', 'btn-nueva-operacion');
   document.getElementById('op-nombre').value = operacion.nombre;
   document.getElementById('op-tiempo').value = operacion.tiempo;
   document.getElementById('op-maquina').value = operacion.id_maquina;
@@ -1411,6 +1423,7 @@ async function subirFotoReferencia(idRef, archivo) {
 
 function iniciarEdicionReferencia(ref) {
   idReferenciaEnEdicion = ref.id;
+  abrirFormColapsable('form-nueva-ref', 'btn-nueva-ref');
   document.getElementById('input-ref-nombre').value = ref.nombre;
   document.getElementById('input-ref-espec').value = ref.especificaciones || '';
   document.getElementById('input-ref-foto').value = '';
@@ -1761,6 +1774,7 @@ async function procesarOrden() {
 
 function iniciarEdicionOrden(o) {
   idOrdenEnEdicion = o.id;
+  abrirFormColapsable('form-nueva-orden', 'btn-nueva-orden');
   document.getElementById('orden-id-edicion').value = o.id;
   document.getElementById('input-orden-nombre').value = o.nombre_orden;
   document.getElementById('input-orden-ref').value = o.id_referencia;
@@ -1884,6 +1898,7 @@ async function procesarMaterial() {
 
 function iniciarEdicionMaterial(m) {
   idMaterialEnEdicion = m.id;
+  abrirFormColapsable('form-nuevo-material', 'btn-nuevo-material');
   document.getElementById('material-id-edicion').value = m.id;
   document.getElementById('input-mat-nombre').value = m.nombre;
   document.getElementById('input-mat-unidad').value = m.unidad || '';
@@ -2212,6 +2227,7 @@ async function eliminarAsignacion(id) {
 
 function iniciarEdicionAsignacion(id, cantidad, idOrden, nombreOrden, nombreMod) {
   idAsignacionEnEdicion = id;
+  abrirFormColapsable('form-nueva-asignacion', 'btn-nueva-asignacion');
 
   const btn = document.querySelector('#mod-programacion .btn-primary');
   btn.textContent = 'Actualizar Asignación';
