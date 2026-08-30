@@ -210,8 +210,6 @@ function hacerSelectBuscable(idSelect) {
 
 const SELECTS_BUSCABLES = [
   'op-maquina', 'op-seccion',
-  'seq-operacion',
-  'bom-material',
   'prog-referencia',
   'input-usuario-empleado',
   'input-emp-maquina',
@@ -1319,12 +1317,8 @@ function renderListaReferencias(data) {
 
   filtradas.forEach(ref => {
     const item = document.createElement('div');
-    item.className = `reference-item ${referenciaActivaId === ref.id ? 'active' : ''}`;
-    item.onclick = (e) => {
-      if (!e.target.closest('button')) seleccionarReferencia(ref.id, ref.nombre);
-    };
+    item.className = 'reference-item';
 
-    const objStr = JSON.stringify(ref).replace(/'/g, "\\'").replace(/"/g, '&quot;');
     const badges = [];
     if (ref.foto) badges.push('<span class="badge badge-module" title="Tiene foto">📷</span>');
     if (ref.especificaciones) badges.push('<span class="badge badge-hour" title="Tiene especificaciones">📝</span>');
@@ -1332,12 +1326,11 @@ function renderListaReferencias(data) {
       <div style="display:flex; flex-direction:column; flex:1; min-width:0;">
         <span style="font-weight:600;">${ref.nombre}</span>
         <span style="display:flex; gap:4px; margin-top:4px;">${badges.join('') || ''}</span>
-        <span class="reference-view-hint ${referenciaActivaId === ref.id ? 'visible' : ''}">Ver diagrama de actividades →</span>
       </div>
-      <div style="display:flex; gap: 5px; align-items:center;">
-        <button class="btn-icon btn-edit" style="padding:4px 8px;" onclick="iniciarEdicionReferencia(${objStr})" title="Editar">✎</button>
-        <button class="btn-icon btn-edit" style="padding:4px 8px;" onclick="duplicarReferencia(${ref.id}, '${ref.nombre}')" title="Duplicar">⧉</button>
-        <button class="btn-icon btn-delete" style="padding:4px 8px;" onclick="eliminarReferencia(${ref.id})" title="Eliminar">✕</button>
+      <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+        <button class="btn-action-ref" title="Ver detalle y editar diagrama/materiales" onclick="verDetalleReferencia(${ref.id}, '${ref.nombre.replace(/'/g, "\\\\'")}')">👁 Ver detalle</button>
+        <button class="btn-action-ref btn-action-edit" onclick="abrirModalEditarReferencia(${ref.id})">✎ Editar</button>
+        <button class="btn-action-ref btn-action-delete" onclick="eliminarReferencia(${ref.id})">✕ Eliminar</button>
       </div>
     `;
     container.appendChild(item);
@@ -1365,11 +1358,11 @@ async function cargarReferencias() {
 }
 
 async function crearReferencia() {
-  const nombre = document.getElementById('input-ref-nombre').value.trim();
-  const especificaciones = document.getElementById('input-ref-espec').value.trim();
+  const nombre = document.getElementById('cm-ref-nombre').value.trim();
+  const especificaciones = document.getElementById('cm-ref-espec').value.trim();
 
-  if (!nombre) { showFieldError('input-ref-nombre', 'Ingrese un nombre'); return; }
-  clearFieldErrors('input-ref-nombre');
+  if (!nombre) { showFieldError('cm-ref-nombre', 'Ingrese un nombre'); return; }
+  clearFieldErrors('cm-ref-nombre');
 
   let url = '/api/referencias';
   let method = 'POST';
@@ -1386,23 +1379,81 @@ async function crearReferencia() {
   const data = await api(url, {
     method,
     body: JSON.stringify(payload),
-    _btn: event.target
+    _btn: document.getElementById('cm-ref-guardar')
   });
 
   if (data) {
     if (data.id) idRef = data.id;
 
     // Subir la foto si eligió archivo
-    const inputFoto = document.getElementById('input-ref-foto');
+    const inputFoto = document.getElementById('cm-ref-foto');
     if (inputFoto && inputFoto.files && inputFoto.files[0] && idRef) {
       await subirFotoReferencia(idRef, inputFoto.files[0]);
     }
 
-    limpiarFormularioReferencia();
+    ContentModal.cerrar();
     Toast.success(data.mensaje || 'Referencia guardada');
     cargarReferencias();
     cargarSelectOrdenesRef();
   }
+}
+
+function abrirModalNuevaReferencia() {
+  idReferenciaEnEdicion = null;
+  const body = `
+    <div class="form-group">
+      <label>Nombre de Referencia *</label>
+      <input type="text" id="cm-ref-nombre" placeholder="Ej: Gorra Snapback">
+    </div>
+    <div class="form-group">
+      <label>Especificaciones Técnicas</label>
+      <textarea id="cm-ref-espec" rows="3" placeholder="Descripción técnica, materiales, tallas..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Foto del Prototipo</label>
+      <div class="foto-upload">
+        <input type="file" id="cm-ref-foto" accept="image/*" onchange="previewFotoNueva(this)">
+        <img id="cm-ref-preview" style="display:none;" alt="Vista previa">
+      </div>
+    </div>
+    <div class="content-modal-actions">
+      <button class="btn-secondary" onclick="ContentModal.cerrar()">Cancelar</button>
+      <button class="btn-primary" id="cm-ref-guardar" onclick="crearReferencia()">Crear Referencia</button>
+    </div>
+  `;
+  ContentModal.abrir({ title: 'Nueva Referencia', body });
+}
+
+async function abrirModalEditarReferencia(id) {
+  const data = await api('/api/referencias');
+  if (!data) return;
+  const ref = data.find(r => r.id === id);
+  if (!ref) return;
+
+  idReferenciaEnEdicion = ref.id;
+  const body = `
+    <div class="form-group">
+      <label>Nombre de Referencia *</label>
+      <input type="text" id="cm-ref-nombre" value="${(ref.nombre || '').replace(/"/g, '&quot;')}">
+    </div>
+    <div class="form-group">
+      <label>Especificaciones Técnicas</label>
+      <textarea id="cm-ref-espec" rows="3">${(ref.especificaciones || '').replace(/</g, '&lt;')}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Foto del Prototipo</label>
+      <div class="foto-upload">
+        <input type="file" id="cm-ref-foto" accept="image/*" onchange="previewFotoNueva(this)">
+        <img id="cm-ref-preview" src="${ref.foto || ''}" style="${ref.foto ? 'display:block;' : 'display:none;'}" alt="Vista previa">
+        ${ref.foto ? '<span style="font-size:0.85rem; color:var(--text-muted); margin-top:6px; display:block;">Foto actual subida. Elegí un archivo solo si querés cambiarla.</span>' : ''}
+      </div>
+    </div>
+    <div class="content-modal-actions">
+      <button class="btn-secondary" onclick="ContentModal.cerrar()">Cancelar</button>
+      <button class="btn-primary" id="cm-ref-guardar" onclick="crearReferencia()">Actualizar Referencia</button>
+    </div>
+  `;
+  ContentModal.abrir({ title: 'Editar Referencia', body });
 }
 
 async function subirFotoReferencia(idRef, archivo) {
@@ -1422,29 +1473,6 @@ async function subirFotoReferencia(idRef, archivo) {
     Toast.error('Error al subir la foto');
   }
 }
-
-function iniciarEdicionReferencia(ref) {
-  idReferenciaEnEdicion = ref.id;
-  abrirFormColapsable('form-nueva-ref', 'btn-nueva-ref');
-  document.getElementById('input-ref-nombre').value = ref.nombre;
-  document.getElementById('input-ref-espec').value = ref.especificaciones || '';
-  document.getElementById('input-ref-foto').value = '';
-
-  const btn = document.getElementById('btn-ref-guardar');
-  if (btn) btn.innerText = 'Actualizar Referencia';
-}
-
-function limpiarFormularioReferencia() {
-  idReferenciaEnEdicion = null;
-  document.getElementById('input-ref-nombre').value = '';
-  document.getElementById('input-ref-espec').value = '';
-  document.getElementById('input-ref-foto').value = '';
-  const preview = document.getElementById('preview-ref-foto');
-  if (preview) { preview.style.display = 'none'; preview.src = ''; }
-  const btn = document.getElementById('btn-ref-guardar');
-  if (btn) btn.innerText = 'Crear Referencia';
-}
-
 async function eliminarReferencia(id) {
   const ok = await Modal.confirm('Eliminar Referencia', '¿Eliminar esta referencia y toda su secuencia de operaciones?\n\nNota: no podrás eliminarla si tiene órdenes de producción asociadas.');
   if (!ok) return;
@@ -1452,62 +1480,42 @@ async function eliminarReferencia(id) {
   const data = await api(`/api/referencias/${id}`, { method: 'DELETE' });
   if (data) {
     if (referenciaActivaId === id) {
-      resetPanelSecuencia();
+      ContentModal.cerrar();
     }
     Toast.success('Referencia eliminada');
     cargarReferencias();
   }
 }
 
-function resetPanelSecuencia() {
-  referenciaActivaId = null;
-  document.getElementById('titulo-ref-activa').style.display = 'none';
-  document.getElementById('empty-secuencia-placeholder').style.display = 'flex';
-  document.getElementById('secuencia-content').style.display = 'none';
-  document.getElementById('lista-secuencia').innerHTML = '';
-  const ficha = document.getElementById('ficha-tecnica-container');
-  if (ficha) ficha.style.display = 'none';
-}
+const ContentModal = {
+  overlay: null,
+  activo: false,
 
-async function duplicarReferencia(id, nombreActual) {
-  const nuevoNombre = prompt('Nombre para la nueva referencia:', 'Copia de ' + nombreActual);
-  if (!nuevoNombre) return;
+  abrir({ title, body }) {
+    this.overlay = document.getElementById('content-modal-overlay');
+    if (!this.overlay) return;
+    const titulo = document.getElementById('content-modal-title');
+    const status = document.getElementById('content-modal-body');
+    if (titulo) titulo.textContent = title || '';
+    if (status) status.innerHTML = body || '';
+    this.overlay.classList.add('content-modal-visible');
+    this.activo = true;
 
-  const data = await api(`/api/referencias/${id}/duplicar`, {
-    method: 'POST',
-    body: JSON.stringify({ nombre: nuevoNombre })
-  });
+    const close = this.overlay.querySelector('#content-modal-close');
+    if (close) close.onclick = () => this.cerrar();
+  },
 
-  if (data) {
-    Toast.success('Referencia duplicada');
-    cargarReferencias();
+  cerrar() {
+    if (!this.overlay) this.overlay = document.getElementById('content-modal-overlay');
+    if (this.overlay) this.overlay.classList.remove('content-modal-visible');
+    this.activo = false;
+    referenciaActivaId = null;
   }
-}
-
-function cambiarTabReferencia(tab) {
-  const esBom = tab === 'bom';
-  document.getElementById('tab-secuencia').classList.toggle('active', !esBom);
-  document.getElementById('tab-bom').classList.toggle('active', esBom);
-  document.getElementById('detail-secuencia').style.display = esBom ? 'none' : 'block';
-  document.getElementById('detail-bom').style.display = esBom ? 'block' : 'none';
-  if (esBom) cargarMaterialesReferencia(referenciaActivaId);
-}
-
-function toggleFormNuevaReferencia() {
-  const form = document.getElementById('form-nueva-ref');
-  const btn = document.getElementById('btn-nueva-ref');
-  if (form.style.display === 'none') {
-    form.style.display = 'block';
-    btn.textContent = '− Cerrar';
-  } else {
-    form.style.display = 'none';
-    btn.textContent = '+ Nueva Referencia';
-    limpiarFormularioReferencia();
-  }
-}
+};
 
 function previewFotoNueva(input) {
-  const preview = document.getElementById('preview-ref-foto');
+  const preview = document.getElementById('cm-ref-preview');
+  if (!preview) return;
   if (input.files && input.files[0]) {
     preview.src = URL.createObjectURL(input.files[0]);
     preview.style.display = 'block';
@@ -1517,81 +1525,144 @@ function previewFotoNueva(input) {
   }
 }
 
-async function cambiarFotoPrototipo(input) {
-  if (!referenciaActivaId) return;
-  if (!input.files || !input.files[0]) return;
-
-  const formData = new FormData();
-  formData.append('foto', input.files[0]);
-  try {
-    const res = await fetch(`/api/referencias/${referenciaActivaId}/foto`, {
-      method: 'POST',
-      body: formData
-    });
-    const data = await res.json();
-    if (res.ok) {
-      Toast.success('Foto del prototipo actualizada');
-      input.value = '';
-      cargarFichaTecnica(referenciaActivaId);
-      cargarReferencias();
-    } else {
-      Toast.error(data.error || 'Error al subir la foto');
-    }
-  } catch (e) {
-    Toast.error('Error al subir la foto');
-  }
-}
-
-async function seleccionarReferencia(id, nombre) {
-  referenciaActivaId = id;
-  document.getElementById('titulo-ref-activa').innerText = `Diagrama de Actividades: ${nombre}`;
-  document.getElementById('titulo-ref-activa').style.display = 'block';
-  document.getElementById('empty-secuencia-placeholder').style.display = 'none';
-  document.getElementById('secuencia-content').style.display = 'block';
-  cargarReferencias();
-  await cargarDetallesReferencia(id);
-  cargarOperacionesSelect();
-  cargarFichaTecnica(id);
-  cargarMaterialesReferencia(id);
-  cargarMateriales();
-}
-
-async function cargarFichaTecnica(idRef) {
+async function verDetalleReferencia(id, nombre) {
   const data = await api('/api/referencias');
   if (!data) return;
-  const ref = data.find(r => r.id === idRef);
+  const ref = data.find(r => r.id === id);
   if (!ref) return;
 
-  const container = document.getElementById('ficha-tecnica-container');
-  container.style.display = 'flex';
+  referenciaActivaId = id;
 
-  const img = document.getElementById('ficha-foto-img');
-  const empty = document.getElementById('ficha-foto-empty');
-  if (ref.foto) {
-    img.src = ref.foto;
-    img.style.display = 'block';
-    empty.style.display = 'none';
-  } else {
-    img.style.display = 'none';
-    empty.style.display = 'block';
-  }
+  const fotoHtml = ref.foto
+    ? `<img src="${ref.foto}" alt="Foto prototipo">`
+    : `<span style="color:var(--text-muted); font-size:0.85rem;">Sin foto</span>`;
 
-  document.getElementById('ficha-especificaciones').textContent = ref.especificaciones || 'Sin especificaciones.';
+  const body = `
+    <div class="content-modal-ficha">
+      <div class="content-modal-ficha-foto">${fotoHtml}</div>
+      <div class="content-modal-ficha-info">
+        <div class="content-modal-ficha-titulo">Especificaciones Técnicas</div>
+        <div class="content-modal-ficha-texto">${(ref.especificaciones || 'Sin especificaciones.').replace(/</g, '&lt;')}</div>
+      </div>
+    </div>
+
+    <div class="content-modal-tabs">
+      <button class="content-modal-tab active" id="cm-tab-secuencia" onclick="cambiarTabDetalle('secuencia')">🛠 Diagrama de Actividades</button>
+      <button class="content-modal-tab" id="cm-tab-bom" onclick="cambiarTabDetalle('bom')">🧵 Materiales</button>
+    </div>
+
+    <div id="cm-panel-secuencia">
+      <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end;">
+        <div>
+          <label>Operación</label>
+          <select id="cm-seq-operacion"></select>
+        </div>
+        <div>
+          <label>Letra</label>
+          <input type="text" id="cm-seq-letra" placeholder="A, B...">
+        </div>
+        <div>
+          <label>Predec.</label>
+          <input type="text" id="cm-seq-pred" placeholder="N/A o A,C">
+        </div>
+        <div>
+          <button class="btn-primary" onclick="agregarDetalle()">Agregar</button>
+        </div>
+      </div>
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Orden</th>
+              <th>Letra</th>
+              <th>Operación</th>
+              <th>Máquina</th>
+              <th>Tiempo</th>
+              <th>Pred.</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="cm-lista-secuencia"></tbody>
+        </table>
+        <div id="cm-empty-secuencia" class="empty-state" style="display: none;">Esta referencia no tiene operaciones asignadas.</div>
+      </div>
+    </div>
+
+    <div id="cm-panel-bom" style="display: none;">
+      <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; align-items: end;">
+        <div>
+          <label>Material</label>
+          <select id="cm-bom-material"></select>
+        </div>
+        <div>
+          <label>Cant./unidad</label>
+          <input type="number" id="cm-bom-cantidad" placeholder="0.35" step="0.01">
+        </div>
+        <div>
+          <label>Merma %</label>
+          <input type="number" id="cm-bom-merma" placeholder="5" step="0.01">
+        </div>
+        <div>
+          <button class="btn-primary" onclick="agregarMaterialReferencia()">Agregar</button>
+        </div>
+      </div>
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Material</th>
+              <th>Unidad</th>
+              <th>Cant./unidad</th>
+              <th>Merma</th>
+              <th>Nota</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="cm-lista-bom"></tbody>
+        </table>
+        <div id="cm-empty-bom" class="empty-state" style="display: none;">Esta referencia no tiene materiales asociados.</div>
+      </div>
+    </div>
+  `;
+
+  ContentModal.abrir({ title: `Detalle: ${nombre}`, body });
+  cargarOperacionesSelectModal();
+  await cargarDetallesReferencia(id);
+  cargarMaterialesSelectModal();
+  cargarMaterialesReferencia(id);
+}
+
+function cambiarTabDetalle(tab) {
+  const esBom = tab === 'bom';
+  const tabSec = document.getElementById('cm-tab-secuencia');
+  const tabBom = document.getElementById('cm-tab-bom');
+  const panelSec = document.getElementById('cm-panel-secuencia');
+  const panelBom = document.getElementById('cm-panel-bom');
+  if (!tabSec || !tabBom) return;
+  tabSec.classList.toggle('active', !esBom);
+  tabBom.classList.toggle('active', esBom);
+  if (panelSec) panelSec.style.display = esBom ? 'none' : 'block';
+  if (panelBom) panelBom.style.display = esBom ? 'block' : 'none';
+  if (esBom) cargarMaterialesReferencia(referenciaActivaId);
 }
 
 async function cargarDetallesReferencia(idRef) {
   const data = await api(`/api/referencias/${idRef}/detalles`);
   if (!data) return;
 
-  const tbody = document.getElementById('lista-secuencia');
+  const tbody = document.getElementById('cm-lista-secuencia');
+  if (!tbody) return;
   tbody.innerHTML = '';
   secuenciaActualLength = data.length;
 
-  document.getElementById('empty-secuencia').style.display = data.length === 0 ? 'block' : 'none';
+  const empty = document.getElementById('cm-empty-secuencia');
+  if (empty) empty.style.display = data.length === 0 ? 'block' : 'none';
 
   const nextChar = String.fromCharCode(65 + secuenciaActualLength);
-  document.getElementById('seq-letra').value = nextChar;
-  document.getElementById('seq-pred').value = secuenciaActualLength > 0 ? data[data.length - 1].letra : 'N/A';
+  const letraInput = document.getElementById('cm-seq-letra');
+  const predInput = document.getElementById('cm-seq-pred');
+  if (letraInput) letraInput.value = nextChar;
+  if (predInput) predInput.value = secuenciaActualLength > 0 ? data[data.length - 1].letra : 'N/A';
 
   data.forEach((d, index) => {
     tbody.innerHTML += `
@@ -1608,11 +1679,12 @@ async function cargarDetallesReferencia(idRef) {
   });
 }
 
-async function cargarOperacionesSelect() {
+async function cargarOperacionesSelectModal() {
   const data = await api('/api/operaciones');
   if (!data) return;
 
-  const select = document.getElementById('seq-operacion');
+  const select = document.getElementById('cm-seq-operacion');
+  if (!select) return;
   select.innerHTML = '';
   data.forEach(o => {
     select.innerHTML += `<option value="${o.id}">${o.nombre} (${formatTime(o.tiempo)})</option>`;
@@ -1622,9 +1694,9 @@ async function cargarOperacionesSelect() {
 async function agregarDetalle() {
   if (!referenciaActivaId) return;
 
-  const id_operacion = document.getElementById('seq-operacion').value;
-  const letra = document.getElementById('seq-letra').value.toUpperCase();
-  const predecesoras = document.getElementById('seq-pred').value.toUpperCase();
+  const id_operacion = document.getElementById('cm-seq-operacion').value;
+  const letra = document.getElementById('cm-seq-letra').value.toUpperCase();
+  const predecesoras = document.getElementById('cm-seq-pred').value.toUpperCase();
 
   if (!letra) { Toast.warning('Falta la letra de secuencia'); return; }
 
@@ -1636,7 +1708,7 @@ async function agregarDetalle() {
       predecesoras,
       orden: secuenciaActualLength + 1
     }),
-    _btn: event.target
+    _btn: document.getElementById('cm-panel-secuencia') ? event.target : null
   });
 
   if (data) {
@@ -1656,10 +1728,77 @@ async function eliminarDetalle(id) {
   }
 }
 
-function finalizarReferencia() {
-  resetPanelSecuencia();
-  Toast.success('Referencia guardada correctamente');
-  cargarReferencias();
+async function cargarMaterialesSelectModal() {
+  const data = await api('/api/materiales');
+  if (!data) return;
+
+  const select = document.getElementById('cm-bom-material');
+  if (!select) return;
+  select.innerHTML = '<option value="">Seleccione material...</option>';
+  data.forEach(m => {
+    select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
+  });
+}
+
+async function cargarMaterialesReferencia(idRef) {
+  const data = await api(`/api/referencias/${idRef}/materiales`);
+  if (!data) return;
+
+  const tbody = document.getElementById('cm-lista-bom');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const empty = document.getElementById('cm-empty-bom');
+  if (empty) empty.style.display = data.length === 0 ? 'block' : 'none';
+
+  data.forEach(b => {
+    tbody.innerHTML += `
+      <tr>
+        <td><strong>${b.nombre}</strong></td>
+        <td>${b.unidad || '-'}</td>
+        <td class="text-accent">${b.cantidad_por_unidad}</td>
+        <td>${b.merma_porcentaje}%</td>
+        <td>${b.nota || '-'}</td>
+        <td><button class="btn-icon btn-delete" onclick="eliminarMaterialReferencia(${b.id})">✕</button></td>
+      </tr>
+    `;
+  });
+}
+
+async function agregarMaterialReferencia() {
+  if (!referenciaActivaId) return;
+
+  const id_material = document.getElementById('cm-bom-material').value;
+  const cantidad = document.getElementById('cm-bom-cantidad').value;
+  const merma = document.getElementById('cm-bom-merma').value;
+
+  if (!id_material) { Toast.warning('Seleccione un material'); return; }
+  if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) { Toast.warning('Cantidad inválida'); return; }
+
+  const data = await api(`/api/referencias/${referenciaActivaId}/materiales`, {
+    method: 'POST',
+    body: JSON.stringify({
+      id_material: parseInt(id_material),
+      cantidad_por_unidad: parseFloat(cantidad),
+      merma_porcentaje: merma ? parseFloat(merma) : 0
+    })
+  });
+
+  if (data) {
+    Toast.success('Material asociado a la referencia');
+    document.getElementById('cm-bom-cantidad').value = '';
+    document.getElementById('cm-bom-merma').value = '';
+    cargarMaterialesReferencia(referenciaActivaId);
+  }
+}
+
+async function eliminarMaterialReferencia(id) {
+  const ok = await Modal.confirm('Quitar Material', '¿Quitar este material de la referencia?');
+  if (!ok) return;
+  const data = await api(`/api/materiales-referencia/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Material removido');
+    cargarMaterialesReferencia(referenciaActivaId);
+  }
 }
 
 // ============================================================
@@ -1825,12 +1964,8 @@ async function cargarMateriales() {
 
   const tbody = document.getElementById('lista-materiales');
   const empty = document.getElementById('empty-materiales');
-  const select = document.getElementById('bom-material');
 
   tbody.innerHTML = '';
-  let valSelect = null;
-  if (select) valSelect = select.value;
-  if (select) select.innerHTML = '<option value="">Seleccione material...</option>';
 
   if (data.length === 0) {
     empty.style.display = 'block';
@@ -1850,12 +1985,8 @@ async function cargarMateriales() {
           </td>
         </tr>
       `;
-      if (select) {
-        select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
-      }
     });
   }
-  if (select && valSelect) select.value = valSelect;
 }
 
 function limpiarFormMaterial() {
@@ -1918,70 +2049,6 @@ async function eliminarMaterial(id) {
   if (data) {
     Toast.success('Material eliminado');
     cargarMateriales();
-  }
-}
-
-async function cargarMaterialesReferencia(idRef) {
-  const data = await api(`/api/referencias/${idRef}/materiales`);
-  if (!data) return;
-
-  const tbody = document.getElementById('lista-bom');
-  const empty = document.getElementById('empty-bom');
-  tbody.innerHTML = '';
-  if (data.length === 0) {
-    empty.style.display = 'block';
-  } else {
-    empty.style.display = 'none';
-    data.forEach(b => {
-      tbody.innerHTML += `
-        <tr>
-          <td><strong>${b.nombre}</strong></td>
-          <td>${b.unidad || '-'}</td>
-          <td class="text-accent">${b.cantidad_por_unidad}</td>
-          <td>${b.merma_porcentaje}%</td>
-          <td>${b.nota || '-'}</td>
-          <td><button class="btn-icon btn-delete" onclick="eliminarMaterialReferencia(${b.id})">✕</button></td>
-        </tr>
-      `;
-    });
-  }
-}
-
-async function agregarMaterialReferencia() {
-  if (!referenciaActivaId) return;
-
-  const idMaterial = document.getElementById('bom-material').value;
-  const cantidad = document.getElementById('bom-cantidad').value;
-  const merma = document.getElementById('bom-merma').value;
-
-  if (!idMaterial) { Toast.warning('Seleccione un material'); return; }
-  if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) { Toast.warning('Ingrese cantidad por unidad'); return; }
-
-  const data = await api(`/api/referencias/${referenciaActivaId}/materiales`, {
-    method: 'POST',
-    body: JSON.stringify({
-      id_material: parseInt(idMaterial),
-      cantidad_por_unidad: parseFloat(cantidad),
-      merma_porcentaje: parseFloat(merma) || 0
-    }),
-    _btn: event.target
-  });
-
-  if (data) {
-    Toast.success('Material asociado a la referencia');
-    document.getElementById('bom-cantidad').value = '';
-    document.getElementById('bom-merma').value = '';
-    cargarMaterialesReferencia(referenciaActivaId);
-  }
-}
-
-async function eliminarMaterialReferencia(id) {
-  const ok = await Modal.confirm('Quitar Material', '¿Quitar este material de la referencia?');
-  if (!ok) return;
-  const data = await api(`/api/materiales-referencia/${id}`, { method: 'DELETE' });
-  if (data) {
-    Toast.success('Material removido');
-    cargarMaterialesReferencia(referenciaActivaId);
   }
 }
 

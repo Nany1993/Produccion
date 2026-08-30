@@ -213,6 +213,173 @@ body {
 }
 
 /* ============================================================
+   CONTENT MODAL (reutilizable: detalle, formularios, etc.)
+   ============================================================ */
+
+#content-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+}
+
+#content-modal-overlay.content-modal-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.content-modal-box {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    width: 92%;
+    max-width: 820px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+    transform: scale(0.96);
+    transition: transform 0.2s ease;
+    overflow: hidden;
+}
+
+#content-modal-overlay.content-modal-visible .content-modal-box {
+    transform: scale(1);
+}
+
+.content-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--card-border);
+    flex-shrink: 0;
+}
+
+.content-modal-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.content-modal-close {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+.content-modal-close:hover {
+    background: var(--accent-danger);
+    color: white;
+    border-color: var(--accent-danger);
+}
+
+.content-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.content-modal-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.content-modal-tab {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--card-border);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.content-modal-tab:hover {
+    background: var(--bg-deep);
+}
+
+.content-modal-tab.active {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+}
+
+.content-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+    border-top: 1px solid var(--card-border);
+    padding-top: 18px;
+}
+
+.content-modal-ficha {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--card-border);
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.content-modal-ficha-foto {
+    width: 120px;
+    height: 120px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    background: var(--bg-deep);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.content-modal-ficha-foto img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.content-modal-ficha-info {
+    flex: 1;
+    min-width: 220px;
+}
+
+.content-modal-ficha-titulo {
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    font-size: 0.95rem;
+}
+
+.content-modal-ficha-texto {
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+/* ============================================================
    FIELD VALIDATION
    ============================================================ */
 
@@ -652,6 +819,37 @@ select:disabled {
 
 .btn-secondary:hover {
     opacity: 0.8;
+}
+
+.btn-action-ref {
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+}
+
+.btn-action-ref:hover {
+    opacity: 0.85;
+}
+
+.btn-action-edit {
+    background: var(--accent-green);
+}
+
+.btn-action-delete {
+    background: var(--accent-danger);
+}
+
+.content-modal-actions .btn-primary,
+.content-modal-actions .btn-secondary {
+    width: auto;
+    flex: 0 0 auto;
 }
 
 /* ============================================================

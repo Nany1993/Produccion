@@ -42,6 +42,16 @@
         </div>
     </div>
 
+    <div id="content-modal-overlay">
+        <div class="content-modal-box">
+            <div class="content-modal-header">
+                <h3 class="content-modal-title" id="content-modal-title">Detalle</h3>
+                <button class="content-modal-close" id="content-modal-close" title="Cerrar">✕</button>
+            </div>
+            <div id="content-modal-body" class="content-modal-body"></div>
+        </div>
+    </div>
+
     <div class="app-layout">
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -724,26 +734,7 @@
                         <div class="catalog-card" style="margin-top: 0; align-self: start;">
                             <div class="ref-header">
                                 <h2 class="form-title" style="margin:0;">Referencias</h2>
-                                <button class="btn-primary" id="btn-nueva-ref" onclick="toggleFormNuevaReferencia()" style="width:auto; padding: 8px 14px; background: var(--accent-blue);">+ Nueva Referencia</button>
-                            </div>
-
-                            <div id="form-nueva-ref" style="display:none; margin-top: 16px; padding: 16px; border: 1px solid var(--card-border); border-radius: 8px; background: var(--bg-deep);">
-                                <div class="form-group">
-                                    <label>Nombre de Referencia *</label>
-                                    <input type="text" id="input-ref-nombre" placeholder="Ej: Gorra Snapback">
-                                </div>
-                                <div class="form-group">
-                                    <label>Especificaciones Técnicas</label>
-                                    <textarea id="input-ref-espec" rows="3" placeholder="Descripción técnica, materiales, tallas..."></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>Foto del Prototipo</label>
-                                    <div class="foto-upload">
-                                        <input type="file" id="input-ref-foto" accept="image/*" onchange="previewFotoNueva(this)">
-                                        <img id="preview-ref-foto" style="display:none;" alt="Vista previa">
-                                    </div>
-                                </div>
-                                <button class="btn-primary" id="btn-ref-guardar" onclick="crearReferencia()">Crear Referencia</button>
+                                <button class="btn-primary" id="btn-nueva-ref" onclick="abrirModalNuevaReferencia()" style="width:auto; padding: 8px 14px; background: var(--accent-blue);">+ Nueva Referencia</button>
                             </div>
 
                             <div class="reference-search" style="margin-top: 16px;">
@@ -752,122 +743,11 @@
 
                             <div class="reference-list-hint">
                                 <span class="hint-icon">👈</span>
-                                <span>Haz clic en una referencia para ver su detalle completo</span>
+                                <span>Seleccione Ver detalle, Editar o Eliminar en cada referencia</span>
                             </div>
 
                             <div id="lista-referencias" style="width: 100%; display: flex; flex-direction: column;"></div>
                             <div id="empty-referencias-filtro" class="empty-state" style="display: none;">No se encontraron referencias con ese nombre.</div>
-                        </div>
-
-                        <div class="catalog-card" style="margin-top: 0;" id="panel-secuencia">
-                            <h2 class="form-title" id="titulo-ref-activa" style="display: none;">Detalle de Referencia</h2>
-
-                            <div id="empty-secuencia-placeholder" class="secuencia-placeholder">
-                                <div class="placeholder-icon">📋</div>
-                                <div class="placeholder-title">Detalle de la Referencia</div>
-                                <div class="placeholder-text">Selecciona una referencia de la lista de la izquierda para ver su diagrama de actividades, especificaciones, foto y materiales.</div>
-                            </div>
-
-                            <div id="secuencia-content" style="display: none;">
-                                <div class="ficha-tecnica" id="ficha-tecnica-container" style="display: none;">
-                                    <div class="ficha-foto">
-                                        <img id="ficha-foto-img" alt="Foto prototipo" style="display:none;">
-                                        <div id="ficha-foto-empty" class="ficha-foto-empty">Sin foto de prototipo</div>
-                                        <label class="ficha-foto-btn" for="input-cambiar-foto">Cambiar foto</label>
-                                        <input type="file" id="input-cambiar-foto" accept="image/*" style="display:none;" onchange="cambiarFotoPrototipo(this)">
-                                    </div>
-                                    <div class="ficha-info">
-                                        <div class="ficha-titulo">Especificaciones Técnicas</div>
-                                        <div id="ficha-especificaciones" class="ficha-texto">Sin especificaciones.</div>
-                                    </div>
-                                </div>
-
-                                <!-- PESTAÑAS -->
-                                <div class="detail-tabs">
-                                    <button class="detail-tab active" id="tab-secuencia" onclick="cambiarTabReferencia('secuencia')">🛠 Diagrama de Actividades</button>
-                                    <button class="detail-tab" id="tab-bom" onclick="cambiarTabReferencia('bom')">🧵 Materiales</button>
-                                </div>
-
-                                <!-- CONTENIDO: DIAGRAMA -->
-                                <div id="detail-secuencia">
-                                    <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end;">
-                                        <div>
-                                            <label>Operación</label>
-                                            <select id="seq-operacion"></select>
-                                        </div>
-                                        <div>
-                                            <label>Letra</label>
-                                            <input type="text" id="seq-letra" placeholder="A, B...">
-                                        </div>
-                                        <div>
-                                            <label>Predec.</label>
-                                            <input type="text" id="seq-pred" placeholder="N/A o A,C">
-                                        </div>
-                                        <div>
-                                            <button class="btn-primary" onclick="agregarDetalle()">Agregar</button>
-                                        </div>
-                                    </div>
-
-                                    <div class="data-table-container">
-                                        <table class="data-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Orden</th>
-                                                    <th>Letra</th>
-                                                    <th>Operación</th>
-                                                    <th>Máquina</th>
-                                                    <th>Tiempo</th>
-                                                    <th>Pred.</th>
-                                                    <th>Acción</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="lista-secuencia"></tbody>
-                                        </table>
-                                        <div id="empty-secuencia" class="empty-state" style="display: none;">Esta referencia no tiene operaciones asignadas.</div>
-                                    </div>
-                                </div>
-
-                                <!-- CONTENIDO: MATERIALES (BOM) -->
-                                <div id="detail-bom" style="display: none;">
-                                    <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; align-items: end;">
-                                        <div>
-                                            <label>Material</label>
-                                            <select id="bom-material"></select>
-                                        </div>
-                                        <div>
-                                            <label>Cant./unidad</label>
-                                            <input type="number" id="bom-cantidad" placeholder="0.35" step="0.01">
-                                        </div>
-                                        <div>
-                                            <label>Merma %</label>
-                                            <input type="number" id="bom-merma" placeholder="5" step="0.01">
-                                        </div>
-                                        <div>
-                                            <button class="btn-primary" onclick="agregarMaterialReferencia()">Agregar</button>
-                                        </div>
-                                    </div>
-                                    <div class="data-table-container">
-                                        <table class="data-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Material</th>
-                                                    <th>Unidad</th>
-                                                    <th>Cant./unidad</th>
-                                                    <th>Merma</th>
-                                                    <th>Nota</th>
-                                                    <th>Acción</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="lista-bom"></tbody>
-                                        </table>
-                                        <div id="empty-bom" class="empty-state" style="display: none;">Esta referencia no tiene materiales asociados.</div>
-                                    </div>
-                                </div>
-
-                                <div style="margin-top: 24px; border-top: 1px solid var(--card-border); padding-top: 16px;">
-                                    <button class="btn-primary" onclick="finalizarReferencia()" style="background: var(--accent-success);">Guardar Referencia</button>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
