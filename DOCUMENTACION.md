@@ -94,9 +94,11 @@ Registro de producción **por operador** a través de una grilla por línea: el 
 3. Carga la **cantidad producida** (y defectuosas) por operador. Los que no trabajaron quedan vacíos.
 4. Un solo botón **Guardar** inserta un registro por operador con `id_operador`.
 
-**Acordeón opcional:** "¿Hubo paradas hoy?" — solo se registran paradas si el supervisor lo abre.
+**Acordeón opcional:** "¿Hubo paradas hoy?" — solo se registran paradas si el supervisor lo abre. Las paradas programadas se cargan del catálogo real (Paradas Programadas).
 
-**Modalidad global:** configurada por el Admin (`Diario` | `Por Hora`).
+**Modalidad global:** configurada por el Admin desde **CONFIGURACIÓN → Configuración de Registro** (`Diario` | `Por Hora`).
+
+**Historial:** el listado de registros del día está en **ANÁLISIS → Producción del Día**.
 
 **Validaciones:**
 - Solo se guardan filas con cantidad > 0
