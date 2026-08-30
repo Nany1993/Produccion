@@ -425,6 +425,7 @@ function showModule(moduleId) {
   if (moduleId === 'mod-usuarios') {
     cargarUsuarios();
     cargarSelectUsuarioEmpleado();
+    cargarUsuarioModulosSupervisor();
   }
   if (moduleId === 'mod-causas') cargarCausas();
   if (moduleId === 'mod-control-hora') initControlHora();
@@ -1107,8 +1108,13 @@ async function iniciarEdicionUsuario(u) {
   const acc = document.getElementById('form-usuario-modulos-sup');
   if (acc) acc.style.display = (u.rol === 'Supervisor') ? 'block' : 'none';
   if (u.rol === 'Supervisor') {
-    const lineas = await api(`/api/usuarios/${u.id}/lineas`);
+    // Si el contenedor de líneas quedó vacío (falló la carga inicial al abrir
+    // la página), recargarlo antes de marcar los checks de este supervisor.
     const chkList = document.getElementById('usuario-modulos-supervisor');
+    if (chkList && chkList.querySelectorAll('input').length === 0) {
+      await cargarUsuarioModulosSupervisor();
+    }
+    const lineas = await api(`/api/usuarios/${u.id}/lineas`);
     if (chkList) chkList.querySelectorAll('input').forEach(i => {
       i.checked = Array.isArray(lineas) && lineas.includes(parseInt(i.value));
     });
