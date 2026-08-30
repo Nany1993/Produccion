@@ -2749,6 +2749,12 @@ function resetearParadas() {
   actualizarBadgesParadas();
 }
 
+function abrirCalendarioFecha(input) {
+  if (input && typeof input.showPicker === 'function') {
+    try { input.showPicker(); } catch (e) { /* picker ya abierto o no soportado */ }
+  }
+}
+
 async function cargarControlesHoy() {
   const fechaSel = document.getElementById('prod-dia-fecha');
   if (fechaSel && !fechaSel.value) fechaSel.valueAsDate = new Date();
