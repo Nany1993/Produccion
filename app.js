@@ -2400,9 +2400,6 @@ function abrirModalRegistroProduccion() {
   const overlay = document.getElementById('reg-modal-overlay');
   if (overlay) overlay.classList.add('reg-modal-visible');
 }
-  const overlay = document.getElementById('reg-modal-overlay');
-  if (overlay) overlay.classList.add('reg-modal-visible');
-}
 
 function cerrarModalRegistroProduccion() {
   const overlay = document.getElementById('reg-modal-overlay');
