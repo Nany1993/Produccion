@@ -883,30 +883,91 @@
                     </div>
                 </div>
 
-                <!-- CONTROL HORA A HORA -->
+                <!-- REGISTRO DE PRODUCCIÓN POR OPERADOR -->
                 <div id="mod-control-hora" class="module-section">
                     <div class="page-header">
                         <h1 class="page-title">Registro de Producción</h1>
-                        <p class="page-subtitle">Registro por máquina y paradas. Marca de tiempo automática al guardar</p>
+                        <p class="page-subtitle">Registro por operador de tu línea. Cargá la cantidad de cada operador y guardá todo de una vez</p>
                     </div>
 
                     <div class="programacion-grid" style="grid-template-columns: 1fr;">
                         <div class="catalog-card">
                             <div class="ref-header">
+                                <h2 class="form-title" style="margin:0;">Producción por Operador</h2>
+                            </div>
+                            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;">
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>Fecha</label>
+                                    <input type="date" id="ctrl-fecha" onchange="cargarControlesHoy()">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>Línea</label>
+                                    <select id="ctrl-linea" onchange="cargarGrillaRegistro()"></select>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>Orden / Lote</label>
+                                    <select id="ctrl-orden-grilla" onchange="cargarGrillaRegistro()"></select>
+                                </div>
+                            </div>
+
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>OPERADOR</th>
+                                            <th>MÁQUINA</th>
+                                            <th>ACTIVIDAD</th>
+                                            <th style="width:90px;">CANTIDAD</th>
+                                            <th style="width:90px;">DEFECT.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="grilla-operadores"></tbody>
+                                </table>
+                                <div id="empty-grilla" class="empty-state" style="display:none;">Cargando operadores...</div>
+                            </div>
+
+                            <details id="det-paradas" class="accordion" style="margin-top:14px;">
+                                <summary style="cursor:pointer; font-weight:600;">¿Hubo paradas hoy? (opcional)</summary>
+                                <div class="separator-title">PARADAS PROGRAMADAS</div>
+                                <div class="form-group">
+                                    <label>Parada</label>
+                                    <select id="ctrl-parada-p" onchange="actualizarTiempoParadaP()"></select>
+                                    <label style="margin-top:8px;">Tiempo (seg)</label>
+                                    <input type="number" id="ctrl-tiempo-p" readonly style="background-color: var(--bg-card); opacity: 0.7;">
+                                </div>
+                                <div class="separator-title">PARADAS NO PROGRAMADAS</div>
+                                <div id="lista-paradas-np">
+                                    <div class="parada-np-row">
+                                        <select class="parada-np-causa" onchange="toggleDescripcionParada(this)">
+                                            <option value="">Seleccione causa...</option>
+                                        </select>
+                                        <input type="number" class="parada-np-tiempo" placeholder="Segundos" min="0">
+                                        <input type="text" class="parada-np-desc" placeholder="¿Qué pasó?" style="display:none;">
+                                    </div>
+                                </div>
+                                <button class="btn-secondary" onclick="agregarFilaParadaNP()" type="button" style="margin:10px 0 14px;">+ Agregar otra parada</button>
+                            </details>
+
+                            <div style="display:flex; gap:8px; margin-top:6px;">
+                                <button class="btn-primary" onclick="guardarGrilla(this)">Guardar Producción</button>
+                            </div>
+                        </div>
+
+                        <div class="catalog-card">
+                            <div class="ref-header">
                                 <h2 class="form-title" style="margin:0;">Producción de Hoy</h2>
-                                <button class="btn-primary" onclick="abrirModalRegistroProduccion()" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Registrar Producción</button>
                             </div>
                             <div class="table-container" id="container-lista-controles">
                                 <table class="data-table">
                                     <thead>
                                         <tr>
                                             <th>HORA REG.</th>
+                                            <th>OPERADOR</th>
                                             <th>MOD.</th>
                                             <th>ORDEN</th>
                                             <th>ACT.</th>
                                             <th>CANT.</th>
                                             <th>DEFECT.</th>
-                                            <th>USUARIO</th>
                                             <th>PARADAS</th>
                                             <th>ACC.</th>
                                         </tr>

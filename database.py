@@ -344,6 +344,7 @@ def inicializar_base_de_datos():
             ("TipoMaquinaria", "id_modulo", "INTEGER"),
             ("Empleados", "id_maquina", "INTEGER"),
             ("Empleados", "rol", "TEXT DEFAULT 'Operador'"),
+            ("RegistroProduccion", "id_operador", "INTEGER"),
         ]
         
         for tabla, columna, tipo in migraciones:
@@ -1137,6 +1138,60 @@ def obtener_referencias_por_modulo(id_modulo):
     conexion.close()
     return [{"id": f[0], "nombre": f[1], "id_referencia": f[2], "id_orden": f[3], "nombre_orden": f[4]} for f in filas]
 
+def obtener_operadores_linea(id_modulo):
+    """Operadores activos asignados a una línea (módulo), con su máquina/puesto."""
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("""
+        SELECT e.id, e.nombre, e.id_maquina, COALESCE(tm.nombre, '') AS nombre_maquina,
+               COALESCE(tm.id_modulo, e.modulo_asignado) AS id_modulo_efectivo
+        FROM Empleados e
+        LEFT JOIN TipoMaquinaria tm ON e.id_maquina = tm.id
+        WHERE e.rol = 'Operador'
+          AND e.estado = 'Activo'
+          AND e.modulo_asignado = ?
+        ORDER BY e.nombre
+    """, (id_modulo,))
+    filas = cursor.fetchall()
+    conexion.close()
+    return [
+        {
+            "id_empleado": f[0],
+            "nombre": f[1],
+            "id_maquina": f[2],
+            "nombre_maquina": f[3] or '-',
+            "id_modulo": f[4] or id_modulo
+        }
+        for f in filas
+    ]
+
+def obtener_actividades_por_orden(id_orden):
+    """Actividades de la secuencia de la referencia de una orden, con su máquina y tiempo."""
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("""
+        SELECT rd.id_operacion, o.nombre_operacion, o.id_maquina,
+               COALESCE(o.tiempo_segundos, 0), rd.letra_secuencia, rd.orden_fila
+        FROM OrdenProduccion ord
+        JOIN ReferenciaDetalle rd ON rd.id_referencia = ord.id_referencia
+        JOIN Operacion o ON rd.id_operacion = o.id
+        WHERE ord.id = ?
+        ORDER BY rd.orden_fila
+    """, (id_orden,))
+    filas = cursor.fetchall()
+    conexion.close()
+    return [
+        {
+            "id_operacion": f[0],
+            "nombre": f[1],
+            "id_maquina": f[2],
+            "tiempo_segundos": f[3] or 0,
+            "letra": f[4],
+            "orden": f[5]
+        }
+        for f in filas
+    ]
+
 # ============================================================
 # EMPLEADOS
 # ============================================================
@@ -1553,7 +1608,8 @@ def obtener_registros_dia(fecha, id_usuario=None):
                (SELECT SUM(t.tiempo_segundos) FROM Operacion t
                 WHERE t.id IN (SELECT id_operacion FROM ReferenciaDetalle WHERE id_referencia = ref.id)) as tc,
                tm.nombre as maquina_nombre, r.created_at, r.id_hora,
-               (SELECT nombre FROM HorasProduccion WHERE id = r.id_hora) as hora_nombre
+               (SELECT nombre FROM HorasProduccion WHERE id = r.id_hora) as hora_nombre,
+               r.id_operador, COALESCE(e.nombre, '') as nombre_operador
         FROM RegistroProduccion r
         JOIN ModuloConfeccion m ON r.id_modulo = m.id
         JOIN OrdenProduccion o ON r.id_orden = o.id
@@ -1562,6 +1618,7 @@ def obtener_registros_dia(fecha, id_usuario=None):
         LEFT JOIN Operacion op ON r.id_operacion = op.id
         LEFT JOIN TipoMaquinaria tm ON op.id_maquina = tm.id
         LEFT JOIN ReferenciaDetalle rdl ON r.id_operacion = rdl.id_operacion AND rdl.id_referencia = ref.id
+        LEFT JOIN Empleados e ON r.id_operador = e.id
         WHERE r.fecha = ?
     """
     params = [fecha]
@@ -1596,6 +1653,7 @@ def obtener_registros_dia(fecha, id_usuario=None):
         "id_operacion": f[13], "nombre_operacion": f[14], "letra": f[15],
         "tc": f[16] or 0, "maquina": f[17] or '',
         "id_hora": f[19], "hora_nombre": f[20] or '',
+        "id_operador": f[21], "nombre_operador": f[22] or '',
         "paradas": paradas_dict.get(f[0], [])
     } for f in filas]
 
@@ -1666,13 +1724,13 @@ def insertar_registro_produccion(datos, id_usuario):
         INSERT INTO RegistroProduccion (
             fecha, id_modulo, id_hora, id_orden, id_operacion, porcion_tiempo,
             cantidad_operarios, cantidad_producida, cantidad_defectuosa,
-            observaciones, id_usuario
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            observaciones, id_usuario, id_operador
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         datos['fecha'], datos['id_modulo'], datos.get('id_hora'), datos['id_orden'],
-        datos.get('id_operacion'), datos.get('porcion_tiempo', 1.0), datos.get('cantidad_operarios', 0),
+        datos.get('id_operacion'), datos.get('porcion_tiempo', 1.0), datos.get('cantidad_operarios', 1),
         datos['cantidad_producida'], datos.get('cantidad_defectuosa', 0),
-        datos.get('observaciones', ''), id_usuario
+        datos.get('observaciones', ''), id_usuario, datos.get('id_operador')
     ))
     registro_id = cursor.lastrowid
 
@@ -1697,6 +1755,60 @@ def insertar_registro_produccion(datos, id_usuario):
 
     conexion.close()
     res = {"mensaje": "Registro guardado", "id": registro_id}
+    if estado2 and estado2[0] == 'Cerrada':
+        res["orden_completada"] = True
+    return res
+
+def insertar_registros_masivo(datos, id_usuario):
+    """Guarda varios registros de producción a la vez (grilla por operador).
+    Cada item de `registros` es {id_operador, id_operacion, cantidad, defectuosas}."""
+    registros = datos.get('registros') or []
+    registros = [r for r in registros if (r.get('cantidad') or 0) > 0]
+    if not registros:
+        return {"error": "No hay cantidades para guardar"}
+
+    conexion = _conexion()
+    cursor = conexion.cursor()
+
+    for r in registros:
+        err_op = _validar_operacion_en_modulo(cursor, r.get('id_operacion'), datos.get('id_modulo'), None)
+        if err_op:
+            conexion.close()
+            return err_op
+
+        cursor.execute("""
+            INSERT INTO RegistroProduccion (
+                fecha, id_modulo, id_hora, id_orden, id_operacion, porcion_tiempo,
+                cantidad_operarios, cantidad_producida, cantidad_defectuosa,
+                observaciones, id_usuario, id_operador
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datos['fecha'], datos['id_modulo'], datos.get('id_hora'), datos['id_orden'],
+            r.get('id_operacion'), datos.get('porcion_tiempo', 1.0), 1,
+            r['cantidad'], r.get('defectuosas') or 0,
+            datos.get('observaciones', ''), id_usuario, r.get('id_operador')
+        ))
+        registro_id = cursor.lastrowid
+
+        # Paradas comunes a la línea (si hubo)
+        for par in (datos.get('paradas') or []):
+            cursor.execute("""
+                INSERT INTO ParadaRegistro (id_registro, id_parada_programada, id_causa, tiempo_segundos, descripcion)
+                VALUES (?, ?, ?, ?, ?)
+            """, (registro_id, par.get('id_parada_programada'), par.get('id_causa'),
+                  par.get('tiempo_segundos', 0), par.get('descripcion')))
+
+    _cerrar_orden_si_completa(cursor, datos['id_orden'])
+    conexion.commit()
+
+    conexion2 = _conexion()
+    c2 = conexion2.cursor()
+    c2.execute("SELECT estado FROM OrdenProduccion WHERE id = ?", (datos['id_orden'],))
+    estado2 = c2.fetchone()
+    conexion2.close()
+
+    conexion.close()
+    res = {"mensaje": f"{len(registros)} registros guardados", "cantidad": len(registros)}
     if estado2 and estado2[0] == 'Cerrada':
         res["orden_completada"] = True
     return res
@@ -1745,13 +1857,14 @@ def obtener_registros_rango(fecha_inicio, fecha_fin, id_orden=None):
                COALESCE(op.tiempo_segundos, 0) as tiempo_operacion,
                COALESCE(tm.nombre, '') as maquina_nombre,
                COALESCE(op.nombre_operacion, '') as operacion_nombre,
-               r.created_at
+               r.created_at, r.id_operador, COALESCE(e.nombre, '') as nombre_operador
         FROM RegistroProduccion r
         JOIN ModuloConfeccion m ON r.id_modulo = m.id
         JOIN OrdenProduccion o ON r.id_orden = o.id
         JOIN ReferenciaProducto ref ON o.id_referencia = ref.id
         LEFT JOIN Operacion op ON r.id_operacion = op.id
         LEFT JOIN TipoMaquinaria tm ON op.id_maquina = tm.id
+        LEFT JOIN Empleados e ON r.id_operador = e.id
         WHERE r.fecha BETWEEN ? AND ?
     """
     params = [fecha_inicio, fecha_fin]
@@ -1780,7 +1893,8 @@ def obtener_registros_rango(fecha_inicio, fecha_fin, id_orden=None):
         "cantidad": f[7], "cantidad_defectuosa": f[8] or 0,
         "id_referencia": f[9], "id_operacion": f[10], "tiempo_operacion": f[11] or 0,
         "maquina": f[12] or '', "operacion_nombre": f[13] or '',
-        "tiempo_total_parada": paradas.get(f[0], 0)
+        "tiempo_total_parada": paradas.get(f[0], 0),
+        "id_operador": f[15], "nombre_operador": f[16] or ''
     } for f in filas]
 
 def reporte_progreso_orden(id_orden):

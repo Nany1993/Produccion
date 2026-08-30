@@ -44,6 +44,9 @@ from database import (
     obtener_modulos,
     insertar_modulo,
     obtener_referencias_por_modulo,
+    obtener_operadores_linea,
+    obtener_actividades_por_orden,
+    insertar_registros_masivo,
     verificar_login,
     obtener_configuracion,
     guardar_configuracion,
@@ -532,6 +535,25 @@ def delete_referencia_detalle(id_detalle):
 def get_referencias_asignadas(id_mod):
     return jsonify(obtener_referencias_por_modulo(id_mod))
 
+@app.route('/api/lineas/<int:id_mod>/operadores', methods=['GET'])
+def get_operadores_linea(id_mod):
+    """Operadores activos de una línea con su máquina. Un supervisor solo ve sus líneas."""
+    id_usuario = request.args.get('id_usuario', type=int)
+    if id_usuario:
+        from database import obtener_usuarios
+        usuario = next((u for u in obtener_usuarios() if u['id'] == id_usuario), None)
+        es_admin = usuario and usuario['rol'] == 'Admin'
+        if not es_admin:
+            lineas = obtener_lineas_usuario(id_usuario)
+            if id_mod not in lineas:
+                return jsonify({"error": "No tiene acceso a esa línea"}), 403
+    return jsonify(obtener_operadores_linea(id_mod))
+
+@app.route('/api/ordenes/<int:id_orden>/actividades', methods=['GET'])
+def get_actividades_orden(id_orden):
+    """Actividades de la secuencia de la referencia de una orden, con su máquina."""
+    return jsonify(obtener_actividades_por_orden(id_orden))
+
 # --- REPORTE TABLERO DE EFICIENCIAS ---
 
 @app.route('/api/reportes/eficiencia', methods=['GET'])
@@ -574,10 +596,21 @@ def get_reporte_eficiencia():
         resumen_dia[clave]["cantidad"] += c['cantidad']
         resumen_dia[clave]["defectos"] += c.get('cantidad_defectuosa') or 0
 
+    # Desglose por OPERADOR (los registros ahora van por operador)
+    resumen_operador = {}   # {(fecha, operador): {"cantidad":0, "defectos":0}}
+    for c in controles:
+        nombre_op = c.get('nombre_operador') or 'Sin asignar'
+        clave_op = (c['fecha'], nombre_op)
+        if clave_op not in resumen_operador:
+            resumen_operador[clave_op] = {"cantidad": 0, "defectos": 0}
+        resumen_operador[clave_op]["cantidad"] += c['cantidad']
+        resumen_operador[clave_op]["defectos"] += c.get('cantidad_defectuosa') or 0
+
     # Segunda pasada: meta por actividad con jornada repartida
     #    para la METAtotal del módulo, sumamos la meta de cada operación:
     #    meta_op = (operarios × (jornada/num_actividades) − paradas) / tc_op
     metas_dia = {}   # {(fecha, modulo): meta acumulada}
+    metas_operador = {}   # {(fecha, operador): meta acumulada}
     for c in controles:
         dia = c['fecha']
         modulo = c['modulo']
@@ -594,6 +627,13 @@ def get_reporte_eficiencia():
         if clave not in metas_dia:
             metas_dia[clave] = 0
         metas_dia[clave] += meta
+
+        # Misma meta acumulada por operador
+        nombre_op = c.get('nombre_operador') or 'Sin asignar'
+        clave_op = (dia, nombre_op)
+        if clave_op not in metas_operador:
+            metas_operador[clave_op] = 0
+        metas_operador[clave_op] += meta
 
     # 2. Estructurar respuesta para el frontend
     modulos_lista = sorted(list(modulos_set))
@@ -629,9 +669,25 @@ def get_reporte_eficiencia():
         eficiencia_total = round((total_planta_cantidad / total_planta_meta * 100), 1) if total_planta_meta > 0 else 0
         calidad_total = round(((total_planta_cantidad - total_planta_defectos) / total_planta_cantidad * 100), 1) if total_planta_cantidad > 0 else 0
 
+        # Desglose por operador del día
+        datos_operadores = {}
+        for (dia_op, nombre_op), datos_op in sorted(resumen_operador.items()):
+            if dia_op != dia:
+                continue
+            meta_op = metas_operador.get((dia, nombre_op), 0)
+            cant_op = datos_op["cantidad"]
+            eff_op = round((cant_op / meta_op * 100), 1) if meta_op > 0 else 0
+            datos_operadores[nombre_op] = {
+                "cantidad": cant_op,
+                "meta": meta_op,
+                "eficiencia": eff_op,
+                "defectos": datos_op["defectos"]
+            }
+
         reporte.append({
             "fecha": dia,
             "datos_modulos": datos_modulos,
+            "datos_operadores": datos_operadores,
             "total_planta": {
                 "cantidad": total_planta_cantidad,
                 "meta": total_planta_meta,
@@ -845,6 +901,19 @@ def add_produccion():
 @app.route('/api/produccion/<int:id_registro>', methods=['DELETE'])
 def delete_produccion(id_registro):
     return jsonify(eliminar_registro_produccion(id_registro))
+
+@app.route('/api/produccion/masivo', methods=['POST'])
+def add_produccion_masivo():
+    datos = request.json
+    if not datos.get('fecha') or not datos.get('id_modulo') or not datos.get('id_orden'):
+        return jsonify({"error": "Faltan datos requeridos"}), 400
+    id_usuario = datos.get('id_usuario')
+    if not id_usuario:
+        return jsonify({"error": "Usuario no identificado"}), 401
+    res = insertar_registros_masivo(datos, int(id_usuario))
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
 
 @app.route('/api/progreso/<int:id_orden>', methods=['GET'])
 def get_progreso_orden(id_orden):

@@ -213,7 +213,6 @@ const SELECTS_BUSCABLES = [
   'prog-referencia',
   'input-usuario-empleado',
   'input-emp-maquina',
-  'ctrl-maquina', 'ctrl-referencia',
   'input-orden-ref',
   'sim-referencia',
   'eff-referencia', 'eff-orden',
@@ -2407,51 +2406,205 @@ function cerrarModalRegistroProduccion() {
 }
 
 async function initControlHora() {
-  // Máquinas: si el usuario tiene líneas asignadas, solo las de esas líneas; si no, todas
-  const maquinas = await api('/api/maquinaria');
-  if (!maquinas) return;
+  // Fecha default hoy
+  const fechaSel = document.getElementById('ctrl-fecha');
+  if (fechaSel) fechaSel.valueAsDate = new Date();
 
-  // Modalidad de registro global de la plataforma (Diario | Por Hora)
+  // Modalidad global de la plataforma (Diario | Por Hora)
   const cfg = await api('/api/configuracion');
   window.modalidadRegistro = (cfg && cfg.modalidad_registro) || 'Diario';
   const selModalidad = document.getElementById('select-modalidad');
   if (selModalidad) selModalidad.value = window.modalidadRegistro;
   aplicarModalidadRegistro();
 
-  // Select de horas (para modalidad Por Hora)
-  const horas = await api('/api/horas');
-  const selHora = document.getElementById('ctrl-hora');
-  selHora.innerHTML = '<option value="">Seleccione hora...</option>';
-  (horas || []).forEach(h => {
-    const etiqueta = h.nombre;
-    selHora.innerHTML += `<option value="${h.id}">${etiqueta}</option>`;
-  });
-
+  // Líneas: las del usuario (supervisor) o todas (admin/operador)
+  const modulos = await api('/api/modulos');
   const lineasUsuario = sesionActual && sesionActual.lineas && sesionActual.lineas.length > 0
     ? sesionActual.lineas.map(l => l.id)
     : null;
-
-  const filtradas = lineasUsuario
-    ? maquinas.filter(m => m.id_modulo && lineasUsuario.includes(m.id_modulo))
-    : maquinas;
-
-  const selMaq = document.getElementById('ctrl-maquina');
-  selMaq.innerHTML = '<option value="">Seleccione Máquina...</option>';
-  filtradas.forEach(m => {
-    const etiqueta = m.nombre_modulo ? `${m.nombre} (${m.nombre_modulo})` : m.nombre;
-    selMaq.innerHTML += `<option value="${m.id}" data-modulo="${m.id_modulo || ''}" data-modulo-nombre="${m.nombre_modulo || ''}">${etiqueta}</option>`;
+  const selLinea = document.getElementById('ctrl-linea');
+  selLinea.innerHTML = '<option value="">Seleccione línea...</option>';
+  (modulos || []).forEach(m => {
+    if (lineasUsuario && !lineasUsuario.includes(m.id)) return;
+    selLinea.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
   });
+  if (selLinea.options.length === 2) selLinea.selectedIndex = 1;
 
-  document.getElementById('ctrl-fecha').valueAsDate = new Date();
-
-  const paradas = catalogoParadasCache;
-  actualizarSelectParadas(paradas);
-
+  // Paradas y causas (para el acordeón opcional)
+  actualizarSelectParadas(catalogoParadasCache);
   const causas = await api('/api/causas-parada');
   causasParadaCache = causas || [];
   document.querySelectorAll('.parada-np-causa').forEach(sel => llenarSelectCausas(sel));
 
+  cargarGrillaRegistro();
   cargarControlesHoy();
+}
+
+async function cargarGrillaRegistro() {
+  const selLinea = document.getElementById('ctrl-linea');
+  const selOrden = document.getElementById('ctrl-orden-grilla');
+  const tbody = document.getElementById('grilla-operadores');
+  const empty = document.getElementById('empty-grilla');
+  const idLinea = selLinea.value;
+
+  tbody.innerHTML = '';
+  selOrden.innerHTML = '<option value="">Seleccione orden...</option>';
+  if (!idLinea) {
+    if (empty) { empty.style.display = 'block'; empty.innerText = 'Seleccione una línea para ver sus operadores.'; }
+    return;
+  }
+
+  // Orden asignada a la línea (una sola normalmente → preseleccionada)
+  const asignaciones = await api(`/api/modulos/${idLinea}/referencias-asignadas`);
+  if (!asignaciones) { if (empty) empty.style.display = 'block'; return; }
+  if (asignaciones.length === 0) {
+    if (empty) { empty.style.display = 'block'; empty.innerText = 'La línea no tiene órdenes asignadas.'; }
+    return;
+  }
+  asignaciones.forEach(a => {
+    selOrden.innerHTML += `<option value="${a.id_orden}" data-id-orden="${a.id_orden}">${a.nombre_orden} - ${a.nombre}</option>`;
+  });
+  selOrden.value = asignaciones[0].id_orden;
+
+  const idOrden = selOrden.value;
+  const usrQ = sesionActual ? `?id_usuario=${sesionActual.id}` : '';
+  const operadores = await api(`/api/lineas/${idLinea}/operadores${usrQ}`);
+  if (!operadores) return;
+
+  // Actividades de la orden (con su máquina)
+  const actividades = await api(`/api/ordenes/${idOrden}/actividades`);
+  if (!actividades) { if (empty) empty.style.display = 'block'; return; }
+
+  // Por cada operador, actividades que ejecuta SU máquina (2-3 opciones, preseleccionada la primera)
+  if (operadores.length === 0) {
+    if (empty) { empty.style.display = 'block'; empty.innerText = 'La línea no tiene operadores activos asignados.'; }
+    return;
+  }
+
+  const filas = [];
+  operadores.forEach(op => {
+    const ops = op.id_maquina
+      ? actividades.filter(a => a.id_maquina === op.id_maquina)
+      : [];
+    if (ops.length === 0) {
+      filas.push({ op, ops: [], sinMaquina: !op.id_maquina });
+      return;
+    }
+    filas.push({ op, ops, sinMaquina: false });
+  });
+
+  // Operadores con actividad primero, los sin máquina al final
+  filas.sort((a, b) => (a.ops.length === 0) - (b.ops.length === 0) || a.op.nombre.localeCompare(b.op.nombre));
+
+  tbody.innerHTML = '';
+  filas.forEach(({ op, ops, sinMaquina }) => {
+    let selAct = '';
+    if (sinMaquina) {
+      selAct = `<span class="badge badge-danger" style="font-size:0.7rem;">Sin máquina</span>`;
+    } else if (ops.length === 0) {
+      selAct = `<span class="badge badge-danger" style="font-size:0.7rem;">Su máquina no está en esta orden</span>`;
+    } else {
+      selAct = `<select class="gr-actividad" data-id-operador="${op.id_empleado}">` +
+        ops.map((a, i) => `<option value="${a.id_operacion}" ${i === 0 ? 'selected' : ''}>${a.letra} - ${a.nombre}</option>`).join('') +
+        `</select>`;
+    }
+    const filaId = `fila-${op.id_empleado}`;
+    tbody.innerHTML += `
+      <tr id="${filaId}" ${(sinMaquina || ops.length === 0) ? 'class="row-disabled" style="opacity:.55;"' : ''}>
+        <td><strong>${op.nombre}</strong></td>
+        <td style="font-size:0.75rem;color:var(--text-muted);">🔧 ${op.nombre_maquina}</td>
+        <td>${selAct}</td>
+        <td><input type="number" class="gr-cantidad" data-id-operador="${op.id_empleado}" min="0" placeholder="0"></td>
+        <td><input type="number" class="gr-defect" data-id-operador="${op.id_empleado}" min="0" value="0" placeholder="0"></td>
+      </tr>
+    `;
+  });
+
+  if (empty) empty.style.display = 'none';
+}
+
+async function guardarGrilla(btn = null) {
+  const fecha = document.getElementById('ctrl-fecha').value;
+  const idMod = document.getElementById('ctrl-linea').value;
+  const idOrden = document.getElementById('ctrl-orden-grilla').value;
+  if (!fecha) { Toast.error('Seleccione la fecha'); return; }
+  if (!idMod) { Toast.error('Seleccione la línea'); return; }
+  if (!idOrden) { Toast.error('Seleccione la orden'); return; }
+  if (!sesionActual) { Toast.error('Debe iniciar sesión para registrar'); return; }
+
+  // Recolectar filas con cantidad > 0
+  const registros = [];
+  document.querySelectorAll('#grilla-operadores tr').forEach(fila => {
+    const cant = fila.querySelector('.gr-cantidad');
+    const def = fila.querySelector('.gr-defect');
+    const act = fila.querySelector('.gr-actividad');
+    if (!cant || !act) return;
+    const cantidad = parseInt(cant.value) || 0;
+    if (cantidad <= 0) return;
+    registros.push({
+      id_operador: parseInt(cant.dataset.idOperador),
+      id_operacion: parseInt(act.value),
+      cantidad,
+      defectuosas: def ? (parseInt(def.value) || 0) : 0
+    });
+  });
+
+  if (registros.length === 0) {
+    Toast.warning('Ingrese la cantidad producida de al menos un operador');
+    return;
+  }
+
+  // Paradas (acordeón opcional): solo si el supervisor lo abre
+  const detParadas = document.getElementById('det-paradas');
+  const paradasAplicar = detParadas ? detParadas.open : false;
+  const paradas = [];
+  if (paradasAplicar) {
+    const paradasNP = [];
+    document.querySelectorAll('#det-paradas .parada-np-row').forEach(fila => {
+      const causa = fila.querySelector('.parada-np-causa').value;
+      const tiempo = fila.querySelector('.parada-np-tiempo').value;
+      const causaTexto = fila.querySelector('.parada-np-causa').options[fila.querySelector('.parada-np-causa').selectedIndex];
+      const esOtro = causaTexto && causaTexto.text === 'Otro';
+      const descripcion = fila.querySelector('.parada-np-desc').value.trim();
+      if (causa && tiempo) {
+        paradasNP.push({
+          id_causa: parseInt(causa),
+          tiempo_segundos: parseInt(tiempo),
+          descripcion: esOtro ? (descripcion || '') : null
+        });
+      }
+    });
+    const idParadaP = document.getElementById('ctrl-parada-p').value;
+    const tiempoP = document.getElementById('ctrl-tiempo-p').value;
+    if (idParadaP && parseInt(tiempoP) > 0) {
+      paradas.push({ id_parada_programada: parseInt(idParadaP), tiempo_segundos: parseInt(tiempoP) });
+    }
+    paradasNP.forEach(p => paradas.push(p));
+  }
+
+  const payload = {
+    fecha,
+    id_modulo: parseInt(idMod),
+    id_orden: parseInt(idOrden),
+    porcion_tiempo: 1.0,
+    observaciones: '',
+    id_usuario: sesionActual.id,
+    paradas,
+    registros
+  };
+
+  const data = await api('/api/produccion/masivo', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    _btn: btn
+  });
+
+  if (data) {
+    Toast.success(data.mensaje || 'Producción guardada');
+    if (data.orden_completada) Toast.success('🎉 La orden se completó');
+    cargarControlesHoy();
+    cargarGrillaRegistro();
+  }
 }
 
 function llenarSelectCausas(select) {
@@ -2713,7 +2866,7 @@ async function cargarControlesHoy() {
         <td>${actividad}</td>
         <td class="text-accent">${c.cantidad_producida}</td>
         <td><span class="badge ${defectClass}">${c.cantidad_defectuosa || 0}</span></td>
-        <td>${c.usuario}</td>
+        <td><strong>${c.nombre_operador || c.usuario || '-'}</strong></td>
         <td title="${paradasTexto}" style="max-width:140px;">${paradasTexto}</td>
         <td class="action-buttons">
           <button class="btn-icon btn-delete" onclick="eliminarControlHora(${c.id})">✕</button>
