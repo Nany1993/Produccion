@@ -2755,6 +2755,19 @@ function abrirCalendarioFecha(input) {
   }
 }
 
+function toggleDetalleOperador(tr) {
+  const detalle = tr.nextElementSibling;
+  if (!detalle || !detalle.classList.contains('op-detalle-fila')) return;
+  const chevron = tr.querySelector('.chevron');
+  if (detalle.style.display === 'none') {
+    detalle.style.display = 'table-row';
+    if (chevron) chevron.textContent = '▼';
+  } else {
+    detalle.style.display = 'none';
+    if (chevron) chevron.textContent = '▶';
+  }
+}
+
 async function initProduccionDia() {
   // Preselección: hoy, o la última fecha con registros si hoy está vacío
   const fechas = await api('/api/produccion/fechas');
@@ -2808,10 +2821,13 @@ async function cargarControlesHoy() {
 
     if (c.id_operador) {
       const op = c.nombre_operador || 'Sin nombre';
-      if (!porOperador[op]) porOperador[op] = { cant: 0, def: 0, acts: new Set(), maquina: c.maquina };
+      if (!porOperador[op]) porOperador[op] = { cant: 0, def: 0, acts: {}, maquina: c.maquina };
       porOperador[op].cant += c.cantidad_producida;
       porOperador[op].def += c.cantidad_defectuosa;
-      if (c.nombre_operacion) porOperador[op].acts.add(c.nombre_operacion);
+      const nomAct = c.nombre_operacion || 'Sin actividad';
+      if (!porOperador[op].acts[nomAct]) porOperador[op].acts[nomAct] = { cant: 0, def: 0 };
+      porOperador[op].acts[nomAct].cant += c.cantidad_producida;
+      porOperador[op].acts[nomAct].def += c.cantidad_defectuosa;
       if (c.maquina) porOperador[op].maquina = c.maquina;
     }
   });
@@ -2840,7 +2856,7 @@ async function cargarControlesHoy() {
   }
   document.getElementById('kpi-eficiencia').innerText = (effGlobal == null ? '-' : effGlobal + '%');
 
-  // ---- Resumen por operador ----
+  // ---- Resumen por operador (expandible por actividad) ----
   const tbodyOp = document.getElementById('resumen-operadores');
   tbodyOp.innerHTML = '';
   const emptyOp = document.getElementById('empty-operadores');
@@ -2850,14 +2866,34 @@ async function cargarControlesHoy() {
     const eff = (effOperadores[nombre] && effOperadores[nombre].meta > 0)
       ? Math.round(effOperadores[nombre].cant / effOperadores[nombre].meta * 100) + '%'
       : '-';
+    const nActs = Object.keys(v.acts).length;
+    const actsHtml = Object.entries(v.acts)
+      .sort((a, b) => b[1].cant - a[1].cant)
+      .map(([a, av]) => `
+        <tr>
+          <td>${a}</td>
+          <td class="text-accent">${av.cant.toLocaleString('es')}</td>
+          <td>${av.def}</td>
+        </tr>
+      `).join('');
     tbodyOp.innerHTML += `
-      <tr>
-        <td><strong>${nombre}</strong></td>
+      <tr class="op-fila" onclick="toggleDetalleOperador(this)" style="cursor:pointer;">
+        <td><span class="chevron">▶</span> <strong>${nombre}</strong></td>
         <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${v.maquina || '-'}</td>
-        <td>${v.acts.size}</td>
+        <td>${nActs}</td>
         <td class="text-accent">${v.cant.toLocaleString('es')}</td>
         <td><span class="badge ${v.def > 0 ? 'badge-machine' : 'badge-module'}">${v.def}</span></td>
         <td>${eff}</td>
+      </tr>
+      <tr class="op-detalle-fila" style="display:none;">
+        <td colspan="6">
+          <div style="padding:10px 16px; background:var(--bg-deep); border-radius:6px;">
+            <table class="data-table">
+              <thead><tr><th>Actividad</th><th>Unidades</th><th>Defect.</th></tr></thead>
+              <tbody>${actsHtml}</tbody>
+            </table>
+          </div>
+        </td>
       </tr>
     `;
   });

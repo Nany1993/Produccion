@@ -1012,28 +1012,6 @@
 
                         <div class="catalog-card" style="margin-bottom:16px;">
                             <div class="ref-header">
-                                <h2 class="form-title" style="margin:0;">Resumen por Operador</h2>
-                            </div>
-                            <div class="table-container">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>OPERADOR</th>
-                                            <th>MÁQUINA</th>
-                                            <th>ACTIVIDADES</th>
-                                            <th>UNIDADES</th>
-                                            <th>DEFECT.</th>
-                                            <th>EFIC.</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="resumen-operadores"></tbody>
-                                </table>
-                                <div id="empty-operadores" class="empty-state" style="display:none;">No hay registros con operador asignado en el período.</div>
-                            </div>
-                        </div>
-
-                        <div class="catalog-card" style="margin-bottom:16px;">
-                            <div class="ref-header">
                                 <h2 class="form-title" style="margin:0;">Resumen por Línea</h2>
                             </div>
                             <div class="table-container">
@@ -1051,6 +1029,26 @@
                                 </table>
                             </div>
                         </div>
+
+                        <details class="accordion" id="det-resumen-operadores" style="margin-bottom:16px;">
+                            <summary style="cursor:pointer; font-weight:600;">Resumen por Operador — clic para expandir</summary>
+                            <div class="table-container" style="margin-top:10px;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>OPERADOR</th>
+                                            <th>MÁQUINA</th>
+                                            <th>ACTIVIDADES</th>
+                                            <th>UNIDADES</th>
+                                            <th>DEFECT.</th>
+                                            <th>EFIC.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resumen-operadores"></tbody>
+                                </table>
+                                <div id="empty-operadores" class="empty-state" style="display:none;">No hay registros con operador asignado en el período.</div>
+                            </div>
+                        </details>
 
                         <div class="catalog-card" style="margin-bottom:16px;">
                             <div class="ref-header">
