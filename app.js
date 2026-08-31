@@ -2755,215 +2755,126 @@ function abrirCalendarioFecha(input) {
   }
 }
 
-function toggleDetalleOperador(tr) {
-  const detalle = tr.nextElementSibling;
-  if (!detalle || !detalle.classList.contains('op-detalle-fila')) return;
+function toggleHijos(tr) {
+  const idx = tr.dataset.idx;
+  if (!idx) return;
+  let selector = '';
+  if (tr.classList.contains('nivel-ref')) selector = `tr.nivel-ord[data-padre="${idx}"]`;
+  else if (tr.classList.contains('nivel-ord')) selector = `tr.nivel-linea[data-padre="${idx}"]`;
+  else if (tr.classList.contains('nivel-linea')) selector = `tr.nivel-op[data-padre="${idx}"]`;
+  else return;
+  const hijos = document.querySelectorAll(`#resumen-arbol ${selector}`);
   const chevron = tr.querySelector('.chevron');
-  if (detalle.style.display === 'none') {
-    detalle.style.display = 'table-row';
-    if (chevron) chevron.textContent = '▼';
-  } else {
-    detalle.style.display = 'none';
-    if (chevron) chevron.textContent = '▶';
-  }
+  const estanOcultos = [...hijos].every(h => h.style.display === 'none');
+  hijos.forEach(h => h.style.display = estanOcultos ? 'table-row' : 'none');
+  if (chevron) chevron.textContent = estanOcultos ? '▼' : '▶';
 }
 
 async function initProduccionDia() {
-  // Preselección: hoy, o la última fecha con registros si hoy está vacío
-  const fechas = await api('/api/produccion/fechas');
-  const hoy = new Date().toISOString().split('T')[0];
-  const desdeSel = document.getElementById('prod-dia-desde');
-  const hastaSel = document.getElementById('prod-dia-hasta');
-  if (fechas && fechas.length > 0 && !fechas.includes(hoy)) {
-    if (desdeSel) desdeSel.value = fechas[0];
-    if (hastaSel) hastaSel.value = fechas[0];
-  } else {
-    if (desdeSel && !desdeSel.value) desdeSel.valueAsDate = new Date();
-    if (hastaSel && !hastaSel.value) hastaSel.valueAsDate = new Date();
-  }
   cargarControlesHoy();
 }
 
 async function cargarControlesHoy() {
-  const desdeSel = document.getElementById('prod-dia-desde');
-  const hastaSel = document.getElementById('prod-dia-hasta');
-  if (desdeSel && !desdeSel.value) desdeSel.valueAsDate = new Date();
-  if (hastaSel && !hastaSel.value) hastaSel.valueAsDate = new Date();
-  const desde = desdeSel ? desdeSel.value : new Date().toISOString().split('T')[0];
-  const hasta = hastaSel ? hastaSel.value : desde;
+  const hoy = new Date().toISOString().split('T')[0];
   // El Admin ve toda la planta; supervisores/operadores solo sus registros
   const usr = (sesionActual && sesionActual.rol === 'Admin') ? '' : (sesionActual ? `&id_usuario=${sesionActual.id}` : '');
-  const data = await api(`/api/produccion/dia?desde=${desde}&hasta=${hasta}${usr}`);
+  const data = await api(`/api/produccion/dia?desde=${hoy}&hasta=${hoy}${usr}`);
   if (!data) return;
 
-  const reporteBox = document.getElementById('reporte-produccion');
+  // Filtros de referencia y lote (opcionales)
+  const selRef = document.getElementById('prod-dia-ref');
+  const selLote = document.getElementById('prod-dia-lote');
+  const refSeleccionada = selRef.value;
+  const loteSeleccionado = selLote.value;
+  const refsPresentes = [...new Set(data.map(c => c.referencia).filter(Boolean))].sort();
+  const lotesPresentes = [...new Set(data.map(c => c.orden).filter(Boolean))].sort();
+  selRef.innerHTML = '<option value="">Todas</option>' + refsPresentes.map(r => `<option value="${r}">${r}</option>`).join('');
+  selLote.innerHTML = '<option value="">Todos</option>' + lotesPresentes.map(l => `<option value="${l}">${l}</option>`).join('');
+  if (refsPresentes.includes(refSeleccionada)) selRef.value = refSeleccionada;
+  if (lotesPresentes.includes(loteSeleccionado)) selLote.value = loteSeleccionado;
+
+  let filtrados = data;
+  if (selRef.value) filtrados = filtrados.filter(c => c.referencia === selRef.value);
+  if (selLote.value) filtrados = filtrados.filter(c => c.orden === selLote.value);
+
   const empty = document.getElementById('empty-controles');
-  reporteBox.style.display = data.length === 0 ? 'none' : 'block';
-  empty.style.display = data.length === 0 ? 'block' : 'none';
-  if (data.length === 0) return;
+  empty.style.display = filtrados.length === 0 ? 'block' : 'none';
 
-  // ---- Agregaciones ----
-  let totUnidades = 0, totDefectos = 0;
-  const porOperador = {};
-  const porLinea = {};
-  const porDia = {};
-  data.forEach(c => {
-    totUnidades += c.cantidad_producida || 0;
-    totDefectos += c.cantidad_defectuosa || 0;
-
+  // Agrupar jerárquico: referencia -> lote -> linea -> operador
+  const arbol = {};
+  filtrados.forEach(c => {
+    const ref = c.referencia || 'Sin referencia';
+    const ord = c.orden || 'Sin lote';
     const linea = c.modulo || 'Sin línea';
-    if (!porLinea[linea]) porLinea[linea] = { reg: 0, cant: 0, def: 0 };
-    porLinea[linea].reg++; porLinea[linea].cant += c.cantidad_producida; porLinea[linea].def += c.cantidad_defectuosa;
-
-    const dia = c.fecha;
-    if (!porDia[dia]) porDia[dia] = { reg: 0, cant: 0, def: 0 };
-    porDia[dia].reg++; porDia[dia].cant += c.cantidad_producida; porDia[dia].def += c.cantidad_defectuosa;
-
-    if (c.id_operador) {
-      const op = c.nombre_operador || 'Sin nombre';
-      if (!porOperador[op]) porOperador[op] = { cant: 0, def: 0, acts: {}, maquina: c.maquina };
-      porOperador[op].cant += c.cantidad_producida;
-      porOperador[op].def += c.cantidad_defectuosa;
-      const nomAct = c.nombre_operacion || 'Sin actividad';
-      if (!porOperador[op].acts[nomAct]) porOperador[op].acts[nomAct] = { cant: 0, def: 0 };
-      porOperador[op].acts[nomAct].cant += c.cantidad_producida;
-      porOperador[op].acts[nomAct].def += c.cantidad_defectuosa;
-      if (c.maquina) porOperador[op].maquina = c.maquina;
+    const op = c.nombre_operador || c.usuario || 'Sin asignar';
+    if (!arbol[ref]) arbol[ref] = { ordenes: {} };
+    if (!arbol[ref].ordenes[ord]) arbol[ref].ordenes[ord] = { lineas: {} };
+    if (!arbol[ref].ordenes[ord].lineas[linea]) arbol[ref].ordenes[ord].lineas[linea] = { operadores: {} };
+    if (!arbol[ref].ordenes[ord].lineas[linea].operadores[op]) {
+      arbol[ref].ordenes[ord].lineas[linea].operadores[op] = { cant: 0, def: 0, maquina: c.maquina || '' };
     }
+    const opd = arbol[ref].ordenes[ord].lineas[linea].operadores[op];
+    opd.cant += c.cantidad_producida || 0;
+    opd.def += c.cantidad_defectuosa || 0;
   });
 
-  // ---- KPIs ----
-  document.getElementById('kpi-unidades').innerText = totUnidades.toLocaleString('es');
-  document.getElementById('kpi-defectos').innerText = totDefectos.toLocaleString('es');
-  const calidad = totUnidades > 0 ? Math.round(((totUnidades - totDefectos) / totUnidades) * 100) : 0;
-  document.getElementById('kpi-calidad').innerText = calidad + '%';
-
-  let effGlobal = null;
-  const effOperadores = {};
-  const effData = await api(`/api/reportes/eficiencia?fecha_inicio=${desde}&fecha_fin=${hasta}`);
-  if (effData && effData.reporte) {
-    let cTotal = 0, mTotal = 0;
-    effData.reporte.forEach(d => {
-      cTotal += d.total_planta.cantidad || 0;
-      mTotal += d.total_planta.meta || 0;
-      Object.entries(d.datos_operadores || {}).forEach(([nombre, v]) => {
-        if (!effOperadores[nombre]) effOperadores[nombre] = { cant: 0, meta: 0 };
-        effOperadores[nombre].cant += v.cantidad || 0;
-        effOperadores[nombre].meta += v.meta || 0;
-      });
-    });
-    if (mTotal > 0) effGlobal = Math.round(cTotal / mTotal * 100);
-  }
-  document.getElementById('kpi-eficiencia').innerText = (effGlobal == null ? '-' : effGlobal + '%');
-
-  // ---- Resumen por operador (expandible por actividad) ----
-  const tbodyOp = document.getElementById('resumen-operadores');
-  tbodyOp.innerHTML = '';
-  const emptyOp = document.getElementById('empty-operadores');
-  const ops = Object.entries(porOperador).sort((a, b) => b[1].cant - a[1].cant);
-  emptyOp.style.display = ops.length === 0 ? 'block' : 'none';
-  ops.forEach(([nombre, v]) => {
-    const eff = (effOperadores[nombre] && effOperadores[nombre].meta > 0)
-      ? Math.round(effOperadores[nombre].cant / effOperadores[nombre].meta * 100) + '%'
-      : '-';
-    const nActs = Object.keys(v.acts).length;
-    const actsHtml = Object.entries(v.acts)
-      .sort((a, b) => b[1].cant - a[1].cant)
-      .map(([a, av]) => `
-        <tr>
-          <td>${a}</td>
-          <td class="text-accent">${av.cant.toLocaleString('es')}</td>
-          <td>${av.def}</td>
-        </tr>
-      `).join('');
-    tbodyOp.innerHTML += `
-      <tr class="op-fila" onclick="toggleDetalleOperador(this)" style="cursor:pointer;">
-        <td><span class="chevron">▶</span> <strong>${nombre}</strong></td>
-        <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${v.maquina || '-'}</td>
-        <td>${nActs}</td>
-        <td class="text-accent">${v.cant.toLocaleString('es')}</td>
-        <td><span class="badge ${v.def > 0 ? 'badge-machine' : 'badge-module'}">${v.def}</span></td>
-        <td>${eff}</td>
-      </tr>
-      <tr class="op-detalle-fila" style="display:none;">
-        <td colspan="6">
-          <div style="padding:10px 16px; background:var(--bg-deep); border-radius:6px;">
-            <table class="data-table">
-              <thead><tr><th>Actividad</th><th>Unidades</th><th>Defect.</th></tr></thead>
-              <tbody>${actsHtml}</tbody>
-            </table>
-          </div>
-        </td>
-      </tr>
-    `;
-  });
-
-  // ---- Resumen por línea ----
-  const tbodyL = document.getElementById('resumen-lineas');
-  tbodyL.innerHTML = '';
-  Object.entries(porLinea).sort((a, b) => b[1].cant - a[1].cant).forEach(([linea, v]) => {
-    const cal = v.cant > 0 ? Math.round(((v.cant - v.def) / v.cant) * 100) : 0;
-    tbodyL.innerHTML += `
-      <tr>
-        <td><strong>${linea}</strong></td>
-        <td>${v.reg}</td>
-        <td class="text-accent">${v.cant.toLocaleString('es')}</td>
-        <td>${v.def}</td>
-        <td>${cal}%</td>
-      </tr>
-    `;
-  });
-
-  // ---- Evolución diaria ----
-  const tbodyD = document.getElementById('evolucion-dias');
-  tbodyD.innerHTML = '';
-  Object.entries(porDia).sort((a, b) => a[0].localeCompare(b[0])).forEach(([dia, v]) => {
-    tbodyD.innerHTML += `
-      <tr>
-        <td>${dia}</td>
-        <td>${v.reg}</td>
-        <td class="text-accent">${v.cant.toLocaleString('es')}</td>
-        <td>${v.def}</td>
-      </tr>
-    `;
-  });
-
-  // ---- Detalle de registros (colapsable) ----
-  const tbody = document.getElementById('lista-controles');
+  const tbody = document.getElementById('resumen-arbol');
   tbody.innerHTML = '';
-  data.forEach(c => {
-    const paradasTexto = (c.paradas || []).map(p => {
-      const n = p.parada_programada || p.causa;
-      let txt = n ? `${n} (${formatTime(p.tiempo)})` : null;
-      if (p.descripcion) txt += ` → ${p.descripcion}`;
-      return txt;
-    }).filter(Boolean).join(', ') || 'Sin paradas';
+  let idx = 0;
 
-    const defectClass = c.cantidad_defectuosa > 0 ? 'badge-machine' : 'badge-module';
-    const actividad = c.letra ? `<span class="badge badge-hour">${c.letra}</span> ${c.nombre_operacion || ''}` : '-';
-    const maquinaCell = c.maquina ? `<span title="${c.maquina}" style="font-size:0.72rem;color:var(--text-muted);">🔧 ${c.maquina}</span>` : '-';
-    let marca = c.hora_nombre || c.timestamp || c.fecha;
-    if (marca && !c.hora_nombre && marca.includes(' ')) marca = marca.split(' ')[1].substring(0, 5);
-    const badgeHora = c.hora_nombre ? 'badge-machine' : 'badge-hour';
+  const filaOp = (op, opd, padre) => {
     tbody.innerHTML += `
-      <tr>
-        <td><span class="badge ${badgeHora}">${marca}</span></td>
-        <td>
-          <strong>${c.nombre_operador || '—'}</strong>
-          ${c.nombre_operador ? '' : `<div class="op-detalle">${c.usuario || ''}</div>`}
-        </td>
-        <td>${c.modulo}<br>${maquinaCell}</td>
-        <td>${c.orden}</td>
-        <td>${actividad}</td>
-        <td class="text-accent">${c.cantidad_producida}</td>
-        <td><span class="badge ${defectClass}">${c.cantidad_defectuosa || 0}</span></td>
-        <td title="${paradasTexto}" style="max-width:140px;">${paradasTexto}</td>
-        <td class="action-buttons">
-          <button class="btn-icon btn-delete" onclick="eliminarControlHora(${c.id})">✕</button>
-        </td>
-      </tr>
-    `;
-  });
+      <tr class="nivel-op" data-padre="${padre}" style="display:none;">
+        <td style="padding-left:104px;">${op}</td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${opd.maquina || '-'}</td>
+        <td class="text-accent">${opd.cant.toLocaleString('es')}</td>
+        <td>${opd.def}</td>
+      </tr>`;
+  };
+  const filaLinea = (linea, l, padre) => {
+    idx++;
+    const miIdx = idx;
+    const totCant = Object.values(l.operadores).reduce((s, o) => s + o.cant, 0);
+    const totDef = Object.values(l.operadores).reduce((s, o) => s + o.def, 0);
+    tbody.innerHTML += `
+      <tr class="nivel-linea" data-idx="${miIdx}" data-padre="${padre}" onclick="toggleHijos(this)" style="display:none;">
+        <td style="padding-left:72px;"><span class="chevron">▶</span> ${linea}</td>
+        <td class="tipo-fila">Línea</td>
+        <td class="text-accent">${totCant.toLocaleString('es')}</td>
+        <td>${totDef}</td>
+      </tr>`;
+    Object.entries(l.operadores).sort((a, b) => b[1].cant - a[1].cant).forEach(([op, opd]) => filaOp(op, opd, miIdx));
+  };
+  const filaOrden = (ord, o, padre) => {
+    idx++;
+    const miIdx = idx;
+    const totCant = Object.values(o.lineas).reduce((s, ln) => s + Object.values(ln.operadores).reduce((ss, opd) => ss + opd.cant, 0), 0);
+    const totDef = Object.values(o.lineas).reduce((s, ln) => s + Object.values(ln.operadores).reduce((ss, opd) => ss + opd.def, 0), 0);
+    tbody.innerHTML += `
+      <tr class="nivel-ord" data-idx="${miIdx}" data-padre="${padre}" onclick="toggleHijos(this)" style="display:none;">
+        <td style="padding-left:44px;"><span class="chevron">▶</span> ${ord}</td>
+        <td class="tipo-fila">Lote</td>
+        <td class="text-accent">${totCant.toLocaleString('es')}</td>
+        <td>${totDef}</td>
+      </tr>`;
+    Object.entries(o.lineas).forEach(([linea, l]) => filaLinea(linea, l, miIdx));
+  };
+  const filaRef = (ref, r) => {
+    idx++;
+    const miIdx = idx;
+    const totCant = Object.values(r.ordenes).reduce((s, o) => s + Object.values(o.lineas).reduce((ss, ln) => ss + Object.values(ln.operadores).reduce((sss, opd) => sss + opd.cant, 0), 0), 0);
+    const totDef = Object.values(r.ordenes).reduce((s, o) => s + Object.values(o.lineas).reduce((ss, ln) => ss + Object.values(ln.operadores).reduce((sss, opd) => sss + opd.def, 0), 0), 0);
+    tbody.innerHTML += `
+      <tr class="nivel-ref" data-idx="${miIdx}" onclick="toggleHijos(this)">
+        <td><span class="chevron">▶</span> <strong>${ref}</strong></td>
+        <td class="tipo-fila">Referencia</td>
+        <td class="text-accent">${totCant.toLocaleString('es')}</td>
+        <td>${totDef}</td>
+      </tr>`;
+    Object.entries(r.ordenes).forEach(([ord, o]) => filaOrden(ord, o, miIdx));
+  };
+
+  Object.entries(arbol).forEach(([ref, r]) => filaRef(ref, r));
 }
 
 async function eliminarControlHora(id) {

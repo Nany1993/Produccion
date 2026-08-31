@@ -1555,9 +1555,7 @@ select:disabled {
     margin-bottom: 15px;
 }
 
-#ctrl-fecha::-webkit-calendar-picker-indicator,
-#prod-dia-desde::-webkit-calendar-picker-indicator,
-#prod-dia-hasta::-webkit-calendar-picker-indicator {
+#ctrl-fecha::-webkit-calendar-picker-indicator {
     filter: invert(1);
     cursor: pointer;
 }
