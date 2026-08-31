@@ -975,7 +975,7 @@
                 <div id="mod-produccion-dia" class="module-section">
                     <div class="page-header">
                         <h1 class="page-title">Producción del Día</h1>
-                        <p class="page-subtitle">Resumen de lo registrado hoy: Referencia → Lote → Línea → Operador</p>
+                        <p class="page-subtitle">Cumplimiento por lote de lo registrado hoy, con detalle por operador y actividad</p>
                     </div>
 
                     <div class="report-controls">
@@ -997,13 +997,15 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th></th>
-                                    <th>DETALLE</th>
-                                    <th>COMPLETAS</th>
-                                    <th>DEFECT.</th>
+                                    <th>REFERENCIA</th>
+                                    <th>LOTE</th>
+                                    <th>CANT. LOTE</th>
+                                    <th>TERMINADAS</th>
+                                    <th>% CUMPL.</th>
+                                    <th>ACCIÓN</th>
                                 </tr>
                             </thead>
-                            <tbody id="resumen-arbol"></tbody>
+                            <tbody id="resumen-lotes"></tbody>
                         </table>
                         <div id="empty-controles" class="empty-state" style="display:none;">No hay registros para hoy.</div>
                     </div>

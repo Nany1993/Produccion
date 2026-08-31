@@ -2755,21 +2755,6 @@ function abrirCalendarioFecha(input) {
   }
 }
 
-function toggleHijos(tr) {
-  const idx = tr.dataset.idx;
-  if (!idx) return;
-  let selector = '';
-  if (tr.classList.contains('nivel-ref')) selector = `tr.nivel-ord[data-padre="${idx}"]`;
-  else if (tr.classList.contains('nivel-ord')) selector = `tr.nivel-linea[data-padre="${idx}"]`;
-  else if (tr.classList.contains('nivel-linea')) selector = `tr.nivel-op[data-padre="${idx}"]`;
-  else return;
-  const hijos = document.querySelectorAll(`#resumen-arbol ${selector}`);
-  const chevron = tr.querySelector('.chevron');
-  const estanOcultos = [...hijos].every(h => h.style.display === 'none');
-  hijos.forEach(h => h.style.display = estanOcultos ? 'table-row' : 'none');
-  if (chevron) chevron.textContent = estanOcultos ? '▼' : '▶';
-}
-
 async function initProduccionDia() {
   cargarControlesHoy();
 }
@@ -2780,6 +2765,9 @@ async function cargarControlesHoy() {
   const usr = (sesionActual && sesionActual.rol === 'Admin') ? '' : (sesionActual ? `&id_usuario=${sesionActual.id}` : '');
   const data = await api(`/api/produccion/dia?desde=${hoy}&hasta=${hoy}${usr}`);
   if (!data) return;
+
+  // Guardar registros del día para el detalle por lote
+  window.registrosDia = data;
 
   // Filtros de referencia y lote (opcionales)
   const selRef = document.getElementById('prod-dia-ref');
@@ -2796,93 +2784,88 @@ async function cargarControlesHoy() {
   let filtrados = data;
   if (selRef.value) filtrados = filtrados.filter(c => c.referencia === selRef.value);
   if (selLote.value) filtrados = filtrados.filter(c => c.orden === selLote.value);
+  window.registrosDiaFiltrados = filtrados;
 
   const empty = document.getElementById('empty-controles');
   empty.style.display = filtrados.length === 0 ? 'block' : 'none';
 
-  // Gorras completas por orden (mínimo entre actividades) para los niveles Lote/Referencia
-  const completasPorOrden = {};
+  // Cumplimiento por lote: cantidad lote y terminadas (gorras completas)
+  const progresos = {};
   const idsOrden = [...new Set(filtrados.map(c => c.id_orden).filter(Boolean))];
   await Promise.all(idsOrden.map(async id => {
     const p = await api(`/api/progreso/${id}`);
-    if (p) completasPorOrden[id] = p.unidades_completas || 0;
+    if (p) progresos[id] = p;
   }));
 
-  // Agrupar jerárquico: referencia -> lote -> linea -> operador
-  const arbol = {};
+  const lotes = {};
   filtrados.forEach(c => {
     const ref = c.referencia || 'Sin referencia';
     const ord = c.orden || 'Sin lote';
-    const linea = c.modulo || 'Sin línea';
-    const op = c.nombre_operador || c.usuario || 'Sin asignar';
-    if (!arbol[ref]) arbol[ref] = { ordenes: {} };
-    if (!arbol[ref].ordenes[ord]) arbol[ref].ordenes[ord] = { lineas: {}, id_orden: c.id_orden };
-    if (!arbol[ref].ordenes[ord].lineas[linea]) arbol[ref].ordenes[ord].lineas[linea] = { operadores: {} };
-    if (!arbol[ref].ordenes[ord].lineas[linea].operadores[op]) {
-      arbol[ref].ordenes[ord].lineas[linea].operadores[op] = { cant: 0, def: 0, maquina: c.maquina || '' };
-    }
-    const opd = arbol[ref].ordenes[ord].lineas[linea].operadores[op];
-    opd.cant += c.cantidad_producida || 0;
-    opd.def += c.cantidad_defectuosa || 0;
+    const key = ref + '|' + ord;
+    if (!lotes[key]) lotes[key] = { ref, ord, id_orden: c.id_orden };
   });
 
-  const tbody = document.getElementById('resumen-arbol');
+  const tbody = document.getElementById('resumen-lotes');
   tbody.innerHTML = '';
-  let idx = 0;
+  Object.values(lotes).forEach(l => {
+    const p = progresos[l.id_orden];
+    const cantidadLote = p ? (p.cantidad_lote || 0) : 0;
+    const terminadas = p ? (p.unidades_completas || 0) : 0;
+    const pct = cantidadLote > 0 ? Math.round(terminadas / cantidadLote * 100) : 0;
+    const pctClass = pct >= 90 ? 'badge-module' : (pct >= 70 ? 'badge-hour' : 'badge-machine');
+    tbody.innerHTML += `
+      <tr>
+        <td><strong>${l.ref}</strong></td>
+        <td>${l.ord}</td>
+        <td>${cantidadLote.toLocaleString('es')}</td>
+        <td class="text-accent" title="Gorras completas (mínimo entre actividades)">${terminadas.toLocaleString('es')}</td>
+        <td><span class="badge ${pctClass}">${pct}%</span></td>
+        <td><button class="btn-primary" style="width:auto; padding:6px 12px; font-size:0.8rem;" onclick="verDetalleLote(${l.id_orden}, '${l.ord.replace(/'/g, "\\'")}')">Ver detalle</button></td>
+      </tr>
+    `;
+  });
+}
 
-  const filaOp = (op, opd, padre) => {
-    tbody.innerHTML += `
-      <tr class="nivel-op" data-padre="${padre}" style="display:none;">
-        <td style="padding-left:104px;">${op}</td>
-        <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${opd.maquina || '-'}</td>
-        <td class="text-accent" title="Unidades producidas hoy">${opd.cant.toLocaleString('es')}</td>
-        <td>${opd.def}</td>
-      </tr>`;
-  };
-  const filaLinea = (linea, l, padre) => {
-    idx++;
-    const miIdx = idx;
-    const totCant = Object.values(l.operadores).reduce((s, o) => s + o.cant, 0);
-    const totDef = Object.values(l.operadores).reduce((s, o) => s + o.def, 0);
-    tbody.innerHTML += `
-      <tr class="nivel-linea" data-idx="${miIdx}" data-padre="${padre}" onclick="toggleHijos(this)" style="display:none;">
-        <td style="padding-left:72px;"><span class="chevron">▶</span> ${linea}</td>
-        <td class="tipo-fila">Línea</td>
-        <td class="text-accent" title="Unidades producidas hoy">${totCant.toLocaleString('es')}</td>
-        <td>${totDef}</td>
-      </tr>`;
-    Object.entries(l.operadores).sort((a, b) => b[1].cant - a[1].cant).forEach(([op, opd]) => filaOp(op, opd, miIdx));
-  };
-  const filaOrden = (ord, o, padre) => {
-    idx++;
-    const miIdx = idx;
-    const completas = completasPorOrden[o.id_orden] || 0;
-    const totDef = Object.values(o.lineas).reduce((s, ln) => s + Object.values(ln.operadores).reduce((ss, opd) => ss + opd.def, 0), 0);
-    tbody.innerHTML += `
-      <tr class="nivel-ord" data-idx="${miIdx}" data-padre="${padre}" onclick="toggleHijos(this)" style="display:none;">
-        <td style="padding-left:44px;"><span class="chevron">▶</span> ${ord}</td>
-        <td class="tipo-fila">Lote</td>
-        <td class="text-accent" title="Gorras completas (mínimo entre actividades)">${completas.toLocaleString('es')}</td>
-        <td>${totDef}</td>
-      </tr>`;
-    Object.entries(o.lineas).forEach(([linea, l]) => filaLinea(linea, l, miIdx));
-  };
-  const filaRef = (ref, r) => {
-    idx++;
-    const miIdx = idx;
-    const totCompletas = Object.values(r.ordenes).reduce((s, o) => s + (completasPorOrden[o.id_orden] || 0), 0);
-    const totDef = Object.values(r.ordenes).reduce((s, o) => s + Object.values(o.lineas).reduce((ss, ln) => ss + Object.values(ln.operadores).reduce((sss, opd) => sss + opd.def, 0), 0), 0);
-    tbody.innerHTML += `
-      <tr class="nivel-ref" data-idx="${miIdx}" onclick="toggleHijos(this)">
-        <td><span class="chevron">▶</span> <strong>${ref}</strong></td>
-        <td class="tipo-fila">Referencia</td>
-        <td class="text-accent" title="Gorras completas (mínimo entre actividades)">${totCompletas.toLocaleString('es')}</td>
-        <td>${totDef}</td>
-      </tr>`;
-    Object.entries(r.ordenes).forEach(([ord, o]) => filaOrden(ord, o, miIdx));
-  };
-
-  Object.entries(arbol).forEach(([ref, r]) => filaRef(ref, r));
+function verDetalleLote(idOrden, nombreOrden) {
+  const registros = (window.registrosDiaFiltrados || window.registrosDia || []).filter(c => c.id_orden === idOrden);
+  if (registros.length === 0) { Toast.warning('No hay registros del día para este lote'); return; }
+  const filas = registros.map(c => {
+    const paradasTexto = (c.paradas || []).map(p => p.parada_programada || p.causa).filter(Boolean).join(', ') || 'Sin paradas';
+    const actividad = c.letra ? `${c.letra} - ${c.nombre_operacion || ''}` : (c.nombre_operacion || '-');
+    return `
+      <tr>
+        <td><strong>${c.nombre_operador || '—'}</strong></td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${c.maquina || '-'}</td>
+        <td>${actividad}</td>
+        <td class="text-accent">${c.cantidad_producida}</td>
+        <td>${c.cantidad_defectuosa || 0}</td>
+        <td style="max-width:140px;">${paradasTexto}</td>
+      </tr>
+    `;
+  }).join('');
+  ContentModal.abrir({
+    title: `Detalle: ${nombreOrden}`,
+    body: `
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>OPERADOR</th>
+              <th>MÁQUINA</th>
+              <th>ACTIVIDAD</th>
+              <th>CANT.</th>
+              <th>DEFECT.</th>
+              <th>PARADAS</th>
+            </tr>
+          </thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+      <div class="content-modal-actions">
+        <button class="btn-secondary" onclick="ContentModal.cerrar()">Cerrar</button>
+      </div>
+    `
+  });
 }
 
 async function eliminarControlHora(id) {
