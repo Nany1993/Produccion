@@ -2760,10 +2760,15 @@ async function initProduccionDia() {
 }
 
 async function cargarControlesHoy() {
-  const hoy = new Date().toISOString().split('T')[0];
+  const desdeSel = document.getElementById('prod-dia-desde');
+  const hastaSel = document.getElementById('prod-dia-hasta');
+  if (desdeSel && !desdeSel.value) desdeSel.valueAsDate = new Date();
+  if (hastaSel && !hastaSel.value) hastaSel.valueAsDate = new Date();
+  const desde = desdeSel ? desdeSel.value : new Date().toISOString().split('T')[0];
+  const hasta = hastaSel ? hastaSel.value : desde;
   // El Admin ve toda la planta; supervisores/operadores solo sus registros
   const usr = (sesionActual && sesionActual.rol === 'Admin') ? '' : (sesionActual ? `&id_usuario=${sesionActual.id}` : '');
-  const data = await api(`/api/produccion/dia?desde=${hoy}&hasta=${hoy}${usr}`);
+  const data = await api(`/api/produccion/dia?desde=${desde}&hasta=${hasta}${usr}`);
   if (!data) return;
 
   // Guardar registros del día para el detalle por lote

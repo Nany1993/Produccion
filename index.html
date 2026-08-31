@@ -975,10 +975,18 @@
                 <div id="mod-produccion-dia" class="module-section">
                     <div class="page-header">
                         <h1 class="page-title">Producción del Día</h1>
-                        <p class="page-subtitle">Cumplimiento por lote de lo registrado hoy, con detalle por operador y actividad</p>
+                        <p class="page-subtitle">Cumplimiento por lote del período seleccionado, con detalle por operador y actividad</p>
                     </div>
 
                     <div class="report-controls">
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Desde</label>
+                            <input type="date" id="prod-dia-desde" onclick="abrirCalendarioFecha(this)" onchange="cargarControlesHoy()" style="margin-bottom:0;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0; flex:1;">
+                            <label>Hasta</label>
+                            <input type="date" id="prod-dia-hasta" onclick="abrirCalendarioFecha(this)" onchange="cargarControlesHoy()" style="margin-bottom:0;">
+                        </div>
                         <div class="form-group" style="margin-bottom:0; flex:1;">
                             <label>Referencia</label>
                             <select id="prod-dia-ref" onchange="cargarControlesHoy()">
