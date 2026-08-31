@@ -975,7 +975,7 @@
                 <div id="mod-produccion-dia" class="module-section">
                     <div class="page-header">
                         <h1 class="page-title">Producción del Día</h1>
-                        <p class="page-subtitle">Registros de producción por operador, con paradas</p>
+                        <p class="page-subtitle">Reporte de producción: resumen por operador, línea y evolución diaria</p>
                     </div>
 
                     <div class="report-controls">
@@ -989,25 +989,112 @@
                         </div>
                     </div>
 
-                    <div class="report-table-container" id="container-lista-controles">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>HORA REG.</th>
-                                    <th>OPERADOR</th>
-                                    <th>MOD.</th>
-                                    <th>ORDEN</th>
-                                    <th>ACT.</th>
-                                    <th>CANT.</th>
-                                    <th>DEFECT.</th>
-                                    <th>PARADAS</th>
-                                    <th>ACC.</th>
-                                </tr>
-                            </thead>
-                            <tbody id="lista-controles"></tbody>
-                        </table>
-                        <div id="empty-controles" class="empty-state" style="display: none;">No hay registros para esta fecha.</div>
+                    <div id="reporte-produccion" style="display:none;">
+
+                        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px;">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Unidades</div>
+                                <div class="kpi-value" id="kpi-unidades">0</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Defectuosas</div>
+                                <div class="kpi-value" id="kpi-defectos">0</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Calidad</div>
+                                <div class="kpi-value" id="kpi-calidad">0%</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Eficiencia</div>
+                                <div class="kpi-value" id="kpi-eficiencia">0%</div>
+                            </div>
+                        </div>
+
+                        <div class="catalog-card" style="margin-bottom:16px;">
+                            <div class="ref-header">
+                                <h2 class="form-title" style="margin:0;">Resumen por Operador</h2>
+                            </div>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>OPERADOR</th>
+                                            <th>MÁQUINA</th>
+                                            <th>ACTIVIDADES</th>
+                                            <th>UNIDADES</th>
+                                            <th>DEFECT.</th>
+                                            <th>EFIC.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resumen-operadores"></tbody>
+                                </table>
+                                <div id="empty-operadores" class="empty-state" style="display:none;">No hay registros con operador asignado en el período.</div>
+                            </div>
+                        </div>
+
+                        <div class="catalog-card" style="margin-bottom:16px;">
+                            <div class="ref-header">
+                                <h2 class="form-title" style="margin:0;">Resumen por Línea</h2>
+                            </div>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>LÍNEA</th>
+                                            <th>REGISTROS</th>
+                                            <th>UNIDADES</th>
+                                            <th>DEFECT.</th>
+                                            <th>CALIDAD</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resumen-lineas"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="catalog-card" style="margin-bottom:16px;">
+                            <div class="ref-header">
+                                <h2 class="form-title" style="margin:0;">Evolución Diaria</h2>
+                            </div>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>FECHA</th>
+                                            <th>REGISTROS</th>
+                                            <th>UNIDADES</th>
+                                            <th>DEFECT.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="evolucion-dias"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <details class="accordion" style="margin-top:6px;">
+                            <summary style="cursor:pointer; font-weight:600;">Detalle de registros</summary>
+                            <div class="report-table-container" id="container-lista-controles" style="margin-top:10px;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>HORA REG.</th>
+                                            <th>OPERADOR</th>
+                                            <th>MOD.</th>
+                                            <th>ORDEN</th>
+                                            <th>ACT.</th>
+                                            <th>CANT.</th>
+                                            <th>DEFECT.</th>
+                                            <th>PARADAS</th>
+                                            <th>ACC.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lista-controles"></tbody>
+                                </table>
+                            </div>
+                        </details>
                     </div>
+
+                    <div id="empty-controles" class="empty-state" style="display: none;">No hay registros en el rango seleccionado.</div>
                 </div>
 
                 <!-- SIMULADOR -->

@@ -2783,12 +2783,119 @@ async function cargarControlesHoy() {
   const data = await api(`/api/produccion/dia?desde=${desde}&hasta=${hasta}${usr}`);
   if (!data) return;
 
+  const reporteBox = document.getElementById('reporte-produccion');
+  const empty = document.getElementById('empty-controles');
+  reporteBox.style.display = data.length === 0 ? 'none' : 'block';
+  empty.style.display = data.length === 0 ? 'block' : 'none';
+  if (data.length === 0) return;
+
+  // ---- Agregaciones ----
+  let totUnidades = 0, totDefectos = 0;
+  const porOperador = {};
+  const porLinea = {};
+  const porDia = {};
+  data.forEach(c => {
+    totUnidades += c.cantidad_producida || 0;
+    totDefectos += c.cantidad_defectuosa || 0;
+
+    const linea = c.modulo || 'Sin línea';
+    if (!porLinea[linea]) porLinea[linea] = { reg: 0, cant: 0, def: 0 };
+    porLinea[linea].reg++; porLinea[linea].cant += c.cantidad_producida; porLinea[linea].def += c.cantidad_defectuosa;
+
+    const dia = c.fecha;
+    if (!porDia[dia]) porDia[dia] = { reg: 0, cant: 0, def: 0 };
+    porDia[dia].reg++; porDia[dia].cant += c.cantidad_producida; porDia[dia].def += c.cantidad_defectuosa;
+
+    if (c.id_operador) {
+      const op = c.nombre_operador || 'Sin nombre';
+      if (!porOperador[op]) porOperador[op] = { cant: 0, def: 0, acts: new Set(), maquina: c.maquina };
+      porOperador[op].cant += c.cantidad_producida;
+      porOperador[op].def += c.cantidad_defectuosa;
+      if (c.nombre_operacion) porOperador[op].acts.add(c.nombre_operacion);
+      if (c.maquina) porOperador[op].maquina = c.maquina;
+    }
+  });
+
+  // ---- KPIs ----
+  document.getElementById('kpi-unidades').innerText = totUnidades.toLocaleString('es');
+  document.getElementById('kpi-defectos').innerText = totDefectos.toLocaleString('es');
+  const calidad = totUnidades > 0 ? Math.round(((totUnidades - totDefectos) / totUnidades) * 100) : 0;
+  document.getElementById('kpi-calidad').innerText = calidad + '%';
+
+  let effGlobal = null;
+  const effOperadores = {};
+  const effData = await api(`/api/reportes/eficiencia?fecha_inicio=${desde}&fecha_fin=${hasta}`);
+  if (effData && effData.reporte) {
+    let cTotal = 0, mTotal = 0;
+    effData.reporte.forEach(d => {
+      cTotal += d.total_planta.cantidad || 0;
+      mTotal += d.total_planta.meta || 0;
+      Object.entries(d.datos_operadores || {}).forEach(([nombre, v]) => {
+        if (!effOperadores[nombre]) effOperadores[nombre] = { cant: 0, meta: 0 };
+        effOperadores[nombre].cant += v.cantidad || 0;
+        effOperadores[nombre].meta += v.meta || 0;
+      });
+    });
+    if (mTotal > 0) effGlobal = Math.round(cTotal / mTotal * 100);
+  }
+  document.getElementById('kpi-eficiencia').innerText = (effGlobal == null ? '-' : effGlobal + '%');
+
+  // ---- Resumen por operador ----
+  const tbodyOp = document.getElementById('resumen-operadores');
+  tbodyOp.innerHTML = '';
+  const emptyOp = document.getElementById('empty-operadores');
+  const ops = Object.entries(porOperador).sort((a, b) => b[1].cant - a[1].cant);
+  emptyOp.style.display = ops.length === 0 ? 'block' : 'none';
+  ops.forEach(([nombre, v]) => {
+    const eff = (effOperadores[nombre] && effOperadores[nombre].meta > 0)
+      ? Math.round(effOperadores[nombre].cant / effOperadores[nombre].meta * 100) + '%'
+      : '-';
+    tbodyOp.innerHTML += `
+      <tr>
+        <td><strong>${nombre}</strong></td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${v.maquina || '-'}</td>
+        <td>${v.acts.size}</td>
+        <td class="text-accent">${v.cant.toLocaleString('es')}</td>
+        <td><span class="badge ${v.def > 0 ? 'badge-machine' : 'badge-module'}">${v.def}</span></td>
+        <td>${eff}</td>
+      </tr>
+    `;
+  });
+
+  // ---- Resumen por línea ----
+  const tbodyL = document.getElementById('resumen-lineas');
+  tbodyL.innerHTML = '';
+  Object.entries(porLinea).sort((a, b) => b[1].cant - a[1].cant).forEach(([linea, v]) => {
+    const cal = v.cant > 0 ? Math.round(((v.cant - v.def) / v.cant) * 100) : 0;
+    tbodyL.innerHTML += `
+      <tr>
+        <td><strong>${linea}</strong></td>
+        <td>${v.reg}</td>
+        <td class="text-accent">${v.cant.toLocaleString('es')}</td>
+        <td>${v.def}</td>
+        <td>${cal}%</td>
+      </tr>
+    `;
+  });
+
+  // ---- Evolución diaria ----
+  const tbodyD = document.getElementById('evolucion-dias');
+  tbodyD.innerHTML = '';
+  Object.entries(porDia).sort((a, b) => a[0].localeCompare(b[0])).forEach(([dia, v]) => {
+    tbodyD.innerHTML += `
+      <tr>
+        <td>${dia}</td>
+        <td>${v.reg}</td>
+        <td class="text-accent">${v.cant.toLocaleString('es')}</td>
+        <td>${v.def}</td>
+      </tr>
+    `;
+  });
+
+  // ---- Detalle de registros (colapsable) ----
   const tbody = document.getElementById('lista-controles');
   tbody.innerHTML = '';
-  document.getElementById('empty-controles').style.display = data.length === 0 ? 'block' : 'none';
-
   data.forEach(c => {
-    // Paradas resumen
     const paradasTexto = (c.paradas || []).map(p => {
       const n = p.parada_programada || p.causa;
       let txt = n ? `${n} (${formatTime(p.tiempo)})` : null;
@@ -2799,8 +2906,6 @@ async function cargarControlesHoy() {
     const defectClass = c.cantidad_defectuosa > 0 ? 'badge-machine' : 'badge-module';
     const actividad = c.letra ? `<span class="badge badge-hour">${c.letra}</span> ${c.nombre_operacion || ''}` : '-';
     const maquinaCell = c.maquina ? `<span title="${c.maquina}" style="font-size:0.72rem;color:var(--text-muted);">🔧 ${c.maquina}</span>` : '-';
-    // Marca de tiempo real: si hay created_at muestro su hora, si no la fecha.
-    // Si el registro es POR HORA, muestro la hora del catálogo (ej: Hora 3) + marca.
     let marca = c.hora_nombre || c.timestamp || c.fecha;
     if (marca && !c.hora_nombre && marca.includes(' ')) marca = marca.split(' ')[1].substring(0, 5);
     const badgeHora = c.hora_nombre ? 'badge-machine' : 'badge-hour';
