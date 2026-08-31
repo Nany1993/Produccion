@@ -2800,6 +2800,14 @@ async function cargarControlesHoy() {
   const empty = document.getElementById('empty-controles');
   empty.style.display = filtrados.length === 0 ? 'block' : 'none';
 
+  // Gorras completas por orden (mínimo entre actividades) para los niveles Lote/Referencia
+  const completasPorOrden = {};
+  const idsOrden = [...new Set(filtrados.map(c => c.id_orden).filter(Boolean))];
+  await Promise.all(idsOrden.map(async id => {
+    const p = await api(`/api/progreso/${id}`);
+    if (p) completasPorOrden[id] = p.unidades_completas || 0;
+  }));
+
   // Agrupar jerárquico: referencia -> lote -> linea -> operador
   const arbol = {};
   filtrados.forEach(c => {
@@ -2808,7 +2816,7 @@ async function cargarControlesHoy() {
     const linea = c.modulo || 'Sin línea';
     const op = c.nombre_operador || c.usuario || 'Sin asignar';
     if (!arbol[ref]) arbol[ref] = { ordenes: {} };
-    if (!arbol[ref].ordenes[ord]) arbol[ref].ordenes[ord] = { lineas: {} };
+    if (!arbol[ref].ordenes[ord]) arbol[ref].ordenes[ord] = { lineas: {}, id_orden: c.id_orden };
     if (!arbol[ref].ordenes[ord].lineas[linea]) arbol[ref].ordenes[ord].lineas[linea] = { operadores: {} };
     if (!arbol[ref].ordenes[ord].lineas[linea].operadores[op]) {
       arbol[ref].ordenes[ord].lineas[linea].operadores[op] = { cant: 0, def: 0, maquina: c.maquina || '' };
@@ -2827,7 +2835,7 @@ async function cargarControlesHoy() {
       <tr class="nivel-op" data-padre="${padre}" style="display:none;">
         <td style="padding-left:104px;">${op}</td>
         <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${opd.maquina || '-'}</td>
-        <td class="text-accent">${opd.cant.toLocaleString('es')}</td>
+        <td class="text-accent" title="Unidades producidas hoy">${opd.cant.toLocaleString('es')}</td>
         <td>${opd.def}</td>
       </tr>`;
   };
@@ -2840,7 +2848,7 @@ async function cargarControlesHoy() {
       <tr class="nivel-linea" data-idx="${miIdx}" data-padre="${padre}" onclick="toggleHijos(this)" style="display:none;">
         <td style="padding-left:72px;"><span class="chevron">▶</span> ${linea}</td>
         <td class="tipo-fila">Línea</td>
-        <td class="text-accent">${totCant.toLocaleString('es')}</td>
+        <td class="text-accent" title="Unidades producidas hoy">${totCant.toLocaleString('es')}</td>
         <td>${totDef}</td>
       </tr>`;
     Object.entries(l.operadores).sort((a, b) => b[1].cant - a[1].cant).forEach(([op, opd]) => filaOp(op, opd, miIdx));
@@ -2848,13 +2856,13 @@ async function cargarControlesHoy() {
   const filaOrden = (ord, o, padre) => {
     idx++;
     const miIdx = idx;
-    const totCant = Object.values(o.lineas).reduce((s, ln) => s + Object.values(ln.operadores).reduce((ss, opd) => ss + opd.cant, 0), 0);
+    const completas = completasPorOrden[o.id_orden] || 0;
     const totDef = Object.values(o.lineas).reduce((s, ln) => s + Object.values(ln.operadores).reduce((ss, opd) => ss + opd.def, 0), 0);
     tbody.innerHTML += `
       <tr class="nivel-ord" data-idx="${miIdx}" data-padre="${padre}" onclick="toggleHijos(this)" style="display:none;">
         <td style="padding-left:44px;"><span class="chevron">▶</span> ${ord}</td>
         <td class="tipo-fila">Lote</td>
-        <td class="text-accent">${totCant.toLocaleString('es')}</td>
+        <td class="text-accent" title="Gorras completas (mínimo entre actividades)">${completas.toLocaleString('es')}</td>
         <td>${totDef}</td>
       </tr>`;
     Object.entries(o.lineas).forEach(([linea, l]) => filaLinea(linea, l, miIdx));
@@ -2862,13 +2870,13 @@ async function cargarControlesHoy() {
   const filaRef = (ref, r) => {
     idx++;
     const miIdx = idx;
-    const totCant = Object.values(r.ordenes).reduce((s, o) => s + Object.values(o.lineas).reduce((ss, ln) => ss + Object.values(ln.operadores).reduce((sss, opd) => sss + opd.cant, 0), 0), 0);
+    const totCompletas = Object.values(r.ordenes).reduce((s, o) => s + (completasPorOrden[o.id_orden] || 0), 0);
     const totDef = Object.values(r.ordenes).reduce((s, o) => s + Object.values(o.lineas).reduce((ss, ln) => ss + Object.values(ln.operadores).reduce((sss, opd) => sss + opd.def, 0), 0), 0);
     tbody.innerHTML += `
       <tr class="nivel-ref" data-idx="${miIdx}" onclick="toggleHijos(this)">
         <td><span class="chevron">▶</span> <strong>${ref}</strong></td>
         <td class="tipo-fila">Referencia</td>
-        <td class="text-accent">${totCant.toLocaleString('es')}</td>
+        <td class="text-accent" title="Gorras completas (mínimo entre actividades)">${totCompletas.toLocaleString('es')}</td>
         <td>${totDef}</td>
       </tr>`;
     Object.entries(r.ordenes).forEach(([ord, o]) => filaOrden(ord, o, miIdx));
