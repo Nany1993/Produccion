@@ -421,6 +421,10 @@ function showModule(moduleId) {
     cargarUsuarioModulosSupervisor();
   }
   if (moduleId === 'mod-causas') cargarCausas();
+  if (moduleId === 'mod-maquinaria') {
+    cargarMaquinaria();
+    cargarSelectMaquinaModulo();
+  }
   if (moduleId === 'mod-control-hora') initControlHora();
   if (moduleId === 'mod-progreso') cargarOrdenesReporte();
   if (moduleId === 'mod-produccion-dia') initProduccionDia();
@@ -457,37 +461,88 @@ async function cargarSelectMaquinaModulo() {
   if (val) select.value = val;
 }
 
+// Estado de paginación
+const PAGE_SIZE = 10;
+const pagState = {
+  maquinaria: { data: [], page: 1 },
+  modulos: { data: [], page: 1 }
+};
+
+function paginarRender(tbodyId, emptyId, pagId, items, renderFn) {
+  const tbody = document.getElementById(tbodyId);
+  const empty = document.getElementById(emptyId);
+  const pagDiv = document.getElementById(pagId);
+  tbody.innerHTML = '';
+  if (items.length === 0) {
+    empty.style.display = 'block';
+    pagDiv.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+  const start = (items._page - 1) * PAGE_SIZE;
+  const slice = items.slice(start, start + PAGE_SIZE);
+  slice.forEach(item => tbody.innerHTML += renderFn(item));
+  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  if (totalPages <= 1) { pagDiv.innerHTML = ''; return; }
+  let html = '';
+  html += `<button class="pag-btn" onclick="${items._navFn}(${items._page - 1})" ${items._page <= 1 ? 'disabled' : ''}>«</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    html += `<button class="pag-btn ${i === items._page ? 'active' : ''}" onclick="${items._navFn}(${i})">${i}</button>`;
+  }
+  html += `<span class="pag-info">${items.length} registro(s)</span>`;
+  html += `<button class="pag-btn" onclick="${items._navFn}(${items._page + 1})" ${items._page >= totalPages ? 'disabled' : ''}>»</button>`;
+  pagDiv.innerHTML = html;
+}
+
+function filtrar(items, texto) {
+  if (!texto) return items;
+  const t = texto.toLowerCase();
+  return items.filter(m => {
+    const vals = [m.nombre, m.descripcion, m.nombre_modulo, m.ubicacion, m.estado, String(m.id), String(m.capacidad_maxima), String(m.velocidad_tipica)].filter(Boolean);
+    return vals.some(v => v.toLowerCase().includes(t));
+  });
+}
+
+function paginarMaquinaria() {
+  const texto = (document.getElementById('search-maquinaria') || {}).value || '';
+  const filtered = filtrar(pagState.maquinaria.data, texto);
+  filtered._page = pagState.maquinaria.page;
+  filtered._navFn = 'pagNavegarMaquinaria';
+  paginarRender('lista-maquinaria', 'empty-maquinaria', 'pag-maquinaria', filtered, m => {
+    const ec = m.estado === 'Activa' ? 'badge-module' : (m.estado === 'Mantenimiento' ? 'badge-hour' : 'badge-machine');
+    return `<tr>
+      <td><strong>${m.nombre}</strong></td>
+      <td>${m.descripcion || '-'}</td>
+      <td>${m.nombre_modulo ? `<span class="badge badge-module">${m.nombre_modulo}</span>` : '<span style="color:var(--text-muted);">Sin línea</span>'}</td>
+      <td>${m.velocidad_tipica ? m.velocidad_tipica + ' uds/h' : '-'}</td>
+      <td><span class="badge ${ec}">${m.estado}</span></td>
+      <td><div class="actions-cell"><button class="btn-edit-sm" onclick="editarMaquina(${m.id})">Editar</button><button class="btn-delete-sm" onclick="eliminarMaquina(${m.id},'${m.nombre.replace(/'/g, "\\'")}')">Eliminar</button></div></td>
+    </tr>`;
+  });
+}
+
+function pagNavegarMaquinaria(p) {
+  const texto = (document.getElementById('search-maquinaria') || {}).value || '';
+  const filtered = filtrar(pagState.maquinaria.data, texto);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  pagState.maquinaria.page = Math.max(1, Math.min(p, totalPages));
+  paginarMaquinaria();
+}
+
 async function cargarMaquinaria() {
   const datos = await api('/api/maquinaria');
   if (!datos) return;
+  pagState.maquinaria.data = datos;
+  pagState.maquinaria.page = 1;
 
-  const tbody = document.getElementById('lista-maquinaria');
   const select = document.getElementById('op-maquina');
-  const empty = document.getElementById('empty-maquinaria');
-
-  tbody.innerHTML = '';
-  const valActual = select.value;
-  select.innerHTML = '<option value="">Seleccione una máquina...</option>';
-
-  if (datos.length === 0) {
-    empty.style.display = 'block';
-  } else {
-    empty.style.display = 'none';
-    datos.forEach(m => {
-      const estadoClass = m.estado === 'Activa' ? 'badge-module' : (m.estado === 'Mantenimiento' ? 'badge-hour' : 'badge-machine');
-      tbody.innerHTML += `
-        <tr>
-          <td><strong>${m.nombre}</strong></td>
-          <td>${m.descripcion || '-'}</td>
-          <td>${m.nombre_modulo ? `<span class="badge badge-module">${m.nombre_modulo}</span>` : '<span style="color:var(--text-muted);">Sin línea</span>'}</td>
-          <td>${m.velocidad_tipica ? m.velocidad_tipica + ' uds/h' : '-'}</td>
-          <td><span class="badge ${estadoClass}">${m.estado}</span></td>
-        </tr>
-      `;
-      select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`;
-    });
+  if (select) {
+    const valActual = select.value;
+    select.innerHTML = '<option value="">Seleccione una máquina...</option>';
+    datos.forEach(m => select.innerHTML += `<option value="${m.id}">${m.nombre}</option>`);
+    if (valActual) select.value = valActual;
   }
-  if (valActual) select.value = valActual;
+  paginarMaquinaria();
 }
 
 async function guardarMaquina() {
@@ -523,6 +578,139 @@ async function guardarMaquina() {
     Toast.success(data.mensaje || 'Máquina guardada');
     cargarMaquinaria();
   }
+}
+
+// --- EDICIÓN, ELIMINACIÓN Y DESCARGA CSV ---
+
+function abrirModalEdicion(title, fieldsHtml, onGuardar) {
+  const overlay = document.getElementById('content-modal-overlay');
+  const titleEl = document.getElementById('content-modal-title');
+  const body = document.getElementById('content-modal-body');
+  titleEl.textContent = title;
+  body.innerHTML = `
+    <div class="form-grid-compact">${fieldsHtml}</div>
+    <div style="display:flex; gap:8px; margin-top:16px;">
+      <button class="btn-primary" id="btn-modal-guardar" style="max-width:200px;">Guardar</button>
+      <button class="btn-secondary" id="btn-modal-cancelar" style="max-width:120px;">Cancelar</button>
+    </div>`;
+  overlay.classList.add('content-modal-visible');
+  document.getElementById('btn-modal-guardar').onclick = async () => {
+    await onGuardar();
+    overlay.classList.remove('content-modal-visible');
+  };
+  document.getElementById('btn-modal-cancelar').onclick = () => {
+    overlay.classList.remove('content-modal-visible');
+  };
+  document.getElementById('content-modal-close').onclick = () => {
+    overlay.classList.remove('content-modal-visible');
+  };
+}
+
+function editarMaquina(id) {
+  const m = pagState.maquinaria.data.find(x => x.id === id);
+  if (!m) return;
+  const mods = pagState.modulos.data.length ? pagState.modulos.data : [];
+  let opts = '<option value="">Sin línea</option>';
+  mods.forEach(l => opts += `<option value="${l.id}" ${l.id === m.id_modulo ? 'selected' : ''}>${l.nombre}</option>`);
+  const fields = `
+    <div class="form-group"><label>Nombre *</label><input type="text" id="edit-maq-nombre" value="${m.nombre}"></div>
+    <div class="form-group"><label>Descripción</label><input type="text" id="edit-maq-desc" value="${m.descripcion || ''}"></div>
+    <div class="form-group"><label>Línea</label><select id="edit-maq-modulo">${opts}</select></div>
+    <div class="form-group"><label>Velocidad (uds/h)</label><input type="number" id="edit-maq-vel" value="${m.velocidad_tipica || ''}"></div>
+    <div class="form-group"><label>Estado</label><select id="edit-maq-estado">
+      <option value="Activa" ${m.estado==='Activa'?'selected':''}>Activa</option>
+      <option value="Inactiva" ${m.estado==='Inactiva'?'selected':''}>Inactiva</option>
+      <option value="Mantenimiento" ${m.estado==='Mantenimiento'?'selected':''}>Mantenimiento</option>
+    </select></div>`;
+  abrirModalEdicion('Editar Máquina', fields, async () => {
+    const nombre = document.getElementById('edit-maq-nombre').value.trim();
+    if (!nombre) { Toast.warning('Nombre requerido'); return; }
+    await api(`/api/maquinaria/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        nombre,
+        descripcion: document.getElementById('edit-maq-desc').value.trim() || null,
+        id_modulo: document.getElementById('edit-maq-modulo').value ? parseInt(document.getElementById('edit-maq-modulo').value) : null,
+        velocidad_tipica: document.getElementById('edit-maq-vel').value ? parseInt(document.getElementById('edit-maq-vel').value) : null,
+        estado: document.getElementById('edit-maq-estado').value
+      })
+    });
+    Toast.success('Máquina actualizada');
+    cargarMaquinaria();
+  });
+}
+
+async function eliminarMaquina(id, nombre) {
+  const ok = await Modal.confirm('Eliminar Máquina', `¿Eliminar "${nombre}"?`);
+  if (!ok) return;
+  await api(`/api/maquinaria/${id}`, { method: 'DELETE' });
+  Toast.success('Máquina eliminada');
+  cargarMaquinaria();
+}
+
+function editarModulo(id) {
+  const m = pagState.modulos.data.find(x => x.id === id);
+  if (!m) return;
+  const fields = `
+    <div class="form-group"><label>Nombre *</label><input type="text" id="edit-mod-nombre" value="${m.nombre}"></div>
+    <div class="form-group"><label>Capacidad (op.)</label><input type="number" id="edit-mod-cap" value="${m.capacidad_maxima || ''}"></div>
+    <div class="form-group"><label>Ubicación</label><input type="text" id="edit-mod-ubic" value="${m.ubicacion || ''}"></div>
+    <div class="form-group"><label>Estado</label><select id="edit-mod-estado">
+      <option value="Activo" ${m.estado==='Activo'?'selected':''}>Activo</option>
+      <option value="Inactivo" ${m.estado==='Inactivo'?'selected':''}>Inactivo</option>
+    </select></div>`;
+  abrirModalEdicion('Editar Módulo', fields, async () => {
+    const nombre = document.getElementById('edit-mod-nombre').value.trim();
+    if (!nombre) { Toast.warning('Nombre requerido'); return; }
+    await api(`/api/modulos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        nombre,
+        capacidad_maxima: document.getElementById('edit-mod-cap').value ? parseInt(document.getElementById('edit-mod-cap').value) : null,
+        ubicacion: document.getElementById('edit-mod-ubic').value.trim() || null,
+        estado: document.getElementById('edit-mod-estado').value
+      })
+    });
+    Toast.success('Módulo actualizado');
+    cargarModulos();
+  });
+}
+
+async function eliminarModulo(id, nombre) {
+  const ok = await Modal.confirm('Eliminar Módulo', `¿Eliminar "${nombre}"?`);
+  if (!ok) return;
+  await api(`/api/modulos/${id}`, { method: 'DELETE' });
+  Toast.success('Módulo eliminado');
+  cargarModulos();
+}
+
+function descargarCSV(tipo) {
+  let rows, headers, filename;
+  if (tipo === 'maquinaria') {
+    rows = pagState.maquinaria.data;
+    headers = ['Nombre', 'Descripción', 'Línea', 'Velocidad (uds/h)', 'Estado'];
+    filename = 'maquinaria.csv';
+  } else {
+    rows = pagState.modulos.data;
+    headers = ['ID', 'Nombre', 'Capacidad', 'Ubicación', 'Estado'];
+    filename = 'modulos.csv';
+  }
+  if (!rows.length) { Toast.warning('No hay datos para descargar'); return; }
+  let csv = '\uFEFF' + headers.join(';') + '\n';
+  rows.forEach(r => {
+    if (tipo === 'maquinaria') {
+      csv += [r.nombre, r.descripcion||'', r.nombre_modulo||'', r.velocidad_tipica||'', r.estado].join(';') + '\n';
+    } else {
+      csv += [r.id, r.nombre, r.capacidad_maxima||'', r.ubicacion||'', r.estado].join(';') + '\n';
+    }
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  Toast.success(`Descargando ${filename}`);
 }
 
 async function cargarSecciones() {
@@ -582,39 +770,46 @@ async function guardarSeccion() {
   }
 }
 
+function paginarModulos() {
+  const texto = (document.getElementById('search-modulos') || {}).value || '';
+  const filtered = filtrar(pagState.modulos.data, texto);
+  filtered._page = pagState.modulos.page;
+  filtered._navFn = 'pagNavegarModulos';
+  paginarRender('lista-modulos', 'empty-modulos', 'pag-modulos', filtered, m => {
+    const ec = m.estado === 'Activo' ? 'badge-module' : 'badge-machine';
+    let capCell = '<td>-</td>';
+    if (m.capacidad_maxima) {
+      const actual = m.operadores_actuales || 0;
+      const cap = m.capacidad_maxima;
+      const pct = actual / cap;
+      const color = pct >= 1 ? '#dc3545' : (pct >= 0.8 ? '#e6a23c' : '#2ea367');
+      capCell = `<td><span style="color:${color};font-weight:600;">${actual}</span>/<span style="font-weight:600;">${cap}</span> op.</td>`;
+    }
+    return `<tr>
+      <td>${m.id}</td>
+      <td><strong>${m.nombre}</strong></td>
+      ${capCell}
+      <td>${m.ubicacion || '-'}</td>
+      <td><span class="badge ${ec}">${m.estado}</span></td>
+      <td><div class="actions-cell"><button class="btn-edit-sm" onclick="editarModulo(${m.id})">Editar</button><button class="btn-delete-sm" onclick="eliminarModulo(${m.id},'${m.nombre.replace(/'/g, "\\'")}')">Eliminar</button></div></td>
+    </tr>`;
+  });
+}
+
+function pagNavegarModulos(p) {
+  const texto = (document.getElementById('search-modulos') || {}).value || '';
+  const filtered = filtrar(pagState.modulos.data, texto);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  pagState.modulos.page = Math.max(1, Math.min(p, totalPages));
+  paginarModulos();
+}
+
 async function cargarModulos() {
   const datos = await api('/api/modulos');
   if (!datos) return;
-
-  const tbody = document.getElementById('lista-modulos');
-  const empty = document.getElementById('empty-modulos');
-
-  tbody.innerHTML = '';
-  if (datos.length === 0) {
-    empty.style.display = 'block';
-  } else {
-    empty.style.display = 'none';
-    datos.forEach(m => {
-      const estadoClass = m.estado === 'Activo' ? 'badge-module' : 'badge-machine';
-      let capCell = '<td>-</td>';
-      if (m.capacidad_maxima) {
-        const actual = m.operadores_actuales || 0;
-        const cap = m.capacidad_maxima;
-        const pct = actual / cap;
-        const color = pct >= 1 ? '#dc3545' : (pct >= 0.8 ? '#e6a23c' : '#2ea367');
-        capCell = `<td><span style="color:${color};font-weight:600;">${actual}</span>/<span style="font-weight:600;">${cap}</span> op.</td>`;
-      }
-      tbody.innerHTML += `
-        <tr>
-          <td>${m.id}</td>
-          <td><strong>${m.nombre}</strong></td>
-          ${capCell}
-          <td>${m.ubicacion || '-'}</td>
-          <td><span class="badge ${estadoClass}">${m.estado}</span></td>
-        </tr>
-      `;
-    });
-  }
+  pagState.modulos.data = datos;
+  pagState.modulos.page = 1;
+  paginarModulos();
 }
 
 async function guardarModulo() {
@@ -644,6 +839,7 @@ async function guardarModulo() {
     document.getElementById('input-modulo-estado').value = 'Activo';
     Toast.success(data.mensaje || 'Módulo guardado');
     cargarModulos();
+    cargarSelectMaquinaModulo();
   }
 }
 

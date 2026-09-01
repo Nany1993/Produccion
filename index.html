@@ -140,7 +140,10 @@
                     <div class="catalog-card">
                         <div class="ref-header">
                             <h2 class="form-title" style="margin:0;">Maquinaria</h2>
-                            <button class="btn-primary" id="btn-nueva-maquina" onclick="toggleFormColapsable('form-nueva-maquina','btn-nueva-maquina','+ Nueva Máquina')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Máquina</button>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <button class="btn-primary" onclick="descargarCSV('maquinaria')" style="width:auto; padding:8px 14px; background:var(--accent-green, #2ea367);">⬇ Excel</button>
+                                <button class="btn-primary" id="btn-nueva-maquina" onclick="toggleFormColapsable('form-nueva-maquina','btn-nueva-maquina','+ Nueva Máquina')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Máquina</button>
+                            </div>
                         </div>
 
                         <div id="form-nueva-maquina" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
@@ -172,13 +175,17 @@
                             </div>
                             <button class="btn-primary" onclick="guardarMaquina()" style="margin-top: 12px; max-width: 250px;">Guardar Máquina</button>
                         </div>
+                        <div class="toolbar-search">
+                            <input type="text" id="search-maquinaria" placeholder="Buscar máquina..." oninput="paginarMaquinaria()">
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
-                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Línea</th><th>Velocidad</th><th>Estado</th></tr></thead>
+                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Línea</th><th>Velocidad</th><th>Estado</th><th>Acciones</th></tr></thead>
                                 <tbody id="lista-maquinaria"></tbody>
                             </table>
                             <div id="empty-maquinaria" class="empty-state" style="display: none;">No hay máquinas registradas.</div>
                         </div>
+                        <div id="pag-maquinaria" class="pagination-controls"></div>
                     </div>
                 </div>
 
@@ -230,7 +237,10 @@
                     <div class="catalog-card">
                         <div class="ref-header">
                             <h2 class="form-title" style="margin:0;">Módulos</h2>
-                            <button class="btn-primary" id="btn-nuevo-modulo" onclick="toggleFormColapsable('form-nuevo-modulo','btn-nuevo-modulo','+ Nuevo Módulo')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Módulo</button>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <button class="btn-primary" onclick="descargarCSV('modulos')" style="width:auto; padding:8px 14px; background:var(--accent-green, #2ea367);">⬇ Excel</button>
+                                <button class="btn-primary" id="btn-nuevo-modulo" onclick="toggleFormColapsable('form-nuevo-modulo','btn-nuevo-modulo','+ Nuevo Módulo')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Módulo</button>
+                            </div>
                         </div>
 
                         <div id="form-nuevo-modulo" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
@@ -257,13 +267,17 @@
                             </div>
                             <button class="btn-primary" onclick="guardarModulo()" style="margin-top: 12px; max-width: 250px;">Guardar Módulo</button>
                         </div>
+                        <div class="toolbar-search">
+                            <input type="text" id="search-modulos" placeholder="Buscar módulo..." oninput="paginarModulos()">
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
-                                <thead><tr><th>ID</th><th>Nombre</th><th>Capacidad</th><th>Ubicación</th><th>Estado</th></tr></thead>
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Capacidad</th><th>Ubicación</th><th>Estado</th><th>Acciones</th></tr></thead>
                                 <tbody id="lista-modulos"></tbody>
                             </table>
                             <div id="empty-modulos" class="empty-state" style="display: none;">No hay módulos registrados.</div>
                         </div>
+                        <div id="pag-modulos" class="pagination-controls"></div>
                     </div>
                 </div>
 

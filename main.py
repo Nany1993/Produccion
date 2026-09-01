@@ -43,6 +43,8 @@ from database import (
     calcular_materiales_orden,
     obtener_modulos,
     insertar_modulo,
+    actualizar_modulo,
+    actualizar_maquina,
     obtener_referencias_por_modulo,
     obtener_operadores_linea,
     obtener_actividades_por_orden,
@@ -153,6 +155,30 @@ def add_maquina():
     )
     return jsonify({"mensaje": "Máquina guardada con éxito"}), 201
 
+@app.route('/api/maquinaria/<int:id_maquina>', methods=['PUT'])
+def update_maquina(id_maquina):
+    datos = request.json
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = actualizar_maquina(
+        id_maquina,
+        datos['nombre'],
+        datos.get('descripcion'),
+        datos.get('velocidad_tipica'),
+        datos.get('estado', 'Activa'),
+        datos.get('id_modulo')
+    )
+    return jsonify(res)
+
+@app.route('/api/maquinaria/<int:id_maquina>', methods=['DELETE'])
+def delete_maquina(id_maquina):
+    conexion = sqlite3.connect(DATABASE)
+    cursor = conexion.cursor()
+    cursor.execute("DELETE FROM TipoMaquinaria WHERE id = ?", (id_maquina,))
+    conexion.commit()
+    conexion.close()
+    return jsonify({"mensaje": "Máquina eliminada"})
+
 @app.route('/api/secciones', methods=['GET'])
 def get_secciones():
     return jsonify(obtener_secciones())
@@ -183,10 +209,32 @@ def add_modulos():
         datos['nombre'],
         datos.get('capacidad_maxima'),
         datos.get('ubicacion'),
-        datos.get('supervisor'),
         datos.get('estado', 'Activo')
     )
     return jsonify({"mensaje": "Módulo guardado con éxito"}), 201
+
+@app.route('/api/modulos/<int:id_modulo>', methods=['PUT'])
+def update_modulo(id_modulo):
+    datos = request.json
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = actualizar_modulo(
+        id_modulo,
+        datos['nombre'],
+        datos.get('capacidad_maxima'),
+        datos.get('ubicacion'),
+        datos.get('estado', 'Activo')
+    )
+    return jsonify(res)
+
+@app.route('/api/modulos/<int:id_modulo>', methods=['DELETE'])
+def delete_modulo(id_modulo):
+    conexion = sqlite3.connect(DATABASE)
+    cursor = conexion.cursor()
+    cursor.execute("DELETE FROM ModuloConfeccion WHERE id = ?", (id_modulo,))
+    conexion.commit()
+    conexion.close()
+    return jsonify({"mensaje": "Módulo eliminado"})
 
 # --- NUEVO: HORAS ---
 @app.route('/api/horas', methods=['GET'])

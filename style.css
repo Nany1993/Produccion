@@ -2052,3 +2052,96 @@ input[type="date"] {
     color: var(--accent-blue);
     font-weight: 700;
 }
+
+.toolbar-search {
+    padding: 12px 0 0 0;
+}
+.toolbar-search input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.toolbar-search input:focus {
+    border-color: var(--accent-blue);
+}
+.toolbar-search input::placeholder {
+    color: var(--text-muted);
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 0 4px 0;
+}
+.pagination-controls .pag-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.pagination-controls .pag-btn:hover {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+}
+.pagination-controls .pag-btn.active {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+    font-weight: 600;
+}
+.pagination-controls .pag-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.pagination-controls .pag-info {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0 8px;
+}
+
+.btn-edit-sm {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    border: 1px solid var(--accent-blue);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--accent-blue);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-edit-sm:hover {
+    background: var(--accent-blue);
+    color: #fff;
+}
+.btn-delete-sm {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    border: 1px solid #dc3545;
+    border-radius: 4px;
+    background: transparent;
+    color: #dc3545;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-delete-sm:hover {
+    background: #dc3545;
+    color: #fff;
+}
+.actions-cell {
+    display: flex;
+    gap: 4px;
+    white-space: nowrap;
+}

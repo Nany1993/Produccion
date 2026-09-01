@@ -58,7 +58,6 @@ def inicializar_base_de_datos():
                 nombre TEXT NOT NULL,
                 capacidad_maxima INTEGER,
                 ubicacion TEXT,
-                supervisor TEXT,
                 estado TEXT DEFAULT 'Activo'
             );
         """)
@@ -331,7 +330,6 @@ def inicializar_base_de_datos():
             ("SeccionPrenda", "orden_proceso", "INTEGER"),
             ("ModuloConfeccion", "capacidad_maxima", "INTEGER"),
             ("ModuloConfeccion", "ubicacion", "TEXT"),
-            ("ModuloConfeccion", "supervisor", "TEXT"),
             ("ModuloConfeccion", "estado", "TEXT DEFAULT 'Activo'"),
             ("HorasProduccion", "hora_inicio", "TEXT"),
             ("HorasProduccion", "hora_fin", "TEXT"),
@@ -358,6 +356,13 @@ def inicializar_base_de_datos():
         try:
             cursor.execute("ALTER TABLE Empleados DROP COLUMN turno")
             print("- Migración: Columna 'turno' eliminada de Empleados.")
+        except sqlite3.OperationalError:
+            pass  # La columna ya no existe
+
+        # MIGRACIÓN: Eliminar la columna 'supervisor' de ModuloConfeccion (las líneas no llevan supervisor)
+        try:
+            cursor.execute("ALTER TABLE ModuloConfeccion DROP COLUMN supervisor")
+            print("- Migración: Columna 'supervisor' eliminada de ModuloConfeccion.")
         except sqlite3.OperationalError:
             pass  # La columna ya no existe
 
@@ -1099,24 +1104,42 @@ def eliminar_detalle(id_detalle):
 def obtener_modulos():
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("SELECT id, nombre, capacidad_maxima, ubicacion, supervisor, estado FROM ModuloConfeccion")
+    cursor.execute("SELECT id, nombre, capacidad_maxima, ubicacion, estado FROM ModuloConfeccion")
     filas = cursor.fetchall()
     cursor.execute("SELECT modulo_asignado, COUNT(*) FROM Empleados WHERE rol='Operador' AND estado='Activo' AND modulo_asignado IS NOT NULL GROUP BY modulo_asignado")
     conteo_operadores = dict(cursor.fetchall())
     conexion.close()
     return [{
         "id": f[0], "nombre": f[1], "capacidad_maxima": f[2], "ubicacion": f[3],
-        "supervisor": f[4], "estado": f[5] or 'Activo',
+        "estado": f[4] or 'Activo',
         "operadores_actuales": conteo_operadores.get(f[0], 0)
     } for f in filas]
 
-def insertar_modulo(nombre, capacidad_maxima=None, ubicacion=None, supervisor=None, estado='Activo'):
+def insertar_modulo(nombre, capacidad_maxima=None, ubicacion=None, estado='Activo'):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO ModuloConfeccion (nombre, capacidad_maxima, ubicacion, supervisor, estado) VALUES (?, ?, ?, ?, ?)",
-                   (nombre, capacidad_maxima, ubicacion, supervisor, estado))
+    cursor.execute("INSERT INTO ModuloConfeccion (nombre, capacidad_maxima, ubicacion, estado) VALUES (?, ?, ?, ?)",
+                   (nombre, capacidad_maxima, ubicacion, estado))
     conexion.commit()
     conexion.close()
+
+def actualizar_modulo(id_modulo, nombre, capacidad_maxima=None, ubicacion=None, estado='Activo'):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("UPDATE ModuloConfeccion SET nombre=?, capacidad_maxima=?, ubicacion=?, estado=? WHERE id=?",
+                   (nombre, capacidad_maxima, ubicacion, estado, id_modulo))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Módulo actualizado"}
+
+def actualizar_maquina(id_maquina, nombre, descripcion=None, velocidad_tipica=None, estado='Activa', id_modulo=None):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("UPDATE TipoMaquinaria SET nombre=?, descripcion=?, velocidad_tipica=?, estado=?, id_modulo=? WHERE id=?",
+                   (nombre, descripcion, velocidad_tipica, estado, id_modulo, id_maquina))
+    conexion.commit()
+    conexion.close()
+    return {"mensaje": "Máquina actualizada"}
 
 # --- FUNCIONES CONTROL HORA A HORA ---
 
