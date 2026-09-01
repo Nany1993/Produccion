@@ -1720,6 +1720,41 @@ def _validar_operacion_en_modulo(cursor, id_operacion, id_modulo, id_maquina=Non
         return {"error": f"La actividad usa '{nombre_maquina}' que pertenece a otro módulo. Verifique que la línea de registro coincida con la actividad."}
     return None
 
+def _validar_operador_en_modulo(cursor, id_operador, id_modulo, id_operacion):
+    """Valida que el operador pertenezca a la línea del registro y que su máquina
+    corresponda a la actividad registrada."""
+    if not id_operador:
+        return {"error": "Debe indicar el operador"}
+    cursor.execute("""
+        SELECT modulo_asignado, id_maquina FROM Empleados
+        WHERE id = ? AND rol = 'Operador' AND estado = 'Activo'
+    """, (id_operador,))
+    fila = cursor.fetchone()
+    if not fila:
+        return {"error": "El operador indicado no existe o no está activo"}
+    if fila[0] != int(id_modulo):
+        return {"error": "El operador no pertenece a la línea seleccionada"}
+    if id_operacion:
+        cursor.execute("SELECT id_maquina FROM Operacion WHERE id = ?", (id_operacion,))
+        op_maq = cursor.fetchone()
+        if op_maq and op_maq[0] and fila[1] != op_maq[0]:
+            return {"error": "La actividad no corresponde a la máquina del operador"}
+    return None
+
+def _validar_disponibilidad_modulo(cursor, id_orden, id_modulo, cantidad_nueva):
+    """Valida que la producción acumulada de una línea para una orden no exceda
+    lo asignado en Programación de Líneas (AsignacionModulo)."""
+    cursor.execute("SELECT cantidad_asignada FROM AsignacionModulo WHERE id_orden = ? AND id_modulo = ?", (id_orden, id_modulo))
+    fila = cursor.fetchone()
+    if not fila:
+        return {"error": "La línea no tiene asignación de esta orden. Programe la línea antes de registrar."}
+    asignado = fila[0] or 0
+    cursor.execute("SELECT COALESCE(SUM(cantidad_producida), 0) FROM RegistroProduccion WHERE id_orden = ? AND id_modulo = ?", (id_orden, id_modulo))
+    ya = cursor.fetchone()[0]
+    if ya + cantidad_nueva > asignado:
+        return {"error": f"Excede la asignación de la línea. Asignado: {asignado}, ya registrado: {ya}, nuevo: {cantidad_nueva}"}
+    return None
+
 def insertar_registro_produccion(datos, id_usuario):
     conexion = _conexion()
     cursor = conexion.cursor()
@@ -1729,6 +1764,19 @@ def insertar_registro_produccion(datos, id_usuario):
     if err_op:
         conexion.close()
         return err_op
+
+    # Validar que el operador pertenezca a la línea y que su máquina corresponda a la actividad
+    if datos.get('id_operador'):
+        err_operador = _validar_operador_en_modulo(cursor, datos['id_operador'], datos['id_modulo'], datos.get('id_operacion'))
+        if err_operador:
+            conexion.close()
+            return err_operador
+
+    # Validar que no se exceda la asignación de la línea para esta orden
+    err_disp = _validar_disponibilidad_modulo(cursor, datos['id_orden'], datos['id_modulo'], datos.get('cantidad_producida', 0))
+    if err_disp:
+        conexion.close()
+        return err_disp
 
     cursor.execute("""
         INSERT INTO RegistroProduccion (
@@ -1783,11 +1831,22 @@ def insertar_registros_masivo(datos, id_usuario):
     conexion = _conexion()
     cursor = conexion.cursor()
 
+    total_nuevo = sum(r.get('cantidad', 0) for r in registros)
+    err_disp = _validar_disponibilidad_modulo(cursor, datos['id_orden'], datos['id_modulo'], total_nuevo)
+    if err_disp:
+        conexion.close()
+        return err_disp
+
     for r in registros:
         err_op = _validar_operacion_en_modulo(cursor, r.get('id_operacion'), datos.get('id_modulo'), None)
         if err_op:
             conexion.close()
             return err_op
+
+        err_operador = _validar_operador_en_modulo(cursor, r.get('id_operador'), datos.get('id_modulo'), r.get('id_operacion'))
+        if err_operador:
+            conexion.close()
+            return err_operador
 
         cursor.execute("""
             INSERT INTO RegistroProduccion (
@@ -1963,7 +2022,8 @@ def reporte_progreso_orden(id_orden):
                 break
 
     # Unidades completas = mínimo logrado entre todas las actividades (botella)
-    unidades_completas = min((a["producido"] for a in actividades), default=0) if actividades else 0
+    # Se delega en la función central para mantener una única fuente de verdad
+    unidades_completas = _calcular_gorras_completas(cursor, id_orden)
     tiempo_total_seg = sum(a["tiempo_segundos"] for a in actividades)
     unidades_objetivo = cantidad_lote
 

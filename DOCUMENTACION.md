@@ -549,9 +549,10 @@ Registro de producción por operador (uno por operador y actividad).
 4. Al editar una asignación, se valida contra el máximo posible
 
 ### Control de Producción
-1. La suma de porciones de tiempo por módulo/hora/fecha no puede exceder 1.0
-2. La producción acumulada por asignación no puede exceder la cantidad asignada
-3. Cada registro está vinculado a una asignación específica (referencia + módulo)
+1. Para registrar producción, la línea debe tener la orden **programada** (asignación en AsignacionModulo). Sin asignación no se puede registrar.
+2. La producción acumulada por línea/orden no puede exceder la cantidad asignada (validado en el backend).
+3. El operador debe pertenecer a la línea del registro y su máquina debe corresponder a la actividad registrada (validado en el backend).
+4. Cada registro queda vinculado a su operador (`id_operador`) y a la línea/orden.
 
 ### Balanceo de Línea
 1. Se requiere al menos 1 operario por tipo de máquina presente
