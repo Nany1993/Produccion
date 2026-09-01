@@ -290,7 +290,10 @@
                     <div class="catalog-card">
                         <div class="ref-header">
                             <h2 class="form-title" style="margin:0;">Empleados</h2>
-                            <button class="btn-primary" id="btn-nuevo-empleado" onclick="toggleFormColapsable('form-nuevo-empleado','btn-nuevo-empleado','+ Nuevo Empleado')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Empleado</button>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <button class="btn-primary" onclick="descargarCSV('empleados')" style="width:auto; padding:8px 14px; background:var(--accent-green, #2ea367);">⬇ Excel</button>
+                                <button class="btn-primary" id="btn-nuevo-empleado" onclick="toggleFormColapsable('form-nuevo-empleado','btn-nuevo-empleado','+ Nuevo Empleado')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Empleado</button>
+                            </div>
                         </div>
 
                         <div id="form-nuevo-empleado" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
@@ -345,6 +348,9 @@
                         </div>
                         <button class="btn-primary" id="btn-empleado" onclick="procesarEmpleado()" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
                         </div>
+                        <div class="toolbar-search">
+                            <input type="text" id="search-empleados" placeholder="Buscar empleado por nombre, documento, cargo, máquina..." oninput="paginarEmpleados()">
+                        </div>
                         <div class="data-table-container">
                             <table class="data-table">
                                 <thead>
@@ -353,6 +359,7 @@
                                         <th>Nombre</th>
                                         <th>Rol</th>
                                         <th>Cargo</th>
+                                        <th>Línea</th>
                                         <th>Máquina</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
@@ -362,6 +369,7 @@
                             </table>
                             <div id="empty-empleados" class="empty-state" style="display: none;">No hay empleados registrados.</div>
                         </div>
+                        <div id="pag-empleados" class="pagination-controls"></div>
                     </div>
                 </div>
 

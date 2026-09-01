@@ -465,7 +465,8 @@ async function cargarSelectMaquinaModulo() {
 const PAGE_SIZE = 10;
 const pagState = {
   maquinaria: { data: [], page: 1 },
-  modulos: { data: [], page: 1 }
+  modulos: { data: [], page: 1 },
+  empleados: { data: [], page: 1 }
 };
 
 function paginarRender(tbodyId, emptyId, pagId, items, renderFn) {
@@ -690,6 +691,10 @@ function descargarCSV(tipo) {
     rows = pagState.maquinaria.data;
     headers = ['Nombre', 'Descripción', 'Línea', 'Velocidad (uds/h)', 'Estado'];
     filename = 'maquinaria.csv';
+  } else if (tipo === 'empleados') {
+    rows = pagState.empleados.data;
+    headers = ['N° Doc', 'Nombre', 'Rol', 'Cargo', 'Línea', 'Máquina', 'Fecha Ingreso', 'Estado', 'Teléfono', 'Email'];
+    filename = 'empleados.csv';
   } else {
     rows = pagState.modulos.data;
     headers = ['ID', 'Nombre', 'Capacidad', 'Ubicación', 'Estado'];
@@ -700,6 +705,8 @@ function descargarCSV(tipo) {
   rows.forEach(r => {
     if (tipo === 'maquinaria') {
       csv += [r.nombre, r.descripcion||'', r.nombre_modulo||'', r.velocidad_tipica||'', r.estado].join(';') + '\n';
+    } else if (tipo === 'empleados') {
+      csv += [r.numero_documento, r.nombre, r.rol||'Operador', r.cargo, r.nombre_modulo||'', r.nombre_maquina||'', r.fecha_ingreso||'', r.estado, r.telefono||'', r.email||''].join(';') + '\n';
     } else {
       csv += [r.id, r.nombre, r.capacidad_maxima||'', r.ubicacion||'', r.estado].join(';') + '\n';
     }
@@ -964,38 +971,42 @@ async function guardarParada() {
 
 let idEmpleadoEnEdicion = null;
 
+function paginarEmpleados() {
+  const texto = (document.getElementById('search-empleados') || {}).value || '';
+  const filtered = filtrar(pagState.empleados.data, texto);
+  filtered._page = pagState.empleados.page;
+  filtered._navFn = 'pagNavegarEmpleados';
+  paginarRender('lista-empleados', 'empty-empleados', 'pag-empleados', filtered, e => {
+    const ec = e.estado === 'Activo' ? 'badge-module' : (e.estado === 'Vacaciones' || e.estado === 'Incapacidad' ? 'badge-hour' : 'badge-machine');
+    const rc = e.rol === 'Supervisor' ? 'badge-hour' : 'badge-machine';
+    const objStr = JSON.stringify(e).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return `<tr>
+      <td>${e.numero_documento}</td>
+      <td><strong>${e.nombre}</strong></td>
+      <td><span class="badge ${rc}">${e.rol || 'Operador'}</span></td>
+      <td>${e.cargo}</td>
+      <td>${e.nombre_modulo ? `<span class="badge badge-module">${e.nombre_modulo}</span>` : '<span style="color:var(--text-muted);">-</span>'}</td>
+      <td>${e.nombre_maquina ? `<span class="badge badge-machine">${e.nombre_maquina}</span>` : (e.rol === 'Supervisor' ? '<span style="color:var(--text-muted);">Supervisa</span>' : '-')}</td>
+      <td><span class="badge ${ec}">${e.estado}</span></td>
+      <td><div class="actions-cell"><button class="btn-edit-sm" onclick="iniciarEdicionEmpleado(${objStr})">Editar</button><button class="btn-delete-sm" onclick="eliminarEmpleado(${e.id})">Eliminar</button></div></td>
+    </tr>`;
+  });
+}
+
+function pagNavegarEmpleados(p) {
+  const texto = (document.getElementById('search-empleados') || {}).value || '';
+  const filtered = filtrar(pagState.empleados.data, texto);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  pagState.empleados.page = Math.max(1, Math.min(p, totalPages));
+  paginarEmpleados();
+}
+
 async function cargarEmpleados() {
   const datos = await api('/api/empleados');
   if (!datos) return;
-
-  const tbody = document.getElementById('lista-empleados');
-  const empty = document.getElementById('empty-empleados');
-
-  tbody.innerHTML = '';
-  if (datos.length === 0) {
-    empty.style.display = 'block';
-  } else {
-    empty.style.display = 'none';
-    datos.forEach(e => {
-      const objStr = JSON.stringify(e).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const estadoClass = e.estado === 'Activo' ? 'badge-module' : (e.estado === 'Vacaciones' || e.estado === 'Incapacidad' ? 'badge-hour' : 'badge-machine');
-      const rolClass = e.rol === 'Supervisor' ? 'badge-hour' : 'badge-machine';
-      tbody.innerHTML += `
-        <tr>
-          <td>${e.numero_documento}</td>
-          <td><strong>${e.nombre}</strong></td>
-          <td><span class="badge ${rolClass}">${e.rol || 'Operador'}</span></td>
-          <td>${e.cargo}</td>
-          <td>${e.nombre_maquina ? `<span class="badge badge-machine">${e.nombre_maquina}</span>` : (e.rol === 'Supervisor' ? '<span style="color:var(--text-muted);">Supervisa</span>' : '-')}</td>
-          <td><span class="badge ${estadoClass}">${e.estado}</span></td>
-          <td class="action-buttons">
-            <button class="btn-icon btn-edit" onclick="iniciarEdicionEmpleado(${objStr})">Editar</button>
-            <button class="btn-icon btn-delete" onclick="eliminarEmpleado(${e.id})">Eliminar</button>
-          </td>
-        </tr>
-      `;
-    });
-  }
+  pagState.empleados.data = datos;
+  pagState.empleados.page = 1;
+  paginarEmpleados();
 }
 
 async function cargarSelectMaquinaEmpleado() {
