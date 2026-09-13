@@ -311,13 +311,15 @@ def add_operacion():
     if not all(k in datos for k in required):
         return jsonify({"error": "Faltan datos requeridos"}), 400
     
-    insertar_operacion(
+    res = insertar_operacion(
         datos['nombre'], 
         int(datos['tiempo']), 
         int(datos['id_maquina']), 
         int(datos['id_seccion'])
     )
-    return jsonify({"mensaje": "Operación guardada con éxito"}), 201
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
 
 @app.route('/api/operaciones/<int:id_operacion>', methods=['PUT'])
 def update_operacion(id_operacion):
@@ -326,14 +328,16 @@ def update_operacion(id_operacion):
     if not all(k in datos for k in required):
         return jsonify({"error": "Faltan datos requeridos"}), 400
     
-    actualizar_operacion(
+    res = actualizar_operacion(
         id_operacion,
         datos['nombre'],
         int(datos['tiempo']),
         int(datos['id_maquina']),
         int(datos['id_seccion'])
     )
-    return jsonify({"mensaje": "Operación actualizada"}), 200
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 200
 
 @app.route('/api/operaciones/<int:id_operacion>', methods=['DELETE'])
 def delete_operacion(id_operacion):
@@ -357,6 +361,8 @@ def add_referencia():
         datos.get('especificaciones'),
         datos.get('foto')
     )
+    if id_ref is None:
+        return jsonify({"error": "Ya existe una referencia con ese nombre"}), 400
     return jsonify({"id": id_ref, "mensaje": "Referencia creada"}), 201
 
 @app.route('/api/referencias/<int:id_ref>', methods=['PUT'])
@@ -365,8 +371,10 @@ def update_referencia(id_ref):
     if not datos or 'nombre' not in datos:
         return jsonify({"error": "Nombre requerido"}), 400
     
-    actualizar_referencia(id_ref, datos['nombre'], datos.get('especificaciones'), datos.get('foto'))
-    return jsonify({"mensaje": "Referencia actualizada"}), 200
+    res = actualizar_referencia(id_ref, datos['nombre'], datos.get('especificaciones'), datos.get('foto'))
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 200
 
 @app.route('/api/referencias/<int:id_ref>/foto', methods=['POST'])
 def upload_foto_referencia(id_ref):
@@ -526,6 +534,8 @@ def add_material():
         datos.get('proveedor'),
         datos.get('descripcion')
     )
+    if "error" in res:
+        return jsonify(res), 400
     return jsonify(res), 201
 
 @app.route('/api/materiales/<int:id_material>', methods=['PUT'])
@@ -541,7 +551,9 @@ def update_material_endpoint(id_material):
         datos.get('proveedor'),
         datos.get('descripcion')
     )
-    return jsonify(res)
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 200
 
 @app.route('/api/materiales/<int:id_material>', methods=['DELETE'])
 def delete_material_endpoint(id_material):

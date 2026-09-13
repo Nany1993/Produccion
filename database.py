@@ -265,7 +265,7 @@ def inicializar_base_de_datos():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Operacion (
                 id INTEGER PRIMARY KEY,
-                nombre_operacion TEXT NOT NULL,
+                nombre_operacion TEXT NOT NULL UNIQUE,
                 tiempo_segundos INTEGER NOT NULL,
                 id_maquina INTEGER,
                 id_seccion INTEGER,
@@ -281,7 +281,7 @@ def inicializar_base_de_datos():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ReferenciaProducto (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre_referencia TEXT NOT NULL,
+                nombre_referencia TEXT NOT NULL UNIQUE,
                 especificaciones TEXT,
                 foto TEXT,
                 fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -336,7 +336,7 @@ def inicializar_base_de_datos():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Materiales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
+                nombre TEXT NOT NULL UNIQUE,
                 unidad TEXT,
                 costo_unitario REAL,
                 proveedor TEXT,
@@ -523,23 +523,33 @@ def obtener_operaciones_detalladas():
 def insertar_operacion(nombre, tiempo, id_maquina, id_seccion):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("""
-        INSERT INTO Operacion (nombre_operacion, tiempo_segundos, id_maquina, id_seccion)
-        VALUES (?, ?, ?, ?)
-    """, (nombre, tiempo, id_maquina, id_seccion))
-    conexion.commit()
-    conexion.close()
+    try:
+        cursor.execute("""
+            INSERT INTO Operacion (nombre_operacion, tiempo_segundos, id_maquina, id_seccion)
+            VALUES (?, ?, ?, ?)
+        """, (nombre, tiempo, id_maquina, id_seccion))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Operación guardada con éxito", "id": cursor.lastrowid}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe una operación con ese nombre"}
 
 def actualizar_operacion(id_operacion, nombre, tiempo, id_maquina, id_seccion):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("""
-        UPDATE Operacion 
-        SET nombre_operacion = ?, tiempo_segundos = ?, id_maquina = ?, id_seccion = ?
-        WHERE id = ?
-    """, (nombre, tiempo, id_maquina, id_seccion, id_operacion))
-    conexion.commit()
-    conexion.close()
+    try:
+        cursor.execute("""
+            UPDATE Operacion 
+            SET nombre_operacion = ?, tiempo_segundos = ?, id_maquina = ?, id_seccion = ?
+            WHERE id = ?
+        """, (nombre, tiempo, id_maquina, id_seccion, id_operacion))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Operación actualizada"}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe una operación con ese nombre"}
 
 def eliminar_operacion(id_operacion):
     conexion = _conexion()
@@ -558,19 +568,28 @@ def eliminar_operacion(id_operacion):
 def crear_referencia(nombre, especificaciones=None, foto=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO ReferenciaProducto (nombre_referencia, especificaciones, foto) VALUES (?, ?, ?)", (nombre, especificaciones, foto))
-    ref_id = cursor.lastrowid
-    conexion.commit()
-    conexion.close()
-    return ref_id
+    try:
+        cursor.execute("INSERT INTO ReferenciaProducto (nombre_referencia, especificaciones, foto) VALUES (?, ?, ?)", (nombre, especificaciones, foto))
+        ref_id = cursor.lastrowid
+        conexion.commit()
+        conexion.close()
+        return ref_id
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return None
 
 def actualizar_referencia(id_ref, nombre, especificaciones=None, foto=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("UPDATE ReferenciaProducto SET nombre_referencia = ?, especificaciones = ?, foto = ? WHERE id = ?",
-                   (nombre, especificaciones, foto, id_ref))
-    conexion.commit()
-    conexion.close()
+    try:
+        cursor.execute("UPDATE ReferenciaProducto SET nombre_referencia = ?, especificaciones = ?, foto = ? WHERE id = ?",
+                       (nombre, especificaciones, foto, id_ref))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Referencia actualizada"}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe una referencia con ese nombre"}
 
 def actualizar_foto_referencia(id_ref, foto):
     conexion = _conexion()
@@ -1027,24 +1046,33 @@ def obtener_materiales():
 def insertar_material(nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("""
-        INSERT INTO Materiales (nombre, unidad, costo_unitario, proveedor, descripcion)
-        VALUES (?, ?, ?, ?, ?)
-    """, (nombre, unidad, costo_unitario, proveedor, descripcion))
-    conexion.commit()
-    conexion.close()
-    return {"mensaje": "Material guardado", "id": cursor.lastrowid}
+    try:
+        cursor.execute("""
+            INSERT INTO Materiales (nombre, unidad, costo_unitario, proveedor, descripcion)
+            VALUES (?, ?, ?, ?, ?)
+        """, (nombre, unidad, costo_unitario, proveedor, descripcion))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Material guardado", "id": cursor.lastrowid}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe un material con ese nombre"}
 
 def actualizar_material(id_material, nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("""
-        UPDATE Materiales
-        SET nombre=?, unidad=?, costo_unitario=?, proveedor=?, descripcion=?
-        WHERE id=?
-    """, (nombre, unidad, costo_unitario, proveedor, descripcion, id_material))
-    conexion.commit()
-    conexion.close()
+    try:
+        cursor.execute("""
+            UPDATE Materiales
+            SET nombre=?, unidad=?, costo_unitario=?, proveedor=?, descripcion=?
+            WHERE id=?
+        """, (nombre, unidad, costo_unitario, proveedor, descripcion, id_material))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Material actualizado"}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe un material con ese nombre"}
     return {"mensaje": "Material actualizado"}
 
 def eliminar_material(id_material):
