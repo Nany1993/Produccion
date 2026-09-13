@@ -92,6 +92,11 @@ Máquina disponible en la planta. Puede ser fija a un módulo o compartida.
 | `velocidad_tipica` | INTEGER | | Velocidad estándar (unidades/minuto) |
 | `estado` | TEXT | | "activa" / "inactiva" |
 | `id_modulo` | INTEGER | FK → ModuloConfeccion | Módulo al que pertenece (nullable) |
+| `marca` | TEXT | | Marca del fabricante |
+| `modelo` | TEXT | | Modelo específico |
+| `serial` | TEXT | | Número de serie |
+| `codigo_inventario` | TEXT | | Código de inventario interno |
+| `ubicacion` | TEXT | | Ubicación física en la planta |
 
 **Relaciones:**
 - Una máquina pertenece a **un solo módulo** (FK único, no many-to-many).

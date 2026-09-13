@@ -15,6 +15,11 @@ Table Maquinas {
   velocidad_tipica INTEGER
   estado TEXT
   id_modulo INTEGER [ref: > ModuloConfeccion.id]
+  marca TEXT
+  modelo TEXT
+  serial TEXT
+  codigo_inventario TEXT
+  ubicacion TEXT
 }
 
 Table SeccionPrenda {

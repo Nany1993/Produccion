@@ -186,7 +186,12 @@ def add_maquina():
         datos.get('descripcion'),
         datos.get('velocidad_tipica'),
         datos.get('estado', 'Activa'),
-        datos.get('id_modulo')
+        datos.get('id_modulo'),
+        datos.get('marca'),
+        datos.get('modelo'),
+        datos.get('serial'),
+        datos.get('codigo_inventario'),
+        datos.get('ubicacion')
     )
     return jsonify({"mensaje": "Máquina guardada con éxito"}), 201
 
@@ -201,7 +206,12 @@ def update_maquina(id_maquina):
         datos.get('descripcion'),
         datos.get('velocidad_tipica'),
         datos.get('estado', 'Activa'),
-        datos.get('id_modulo')
+        datos.get('id_modulo'),
+        datos.get('marca'),
+        datos.get('modelo'),
+        datos.get('serial'),
+        datos.get('codigo_inventario'),
+        datos.get('ubicacion')
     )
     return jsonify(res)
 

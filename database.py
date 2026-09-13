@@ -40,6 +40,11 @@ def inicializar_base_de_datos():
                 velocidad_tipica INTEGER,
                 estado TEXT DEFAULT 'Activa',
                 id_modulo INTEGER,
+                marca TEXT,
+                modelo TEXT,
+                serial TEXT,
+                codigo_inventario TEXT,
+                ubicacion TEXT,
                 FOREIGN KEY (id_modulo) REFERENCES ModuloConfeccion(id)
             );
         """)
@@ -455,7 +460,8 @@ def obtener_maquinaria():
     cursor = conexion.cursor()
     cursor.execute("""
         SELECT tm.id, tm.nombre, tm.descripcion, tm.velocidad_tipica, tm.estado,
-               tm.id_modulo, m.nombre as nombre_modulo
+               tm.id_modulo, m.nombre as nombre_modulo,
+               tm.marca, tm.modelo, tm.serial, tm.codigo_inventario, tm.ubicacion
         FROM Maquinas tm
         LEFT JOIN ModuloConfeccion m ON tm.id_modulo = m.id
         ORDER BY m.nombre, tm.nombre
@@ -463,13 +469,20 @@ def obtener_maquinaria():
     filas = cursor.fetchall()
     conexion.close()
     return [{"id": f[0], "nombre": f[1], "descripcion": f[2], "velocidad_tipica": f[3],
-             "estado": f[4] or 'Activa', "id_modulo": f[5], "nombre_modulo": f[6]} for f in filas]
+             "estado": f[4] or 'Activa', "id_modulo": f[5], "nombre_modulo": f[6],
+             "marca": f[7], "modelo": f[8], "serial": f[9],
+             "codigo_inventario": f[10], "ubicacion": f[11]} for f in filas]
 
-def insertar_maquina(nombre, descripcion=None, velocidad_tipica=None, estado='Activa', id_modulo=None):
+def insertar_maquina(nombre, descripcion=None, velocidad_tipica=None, estado='Activa', id_modulo=None,
+                     marca=None, modelo=None, serial=None, codigo_inventario=None, ubicacion=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO Maquinas (nombre, descripcion, velocidad_tipica, estado, id_modulo) VALUES (?, ?, ?, ?, ?)", 
-                   (nombre, descripcion, velocidad_tipica, estado, id_modulo))
+    cursor.execute("""INSERT INTO Maquinas 
+                   (nombre, descripcion, velocidad_tipica, estado, id_modulo,
+                    marca, modelo, serial, codigo_inventario, ubicacion) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
+                   (nombre, descripcion, velocidad_tipica, estado, id_modulo,
+                    marca, modelo, serial, codigo_inventario, ubicacion))
     conexion.commit()
     conexion.close()
 
@@ -1269,11 +1282,14 @@ def actualizar_modulo(id_modulo, nombre, capacidad_maxima=None, ubicacion=None, 
     conexion.close()
     return {"mensaje": "Módulo actualizado"}
 
-def actualizar_maquina(id_maquina, nombre, descripcion=None, velocidad_tipica=None, estado='Activa', id_modulo=None):
+def actualizar_maquina(id_maquina, nombre, descripcion=None, velocidad_tipica=None, estado='Activa', id_modulo=None,
+                       marca=None, modelo=None, serial=None, codigo_inventario=None, ubicacion=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("UPDATE Maquinas SET nombre=?, descripcion=?, velocidad_tipica=?, estado=?, id_modulo=? WHERE id=?",
-                   (nombre, descripcion, velocidad_tipica, estado, id_modulo, id_maquina))
+    cursor.execute("""UPDATE Maquinas SET nombre=?, descripcion=?, velocidad_tipica=?, estado=?, id_modulo=?,
+                   marca=?, modelo=?, serial=?, codigo_inventario=?, ubicacion=? WHERE id=?""",
+                   (nombre, descripcion, velocidad_tipica, estado, id_modulo,
+                    marca, modelo, serial, codigo_inventario, ubicacion, id_maquina))
     conexion.commit()
     conexion.close()
     return {"mensaje": "Máquina actualizada"}
