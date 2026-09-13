@@ -22,7 +22,7 @@ def limpiar_tablas(conn):
         "ReferenciaDetalle",
         "ReferenciaProducto",
         "Operacion",
-        "TipoMaquinaria",
+        "Maquinas",
         "SeccionPrenda",
         "ModuloConfeccion",
         "HorasProduccion",
@@ -47,7 +47,7 @@ def seed_catalogos(conn):
         ("PRENSA TERMICA", "Moldeo, planchado y aplicación de transfers", 90, "Activa"),
         ("CORTADORA", "Corte de telas y materiales con precisión", 250, "Activa")
     ]
-    cursor.executemany("INSERT INTO TipoMaquinaria (nombre, descripcion, velocidad_tipica, estado) VALUES (?, ?, ?, ?)", maquinas)
+    cursor.executemany("INSERT INTO Maquinas (nombre, descripcion, velocidad_tipica, estado) VALUES (?, ?, ?, ?)", maquinas)
 
     secciones = [
         ("CORONA (PANELES)", "Paneles que forman la copa de la gorra", 1),
@@ -60,16 +60,16 @@ def seed_catalogos(conn):
     cursor.executemany("INSERT INTO SeccionPrenda (nombre, descripcion, orden_proceso) VALUES (?, ?, ?)", secciones)
 
     modulos = [
-        ("Línea 1", 8, "Nave A - Piso 1", "Carlos Rodríguez", "Activo"),
-        ("Línea 2", 8, "Nave A - Piso 1", "María González", "Activo"),
-        ("Línea 3", 6, "Nave A - Piso 2", "Juan Martínez", "Activo"),
-        ("Línea 4", 6, "Nave A - Piso 2", "Ana López", "Activo"),
-        ("Línea 5", 8, "Nave B - Piso 1", "Pedro Sánchez", "Activo"),
-        ("Línea 6", 8, "Nave B - Piso 1", "Laura Ramírez", "Activo"),
-        ("Línea 7", 6, "Nave B - Piso 2", "Diego Torres", "Activo"),
-        ("Línea 8", 6, "Nave B - Piso 2", "Sofía Vargas", "Activo")
+        ("Línea 1", 8, "Nave A - Piso 1", "Activo"),
+        ("Línea 2", 8, "Nave A - Piso 1", "Activo"),
+        ("Línea 3", 6, "Nave A - Piso 2", "Activo"),
+        ("Línea 4", 6, "Nave A - Piso 2", "Activo"),
+        ("Línea 5", 8, "Nave B - Piso 1", "Activo"),
+        ("Línea 6", 8, "Nave B - Piso 1", "Activo"),
+        ("Línea 7", 6, "Nave B - Piso 2", "Activo"),
+        ("Línea 8", 6, "Nave B - Piso 2", "Activo")
     ]
-    cursor.executemany("INSERT INTO ModuloConfeccion (nombre, capacidad_maxima, ubicacion, supervisor, estado) VALUES (?, ?, ?, ?, ?)", modulos)
+    cursor.executemany("INSERT INTO ModuloConfeccion (nombre, capacidad_maxima, ubicacion, estado) VALUES (?, ?, ?, ?)", modulos)
 
     horas = [
         ("Hora 1", "07:00", "08:00"),
@@ -330,9 +330,11 @@ def seed_control_hora(conn, target_registros=1500):
     cursor.execute("SELECT id_referencia, SUM(o.tiempo_segundos) FROM ReferenciaDetalle rd JOIN Operacion o ON rd.id_operacion = o.id GROUP BY rd.id_referencia")
     tc_cache = dict(cursor.fetchall())
 
-    # Mapear id_orden -> id_referencia para el tiempo de ciclo
     cursor.execute("SELECT id, id_referencia FROM OrdenProduccion")
     orden_ref = dict(cursor.fetchall())
+
+    cursor.execute("SELECT id, id_maquina FROM Empleados WHERE estado = 'Activo'")
+    empleados = cursor.fetchall()
 
     hoy = date.today()
     dias_atras = 30
@@ -384,30 +386,29 @@ def seed_control_hora(conn, target_registros=1500):
 
         produccion_acumulada[asig_id] += cantidad
 
-        desc_np = ""
-        tiempo_np = 0
+        empleado = random.choice(empleados)
+        id_operador = empleado[0]
+        id_usuario = id_operador
+
+        defectuosa = random.randint(0, max(1, int(cantidad * 0.05)))
+
+        observaciones = ""
         if random.random() < 0.1:
-            causas = [
-                ("Falta de material", random.randint(300, 900)),
-                ("Averia de maquina", random.randint(600, 1800)),
-                ("Cambio de operario", random.randint(120, 600)),
-                ("Problema de calidad", random.randint(300, 900)),
-            ]
-            desc_np, tiempo_np = random.choice(causas)
+            observaciones = random.choice([
+                "Buena calidad", "Retrabajo necesario", "Cambio de operario",
+                "Material defectuoso", "Maquina desajustada"
+            ])
 
         registros.append((
-            fecha, mod_id, asig_id, id_hora, porcion,
-            float(num_operarios), cantidad, parada_id, parada_tiempo,
-            desc_np, tiempo_np
+            fecha, id_hora, id_orden, id_operador, cantidad,
+            defectuosa, observaciones, id_usuario
         ))
 
     cursor.executemany("""
         INSERT INTO ControlHoraHora (
-            fecha, id_modulo, id_asignacion, id_hora, porcion_tiempo,
-            cantidad_operarios, cantidad_producida, id_parada_programada,
-            tiempo_parada_programada, descripcion_parada_no_programada,
-            tiempo_parada_no_programada
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            fecha, id_hora, id_orden, id_operador, cantidad_producida,
+            cantidad_defectuosa, observaciones, id_usuario
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, registros)
 
     conn.commit()
@@ -417,32 +418,33 @@ def seed_empleados(conn):
     cursor = conn.cursor()
     
     empleados = [
-        ("Carlos Rodríguez", "12345678", "Operario", "PLANA", "2023-03-15", "Activo", "123-456-7890", "carlos.r@empresa.com", 1),
-        ("María González", "23456789", "Operario", "FILETEADORA", "2022-08-20", "Activo", "234-567-8901", "maria.g@empresa.com", 1),
-        ("Juan Martínez", "34567890", "Supervisor", "PLANA", "2020-01-10", "Activo", "345-678-9012", "juan.m@empresa.com", 1),
-        ("Ana López", "45678901", "Operario", "BORDADORA", "2023-06-01", "Activo", "456-789-0123", "ana.l@empresa.com", 2),
-        ("Pedro Sánchez", "56789012", "Operario", "OJETERA", "2022-11-15", "Activo", "567-890-1234", "pedro.s@empresa.com", 2),
-        ("Laura Ramírez", "67890123", "Supervisor", "FILETEADORA", "2021-04-22", "Activo", "678-901-2345", "laura.r@empresa.com", 2),
-        ("Diego Torres", "78901234", "Operario", "BOTONERA", "2023-09-05", "Activo", "789-012-3456", "diego.t@empresa.com", 3),
-        ("Sofía Vargas", "89012345", "Operario", "RIBETADORA", "2022-07-18", "Activo", "890-123-4567", "sofia.v@empresa.com", 3),
-        ("Miguel Ángel Castro", "90123456", "Mecánico", "PLANA", "2021-02-28", "Activo", "901-234-5678", "miguel.c@empresa.com", 4),
-        ("Isabel Moreno", "01234567", "Operario", "PRENSA TERMICA", "2023-01-12", "Activo", "012-345-6789", "isabel.m@empresa.com", 4),
-        ("Roberto Jiménez", "11223344", "Operario", "CORTADORA", "2022-05-30", "Activo", "112-233-4455", "roberto.j@empresa.com", 5),
-        ("Patricia Flores", "22334455", "Auxiliar", "PLANA", "2023-08-14", "Activo", "223-344-5566", "patricia.f@empresa.com", 5),
-        ("Fernando Ruiz", "33445566", "Operario", "FILETEADORA", "2021-11-08", "Activo", "334-455-6677", "fernando.r@empresa.com", 6),
-        ("Carmen Delgado", "44556677", "Operario", "BORDADORA", "2022-09-25", "Activo", "445-566-7788", "carmen.d@empresa.com", 6),
-        ("Alejandro Vega", "55667788", "Supervisor", "PLANA", "2020-06-17", "Activo", "556-677-8899", "alejandro.v@empresa.com", 7),
-        ("Lucía Herrera", "66778899", "Operario", "OJETERA", "2023-04-03", "Activo", "667-788-9900", "lucia.h@empresa.com", 7),
-        ("Gabriel Mendoza", "77889900", "Operario", "BOTONERA", "2022-12-19", "Activo", "778-899-0011", "gabriel.m@empresa.com", 8),
-        ("Valentina Ortega", "88990011", "Operario", "RIBETADORA", "2023-07-07", "Activo", "889-900-1122", "valentina.o@empresa.com", 8),
-        ("Ricardo Peña", "99001122", "Mecánico", "FILETEADORA", "2021-10-11", "Activo", "990-011-2233", "ricardo.p@empresa.com", 1),
-        ("Daniela Cruz", "10112233", "Auxiliar", "BORDADORA", "2023-02-26", "Activo", "101-122-3344", "daniela.c@empresa.com", 2),
+        ("Carlos Rodríguez", "12345678", "Operario", "Operario", "2023-03-15", "Activo", "123-456-7890", "carlos.r@empresa.com", 1, 1),
+        ("María González", "23456789", "Operario", "Operario", "2022-08-20", "Activo", "234-567-8901", "maria.g@empresa.com", 1, 2),
+        ("Juan Martínez", "34567890", "Supervisor", "Supervisor", "2020-01-10", "Activo", "345-678-9012", "juan.m@empresa.com", 1, 1),
+        ("Ana López", "45678901", "Operario", "Operario", "2023-06-01", "Activo", "456-789-0123", "ana.l@empresa.com", 2, 3),
+        ("Pedro Sánchez", "56789012", "Operario", "Operario", "2022-11-15", "Activo", "567-890-1234", "pedro.s@empresa.com", 2, 4),
+        ("Laura Ramírez", "67890123", "Supervisor", "Supervisor", "2021-04-22", "Activo", "678-901-2345", "laura.r@empresa.com", 2, 2),
+        ("Diego Torres", "78901234", "Operario", "Operario", "2023-09-05", "Activo", "789-012-3456", "diego.t@empresa.com", 3, 5),
+        ("Sofía Vargas", "89012345", "Operario", "Operario", "2022-07-18", "Activo", "890-123-4567", "sofia.v@empresa.com", 3, 6),
+        ("Miguel Ángel Castro", "90123456", "Mecánico", "Mecánico", "2021-02-28", "Activo", "901-234-5678", "miguel.c@empresa.com", 4, 1),
+        ("Isabel Moreno", "01234567", "Operario", "Operario", "2023-01-12", "Activo", "012-345-6789", "isabel.m@empresa.com", 4, 7),
+        ("Roberto Jiménez", "11223344", "Operario", "Operario", "2022-05-30", "Activo", "112-233-4455", "roberto.j@empresa.com", 5, 8),
+        ("Patricia Flores", "22334455", "Auxiliar", "Auxiliar", "2023-08-14", "Activo", "223-344-5566", "patricia.f@empresa.com", 5, 1),
+        ("Fernando Ruiz", "33445566", "Operario", "Operario", "2021-11-08", "Activo", "334-455-6677", "fernando.r@empresa.com", 6, 2),
+        ("Carmen Delgado", "44556677", "Operario", "Operario", "2022-09-25", "Activo", "445-566-7788", "carmen.d@empresa.com", 6, 3),
+        ("Alejandro Vega", "55667788", "Supervisor", "Supervisor", "2020-06-17", "Activo", "556-677-8899", "alejandro.v@empresa.com", 7, 1),
+        ("Lucía Herrera", "66778899", "Operario", "Operario", "2023-04-03", "Activo", "667-788-9900", "lucia.h@empresa.com", 7, 4),
+        ("Gabriel Mendoza", "77889900", "Operario", "Operario", "2022-12-19", "Activo", "778-899-0011", "gabriel.m@empresa.com", 8, 5),
+        ("Valentina Ortega", "88990011", "Operario", "Operario", "2023-07-07", "Activo", "889-900-1122", "valentina.o@empresa.com", 8, 6),
+        ("Ricardo Peña", "99001122", "Mecánico", "Mecánico", "2021-10-11", "Activo", "990-011-2233", "ricardo.p@empresa.com", 1, 2),
+        ("Daniela Cruz", "10112233", "Auxiliar", "Auxiliar", "2023-02-26", "Activo", "101-122-3344", "daniela.c@empresa.com", 2, 3),
     ]
     
     cursor.executemany("""
-        INSERT INTO Empleados (nombre, numero_documento, cargo, especialidad,
-                               fecha_ingreso, estado, telefono, email, modulo_asignado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO Empleados (nombre, numero_documento, cargo, rol,
+                               fecha_ingreso, estado, telefono, email,
+                               modulo_asignado, id_maquina)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, empleados)
     
     conn.commit()

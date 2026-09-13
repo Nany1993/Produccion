@@ -102,25 +102,6 @@ function formatTime(seconds) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-function validateField(inputId, rules = {}) {
-  const input = document.getElementById(inputId);
-  const value = input.value.trim();
-  let error = '';
-
-  if (rules.required && !value) {
-    error = 'Campo requerido';
-  } else if (rules.minLength && value.length < rules.minLength) {
-    error = `Mínimo ${rules.minLength} caracteres`;
-  } else if (rules.positive && (isNaN(value) || Number(value) <= 0)) {
-    error = 'Debe ser un número positivo';
-  } else if (rules.number && isNaN(value)) {
-    error = 'Debe ser un número';
-  }
-
-  showFieldError(inputId, error);
-  return !error;
-}
-
 function showFieldError(inputId, message) {
   const input = document.getElementById(inputId);
   let errorEl = document.getElementById(`${inputId}-error`);
@@ -138,22 +119,6 @@ function showFieldError(inputId, message) {
 
 function clearFieldErrors(...ids) {
   ids.forEach(id => showFieldError(id, ''));
-}
-
-function togglePanel(containerId, btnId, showText, hideText) {
-  const container = document.getElementById(containerId);
-  const btn = document.getElementById(btnId);
-  const isHidden = container.style.display === 'none' || !container.style.display;
-  container.style.display = isHidden ? 'block' : 'none';
-  if (btn) btn.textContent = isHidden ? hideText : showText;
-}
-
-function resetButton(btnId, text, color) {
-  const btn = document.getElementById(btnId);
-  if (btn) {
-    btn.textContent = text;
-    if (color) btn.style.background = color;
-  }
 }
 
 // ============================================================
@@ -644,9 +609,11 @@ function editarMaquina(id) {
 async function eliminarMaquina(id, nombre) {
   const ok = await Modal.confirm('Eliminar Máquina', `¿Eliminar "${nombre}"?`);
   if (!ok) return;
-  await api(`/api/maquinaria/${id}`, { method: 'DELETE' });
-  Toast.success('Máquina eliminada');
-  cargarMaquinaria();
+  const data = await api(`/api/maquinaria/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Máquina eliminada');
+    cargarMaquinaria();
+  }
 }
 
 function editarModulo(id) {
@@ -680,9 +647,11 @@ function editarModulo(id) {
 async function eliminarModulo(id, nombre) {
   const ok = await Modal.confirm('Eliminar Módulo', `¿Eliminar "${nombre}"?`);
   if (!ok) return;
-  await api(`/api/modulos/${id}`, { method: 'DELETE' });
-  Toast.success('Módulo eliminado');
-  cargarModulos();
+  const data = await api(`/api/modulos/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Módulo eliminado');
+    cargarModulos();
+  }
 }
 
 function descargarCSV(tipo) {
@@ -1490,14 +1459,6 @@ async function eliminarOperacion(id) {
     Toast.success('Operación eliminada');
     cargarOperaciones();
   }
-}
-
-function toggleListaOperaciones() {
-  togglePanel('container-lista-ops', 'btn-toggle-ops', 'Ver listado de operaciones', 'Ocultar listado de operaciones');
-}
-
-function toggleCatalogo(containerId, btnId) {
-  togglePanel(containerId, btnId, 'Ver Listado', 'Ocultar Listado');
 }
 
 // ============================================================
@@ -2756,7 +2717,6 @@ async function guardarGrilla(btn = null) {
     fecha,
     id_modulo: parseInt(idMod),
     id_orden: parseInt(idOrden),
-    porcion_tiempo: 1.0,
     observaciones: '',
     id_usuario: sesionActual.id,
     paradas,
@@ -3047,7 +3007,7 @@ function verDetalleLote(idOrden, nombreOrden) {
     return `
       <tr>
         <td><strong>${c.nombre_operador || '—'}</strong></td>
-        <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${c.maquina || '-'}</td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">🔧 ${c.maquina_operador || '-'}</td>
         <td>${actividad}</td>
         <td class="text-accent">${c.cantidad_producida}</td>
         <td>${c.cantidad_defectuosa || 0}</td>
@@ -3078,17 +3038,6 @@ function verDetalleLote(idOrden, nombreOrden) {
       </div>
     `
   });
-}
-
-async function eliminarControlHora(id) {
-  const ok = await Modal.confirm('Eliminar Registro', '¿Eliminar este registro de producción?');
-  if (!ok) return;
-
-  const data = await api(`/api/produccion/${id}`, { method: 'DELETE' });
-  if (data) {
-    Toast.success('Registro eliminado');
-    cargarControlesHoy();
-  }
 }
 
 // ============================================================

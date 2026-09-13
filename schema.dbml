@@ -1,0 +1,183 @@
+// https://dbdiagram.io/d
+
+Table ModuloConfeccion {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  capacidad_maxima INTEGER
+  ubicacion TEXT
+  estado TEXT
+}
+
+Table Maquinas {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  descripcion TEXT
+  velocidad_tipica INTEGER
+  estado TEXT
+  id_modulo INTEGER [ref: > ModuloConfeccion.id]
+}
+
+Table SeccionPrenda {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  descripcion TEXT
+  orden_proceso INTEGER
+}
+
+Table ParadasProgramadas {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  tiempo_segundos INTEGER [not null]
+  tipo TEXT
+  frecuencia TEXT
+}
+
+Table HorasProduccion {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  hora_inicio TEXT
+  hora_fin TEXT
+}
+
+Table Empleados {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  numero_documento TEXT [not null]
+  cargo TEXT [not null]
+  rol TEXT
+  fecha_ingreso TEXT
+  estado TEXT
+  telefono TEXT
+  email TEXT
+  modulo_asignado INTEGER [ref: > ModuloConfeccion.id] // derivado de id_maquina
+  id_maquina INTEGER [ref: > Maquinas.id]
+}
+
+Table Usuario {
+  id INTEGER [pk]
+  nombre_usuario TEXT [not null]
+  password TEXT [not null]
+  rol TEXT
+  id_empleado INTEGER [not null, ref: > Empleados.id]
+  activo INTEGER
+}
+
+Table AsignacionUsuarioLinea {
+  id INTEGER [pk]
+  id_usuario INTEGER [not null, ref: > Usuario.id]
+  id_modulo INTEGER [not null, ref: > ModuloConfeccion.id]
+}
+
+Table CausaParada {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+}
+
+Table ReferenciaProducto {
+  id INTEGER [pk]
+  nombre_referencia TEXT [not null]
+  especificaciones TEXT
+  foto TEXT
+  fecha_creacion TIMESTAMP
+  pdf_path TEXT
+}
+
+Table OrdenProduccion {
+  id INTEGER [pk]
+  id_referencia INTEGER [not null, ref: > ReferenciaProducto.id]
+  nombre_orden TEXT [not null]
+  cantidad_lote INTEGER [not null]
+  estado TEXT
+  fecha_creacion TIMESTAMP
+}
+
+Table Operacion {
+  id INTEGER [pk]
+  nombre_operacion TEXT [not null]
+  tiempo_segundos INTEGER [not null]
+  id_maquina INTEGER [ref: > Maquinas.id]
+  id_seccion INTEGER [ref: > SeccionPrenda.id]
+}
+
+Table ReferenciaDetalle {
+  id INTEGER [pk]
+  id_referencia INTEGER [not null, ref: > ReferenciaProducto.id]
+  id_operacion INTEGER [not null, ref: > Operacion.id]
+  letra_secuencia TEXT [not null]
+  predecesoras TEXT
+  orden_fila INTEGER
+}
+
+Table Materiales {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  unidad TEXT
+  costo_unitario REAL
+  proveedor TEXT
+  descripcion TEXT
+}
+
+Table ReferenciaMaterial {
+  id INTEGER [pk]
+  id_referencia INTEGER [not null, ref: > ReferenciaProducto.id]
+  id_material INTEGER [not null, ref: > Materiales.id]
+  cantidad_por_unidad REAL [not null]
+  merma_porcentaje REAL
+  nota TEXT
+}
+
+Table AsignacionModulo {
+  id INTEGER [pk]
+  id_orden INTEGER [not null, ref: > OrdenProduccion.id]
+  id_modulo INTEGER [not null, ref: > ModuloConfeccion.id]
+  cantidad_asignada INTEGER [not null]
+}
+
+Table RegistroProduccion {
+  id INTEGER [pk]
+  fecha TEXT [not null]
+  id_orden INTEGER [not null, ref: > OrdenProduccion.id]
+  id_operacion INTEGER [ref: > Operacion.id]
+  id_operador INTEGER [not null, ref: > Empleados.id]
+  cantidad_producida INTEGER [not null]
+  cantidad_defectuosa INTEGER
+  observaciones TEXT
+  id_usuario INTEGER [not null, ref: > Usuario.id]
+  created_at TIMESTAMP
+}
+
+Table ControlHoraHora {
+  id INTEGER [pk]
+  fecha TEXT [not null]
+  id_hora INTEGER [not null, ref: > HorasProduccion.id]
+  id_orden INTEGER [not null, ref: > OrdenProduccion.id]
+  id_operador INTEGER [not null, ref: > Empleados.id]
+  cantidad_producida INTEGER [not null]
+  cantidad_defectuosa INTEGER
+  observaciones TEXT
+  id_usuario INTEGER [not null, ref: > Usuario.id]
+  created_at TIMESTAMP
+}
+
+Table ParadaControlHora {
+  id INTEGER [pk]
+  id_control INTEGER [not null, ref: > ControlHoraHora.id]
+  id_parada_programada INTEGER [ref: > ParadasProgramadas.id]
+  id_causa INTEGER [ref: > CausaParada.id]
+  tiempo_segundos INTEGER [not null]
+  descripcion TEXT
+}
+
+Table ParadaRegistro {
+  id INTEGER [pk]
+  id_registro INTEGER [not null, ref: > RegistroProduccion.id]
+  id_parada_programada INTEGER [ref: > ParadasProgramadas.id]
+  id_causa INTEGER [ref: > CausaParada.id]
+  tiempo_segundos INTEGER [not null]
+  descripcion TEXT
+}
+
+Table Configuracion {
+  clave TEXT [pk]
+  valor TEXT
+}

@@ -19,14 +19,14 @@ def main():
     for t in ["ParadaRegistro", "RegistroProduccion", "AsignacionUsuarioLinea", "Usuario",
               "Empleados", "AsignacionModulo", "OrdenProduccion",
               "ReferenciaMaterial", "ReferenciaDetalle", "ReferenciaProducto", "Operacion",
-              "TipoMaquinaria", "SeccionPrenda", "ModuloConfeccion", "HorasProduccion",
+              "Maquinas", "SeccionPrenda", "ModuloConfeccion", "HorasProduccion",
               "ParadasProgramadas", "Materiales", "CausaParada"]:
         cursor.execute(f"DELETE FROM {t}")
         cursor.execute(f"DELETE FROM sqlite_sequence WHERE name='{t}'")
 
     # Catálogos maestros necesarios
     maquinas = ["PLANA", "FILETEADORA", "BORDADORA", "OJETERA", "BOTONERA", "RIBETADORA", "PRENSA TERMICA", "CORTADORA"]
-    cursor.executemany("INSERT INTO TipoMaquinaria (nombre) VALUES (?)", [(m,) for m in maquinas])
+    cursor.executemany("INSERT INTO Maquinas (nombre) VALUES (?)", [(m,) for m in maquinas])
 
     secciones = ["CORONA (PANELES)", "VISERA", "BANDA INTERIOR", "CIERRE/AJUSTE", "ACABADOS", "BORDADO/LOGO"]
     cursor.executemany("INSERT INTO SeccionPrenda (nombre) VALUES (?)", [(s,) for s in secciones])
@@ -177,7 +177,7 @@ def main():
         ("Ana Lopez", "45678901", "Operario", "OJETERA", "2023-06-01", "Activo", "4567890123", "ana@planta.com", modulos[3]),
     ]
     cursor.executemany("""
-        INSERT INTO Empleados (nombre, numero_documento, cargo, especialidad, fecha_ingreso, estado, telefono, email, modulo_asignado)
+        INSERT INTO Empleados (nombre, numero_documento, cargo, rol, fecha_ingreso, estado, telefono, email, modulo_asignado)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, cursores_empleados)
 

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from database import (
     inicializar_base_de_datos, 
     obtener_maquinaria, 
@@ -14,6 +14,9 @@ from database import (
     eliminar_referencia,
     actualizar_referencia,
     actualizar_foto_referencia,
+    actualizar_pdf_referencia,
+    obtener_pdf_referencia,
+    eliminar_pdf_referencia,
     duplicar_referencia,
     agregar_detalle_referencia,
     obtener_horas,
@@ -45,6 +48,8 @@ from database import (
     insertar_modulo,
     actualizar_modulo,
     actualizar_maquina,
+    eliminar_maquina,
+    eliminar_modulo,
     obtener_referencias_por_modulo,
     obtener_operadores_linea,
     obtener_actividades_por_orden,
@@ -67,6 +72,9 @@ from database import (
     insertar_registro_produccion,
     eliminar_registro_produccion,
     obtener_registros_rango,
+    insertar_control_hora,
+    obtener_controles_hora,
+    eliminar_control_hora,
     reporte_progreso_orden,
     obtener_cumplimiento_orden,
     obtener_empleados,
@@ -77,10 +85,37 @@ from database import (
 )
 from engine import calcular_balanceo_linea
 import os
+import time
+import threading
+from collections import defaultdict
 
 app = Flask(__name__)
 PORT = 8000
 DIRECTORY = os.getcwd()
+
+# --- RATE LIMITING DE LOGIN (mitiga fuerza bruta) ---
+# Ventana deslizante en memoria por (IP + usuario). Sin Redis a propósito:
+# es una app Flask de un solo proceso. Tras LOGIN_MAX_INTENTOS intentos
+# fallidos en LOGIN_VENTANA_SEG segundos se bloquea temporalmente (HTTP 429).
+LOGIN_MAX_INTENTOS = 10
+LOGIN_VENTANA_SEG = 300  # 5 minutos
+_login_intentos = defaultdict(list)
+_login_lock = threading.Lock()
+
+def _login_esta_bloqueado(clave):
+    ahora = time.time()
+    with _login_lock:
+        vigentes = [t for t in _login_intentos[clave] if ahora - t < LOGIN_VENTANA_SEG]
+        _login_intentos[clave] = vigentes
+        return len(vigentes) >= LOGIN_MAX_INTENTOS
+
+def _registrar_intento_login(clave):
+    with _login_lock:
+        _login_intentos[clave].append(time.time())
+
+def _limpiar_intentos_login(clave):
+    with _login_lock:
+        _login_intentos.pop(clave, None)
 
 
 
@@ -172,12 +207,8 @@ def update_maquina(id_maquina):
 
 @app.route('/api/maquinaria/<int:id_maquina>', methods=['DELETE'])
 def delete_maquina(id_maquina):
-    conexion = sqlite3.connect(DATABASE)
-    cursor = conexion.cursor()
-    cursor.execute("DELETE FROM TipoMaquinaria WHERE id = ?", (id_maquina,))
-    conexion.commit()
-    conexion.close()
-    return jsonify({"mensaje": "Máquina eliminada"})
+    res = eliminar_maquina(id_maquina)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 @app.route('/api/secciones', methods=['GET'])
 def get_secciones():
@@ -229,12 +260,8 @@ def update_modulo(id_modulo):
 
 @app.route('/api/modulos/<int:id_modulo>', methods=['DELETE'])
 def delete_modulo(id_modulo):
-    conexion = sqlite3.connect(DATABASE)
-    cursor = conexion.cursor()
-    cursor.execute("DELETE FROM ModuloConfeccion WHERE id = ?", (id_modulo,))
-    conexion.commit()
-    conexion.close()
-    return jsonify({"mensaje": "Módulo eliminado"})
+    res = eliminar_modulo(id_modulo)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 # --- NUEVO: HORAS ---
 @app.route('/api/horas', methods=['GET'])
@@ -310,8 +337,8 @@ def update_operacion(id_operacion):
 
 @app.route('/api/operaciones/<int:id_operacion>', methods=['DELETE'])
 def delete_operacion(id_operacion):
-    eliminar_operacion(id_operacion)
-    return jsonify({"mensaje": "Operación eliminada"}), 200
+    res = eliminar_operacion(id_operacion)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 # --- REFERENCIAS ---
 
@@ -359,6 +386,76 @@ def upload_foto_referencia(id_ref):
     ruta_web = f"/uploads/ref_{id_ref}_{nombre_seguro}"
     actualizar_foto_referencia(id_ref, ruta_web)
     return jsonify({"mensaje": "Foto subida", "foto": ruta_web}), 200
+
+@app.route('/api/referencias/<int:id_ref>/pdf', methods=['POST'])
+def upload_pdf_referencia(id_ref):
+    """Subir PDF con información adicional de la referencia."""
+    if 'pdf' not in request.files:
+        return jsonify({"error": "No se recibió archivo"}), 400
+    archivo = request.files['pdf']
+    if archivo.filename == '':
+        return jsonify({"error": "Archivo vacío"}), 400
+    
+    # Validar que sea PDF
+    if not archivo.filename.lower().endswith('.pdf'):
+        return jsonify({"error": "Solo se permiten archivos PDF"}), 400
+    
+    # Validar tamaño (máximo 10MB)
+    archivo.seek(0, 2)  # Ir al final
+    tamaño = archivo.tell()
+    archivo.seek(0)  # Volver al inicio
+    if tamaño > 10 * 1024 * 1024:
+        return jsonify({"error": "El archivo excede 10MB"}), 400
+    
+    from werkzeug.utils import secure_filename
+    carpeta = os.path.join(os.getcwd(), 'uploads', 'pdfs')
+    os.makedirs(carpeta, exist_ok=True)
+    
+    # Guardar como {id_referencia}.pdf
+    nombre_seguro = secure_filename(archivo.filename)
+    ruta_guardar = os.path.join(carpeta, f"{id_ref}_{nombre_seguro}")
+    archivo.save(ruta_guardar)
+    
+    # Actualizar en DB
+    ruta_relativa = f"uploads/pdfs/{id_ref}_{nombre_seguro}"
+    actualizar_pdf_referencia(id_ref, ruta_relativa)
+    
+    return jsonify({"mensaje": "PDF subido", "pdf_path": ruta_relativa}), 200
+
+@app.route('/api/referencias/<int:id_ref>/pdf', methods=['GET'])
+def download_pdf_referencia(id_ref):
+    """Descargar PDF de una referencia."""
+    pdf_path = obtener_pdf_referencia(id_ref)
+    
+    if not pdf_path:
+        return jsonify({"error": "La referencia no tiene PDF asociado"}), 404
+    
+    ruta_completa = os.path.join(os.getcwd(), pdf_path)
+    if not os.path.exists(ruta_completa):
+        return jsonify({"error": "Archivo PDF no encontrado en disco"}), 404
+    
+    return send_file(ruta_completa, mimetype='application/pdf', as_attachment=True)
+
+@app.route('/api/referencias/<int:id_ref>/pdf', methods=['DELETE'])
+def delete_pdf_referencia(id_ref):
+    """Eliminar PDF de una referencia."""
+    pdf_path = obtener_pdf_referencia(id_ref)
+    
+    if not pdf_path:
+        return jsonify({"error": "La referencia no tiene PDF asociado"}), 404
+    
+    # Eliminar archivo físico
+    ruta_completa = os.path.join(os.getcwd(), pdf_path)
+    try:
+        if os.path.exists(ruta_completa):
+            os.remove(ruta_completa)
+    except PermissionError:
+        pass  # Archivo puede estar bloqueado en Windows, pero el registro se limpia igual
+    
+    # Limpiar en DB
+    eliminar_pdf_referencia(id_ref)
+    
+    return jsonify({"mensaje": "PDF eliminado"}), 200
 
 @app.route('/api/referencias/<int:id_ref>/duplicar', methods=['POST'])
 def duplicate_referencia_endpoint(id_ref):
@@ -408,7 +505,8 @@ def update_orden_endpoint(id_orden):
 
 @app.route('/api/ordenes/<int:id_orden>', methods=['DELETE'])
 def delete_orden_endpoint(id_orden):
-    return jsonify(eliminar_orden(id_orden))
+    res = eliminar_orden(id_orden)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 # --- MATERIALES (BOM) ---
 
@@ -447,7 +545,8 @@ def update_material_endpoint(id_material):
 
 @app.route('/api/materiales/<int:id_material>', methods=['DELETE'])
 def delete_material_endpoint(id_material):
-    return jsonify(eliminar_material(id_material))
+    res = eliminar_material(id_material)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 # Materiales por referencia (BOM)
 @app.route('/api/referencias/<int:id_ref>/materiales', methods=['GET'])
@@ -589,7 +688,6 @@ def get_operadores_linea(id_mod):
     """Operadores activos de una línea con su máquina. Un supervisor solo ve sus líneas."""
     id_usuario = request.args.get('id_usuario', type=int)
     if id_usuario:
-        from database import obtener_usuarios
         usuario = next((u for u in obtener_usuarios() if u['id'] == id_usuario), None)
         es_admin = usuario and usuario['rol'] == 'Admin'
         if not es_admin:
@@ -665,7 +763,7 @@ def get_reporte_eficiencia():
         modulo = c['modulo']
         num_actividades = max(1, len(resumen_dia[(dia, modulo)]["actividades"]))
         tc_actividad = c.get('tiempo_operacion') or 0
-        num_op = c['cantidad_operarios'] or 0
+        num_op = 1  # Cada registro es por un solo operador
         # Paradas del registro: se descuentan proporcionalmente (ya incluidas en cada registro)
         p_total = c.get('tiempo_total_parada') or 0
         jornada_act = jornada_seg / num_actividades
@@ -814,7 +912,7 @@ def update_empleado(id_empleado):
 @app.route('/api/empleados/<int:id_empleado>', methods=['DELETE'])
 def delete_empleado(id_empleado):
     res = eliminar_empleado(id_empleado)
-    return jsonify(res)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 # --- LOGIN ---
 
@@ -823,9 +921,14 @@ def login():
     datos = request.json
     if not datos or not datos.get('nombre_usuario') or not datos.get('password'):
         return jsonify({"error": "Usuario y contraseña requeridos"}), 400
+    clave = f"{request.remote_addr}|{datos['nombre_usuario']}"
+    if _login_esta_bloqueado(clave):
+        return jsonify({"error": "Demasiados intentos fallidos. Esperá unos minutos."}), 429
     usuario = verificar_login(datos['nombre_usuario'], datos['password'])
     if not usuario:
+        _registrar_intento_login(clave)
         return jsonify({"error": "Credenciales inválidas"}), 401
+    _limpiar_intentos_login(clave)
     return jsonify(usuario)
 
 # --- CONFIGURACIÓN DE PLATAFORMA ---
@@ -877,7 +980,8 @@ def update_usuario(id_usuario):
 
 @app.route('/api/usuarios/<int:id_usuario>', methods=['DELETE'])
 def delete_usuario(id_usuario):
-    return jsonify(eliminar_usuario(id_usuario))
+    res = eliminar_usuario(id_usuario)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 @app.route('/api/usuarios/<int:id_usuario>/lineas', methods=['GET'])
 def get_lineas_usuario(id_usuario):
@@ -907,7 +1011,8 @@ def add_causa_parada():
 
 @app.route('/api/causas-parada/<int:id_causa>', methods=['DELETE'])
 def delete_causa_parada(id_causa):
-    return jsonify(eliminar_causa_parada(id_causa))
+    res = eliminar_causa_parada(id_causa)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 # --- REGISTRO DE PRODUCCIÓN (NUEVO) ---
 
@@ -929,25 +1034,19 @@ def get_produccion_dia():
 @app.route('/api/produccion/resumen', methods=['GET'])
 def get_resumen_produccion():
     fecha = request.args.get('fecha')
-    id_modulo = request.args.get('id_modulo', type=int)
-    id_hora = request.args.get('id_hora', type=int)
     id_operacion = request.args.get('id_operacion', type=int)
-    if not fecha or not id_modulo:
-        return jsonify({"error": "Faltan parámetros"}), 400
-    return jsonify(resumen_registros_hora(fecha, id_modulo, id_hora, id_operacion))
+    if not fecha:
+        return jsonify({"error": "Falta parámetro 'fecha'"}), 400
+    return jsonify(resumen_registros_hora(fecha, id_operacion))
 
 @app.route('/api/produccion', methods=['POST'])
 def add_produccion():
     datos = request.json
-    if not datos.get('fecha') or not datos.get('id_modulo') or not datos.get('id_orden'):
-        return jsonify({"error": "Faltan datos requeridos"}), 400
+    if not datos.get('fecha') or not datos.get('id_orden'):
+        return jsonify({"error": "Faltan datos requeridos (fecha, id_orden)"}), 400
     id_usuario = datos.get('id_usuario')
     if not id_usuario:
         return jsonify({"error": "Usuario no identificado"}), 401
-    try:
-        cantidad = int(datos['cantidad_producida'])
-    except:
-        return jsonify({"error": "Cantidad inválida"}), 400
     res = insertar_registro_produccion(datos, int(id_usuario))
     if "error" in res:
         return jsonify(res), 400
@@ -960,8 +1059,8 @@ def delete_produccion(id_registro):
 @app.route('/api/produccion/masivo', methods=['POST'])
 def add_produccion_masivo():
     datos = request.json
-    if not datos.get('fecha') or not datos.get('id_modulo') or not datos.get('id_orden'):
-        return jsonify({"error": "Faltan datos requeridos"}), 400
+    if not datos.get('fecha') or not datos.get('id_orden'):
+        return jsonify({"error": "Faltan datos requeridos (fecha, id_orden)"}), 400
     id_usuario = datos.get('id_usuario')
     if not id_usuario:
         return jsonify({"error": "Usuario no identificado"}), 401
@@ -976,6 +1075,35 @@ def get_progreso_orden(id_orden):
     if not res:
         return jsonify({"error": "Orden no encontrada"}), 404
     return jsonify(res)
+
+
+# ============================================================
+# CONTROL POR HORA
+# ============================================================
+
+@app.route('/api/control-hora', methods=['GET'])
+def get_controles_hora():
+    fecha = request.args.get('fecha')
+    if not fecha:
+        return jsonify({"error": "Falta parámetro 'fecha'"}), 400
+    id_hora = request.args.get('id_hora', type=int)
+    return jsonify(obtener_controles_hora(fecha, id_hora=id_hora))
+
+@app.route('/api/control-hora', methods=['POST'])
+def add_control_hora():
+    datos = request.json
+    required = ['fecha', 'id_hora', 'id_orden', 'id_operador', 'cantidad_producida']
+    if not all(k in datos for k in required):
+        return jsonify({"error": f"Faltan campos requeridos: {required}"}), 400
+    id_usuario = datos.get('id_usuario')
+    if not id_usuario:
+        return jsonify({"error": "Usuario no identificado"}), 401
+    res = insertar_control_hora(datos, int(id_usuario))
+    return jsonify(res), 201
+
+@app.route('/api/control-hora/<int:id_control>', methods=['DELETE'])
+def delete_control_hora(id_control):
+    return jsonify(eliminar_control_hora(id_control))
 
 if __name__ == "__main__":
     inicializar_base_de_datos()

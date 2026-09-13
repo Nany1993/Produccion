@@ -142,7 +142,7 @@ Calcula la asignación óptima de operaciones a operarios.
 
 ```
 ┌──────────────────┐       ┌──────────────────┐
-│  TipoMaquinaria  │       │   SeccionPrenda  │
+│  Maquinas  │       │   SeccionPrenda  │
 ├──────────────────┤       ├──────────────────┤
 │ id (PK)          │       │ id (PK)          │
 │ nombre           │       │ nombre           │
@@ -156,7 +156,7 @@ Calcula la asignación óptima de operaciones a operarios.
 │ id (PK)                                      │
 │ nombre_operacion                             │
 │ tiempo_segundos                              │
-│ id_maquina (FK → TipoMaquinaria)             │
+│ id_maquina (FK → Maquinas)             │
 │ id_seccion (FK → SeccionPrenda)              │
 └──────────────────────┬───────────────────────┘
                        │
@@ -266,7 +266,7 @@ Calcula la asignación óptima de operaciones a operarios.
 
 ### Tablas y Relaciones
 
-#### TipoMaquinaria
+#### Maquinas
 Catálogo de tipos de máquina disponibles.
 
 | Campo | Tipo | Descripción |
@@ -617,7 +617,7 @@ proyecto-balanceo/
 
 ### Guía de Campos por Catálogo
 
-#### 1. Maquinaria (TipoMaquinaria)
+#### 1. Maquinaria (Maquinas)
 
 | Campo | Tipo | Obligatorio | Descripción |
 |-------|------|-------------|-------------|
@@ -700,7 +700,7 @@ proyecto-balanceo/
 | **telefono** | TEXT | No | Número de teléfono de contacto |
 | **email** | TEXT | No | Correo electrónico del empleado |
 | **modulo_asignado** | INTEGER | No | ID del módulo donde trabaja actualmente (FK → ModuloConfeccion) |
-| **id_maquina** | INTEGER | No | ID de la máquina (puesto de trabajo) que opera (FK → TipoMaquinaria) |
+| **id_maquina** | INTEGER | No | ID de la máquina (puesto de trabajo) que opera (FK → Maquinas) |
 
 **Uso:** Gestiona el personal de la planta y su vínculo con los puestos de trabajo (máquina) y líneas. El acceso a la plataforma (usuario/rol) se gestiona desde el módulo **Usuarios**.
 

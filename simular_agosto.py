@@ -22,7 +22,7 @@ def limpiar(conn):
     tablas = ["ParadaRegistro", "RegistroProduccion", "AsignacionUsuarioLinea", "Usuario",
               "Empleados", "AsignacionModulo", "OrdenProduccion",
               "ReferenciaMaterial", "ReferenciaDetalle", "ReferenciaProducto", "Operacion",
-              "TipoMaquinaria", "SeccionPrenda", "ModuloConfeccion", "HorasProduccion",
+              "Maquinas", "SeccionPrenda", "ModuloConfeccion", "HorasProduccion",
               "ParadasProgramadas", "Materiales", "CausaParada"]
     for t in tablas:
         cur.execute(f"DELETE FROM {t}")
@@ -47,7 +47,7 @@ def maquinas_reales(conn):
         ("Cortadora de tela (mesa)", "Cortado de paneles, viseras y entretelas", 200, "Activa", lineas[0]),
         ("Mesa de revisión y empaque", "Control de calidad, etiquetado y empaque final", 0, "Activa", lineas[5]),
     ]
-    cur.executemany("INSERT INTO TipoMaquinaria (nombre, descripcion, velocidad_tipica, estado, id_modulo) VALUES (?,?,?,?,?)", maquinas)
+    cur.executemany("INSERT INTO Maquinas (nombre, descripcion, velocidad_tipica, estado, id_modulo) VALUES (?,?,?,?,?)", maquinas)
 
 def secciones_gorra(conn):
     cur = conn.cursor()
@@ -64,14 +64,14 @@ def secciones_gorra(conn):
 def lineas_reales(conn):
     cur = conn.cursor()
     lineas = [
-        ("Línea 1 - Corte y Preparación", 6, "Nave A - Piso 1", "Carlos Rodriguez", "Activo"),
-        ("Línea 2 - Paneles y Corona", 8, "Nave A - Piso 1", "Maria Gonzalez", "Activo"),
-        ("Línea 3 - Viseras", 6, "Nave A - Piso 2", "Laura Ramirez", "Activo"),
-        ("Línea 4 - Ensamble Principal", 10, "Nave B - Piso 1", "Juan Martinez", "Activo"),
-        ("Línea 5 - Bordado", 4, "Nave B - Piso 2", "Diego Torres", "Activo"),
-        ("Línea 6 - Terminado y Empaque", 6, "Nave B - Piso 2", "Sofia Vargas", "Activo"),
+        ("Línea 1 - Corte y Preparación", 6, "Nave A - Piso 1", "Activo"),
+        ("Línea 2 - Paneles y Corona", 8, "Nave A - Piso 1", "Activo"),
+        ("Línea 3 - Viseras", 6, "Nave A - Piso 2", "Activo"),
+        ("Línea 4 - Ensamble Principal", 10, "Nave B - Piso 1", "Activo"),
+        ("Línea 5 - Bordado", 4, "Nave B - Piso 2", "Activo"),
+        ("Línea 6 - Terminado y Empaque", 6, "Nave B - Piso 2", "Activo"),
     ]
-    cur.executemany("INSERT INTO ModuloConfeccion (nombre, capacidad_maxima, ubicacion, supervisor, estado) VALUES (?,?,?,?,?)", lineas)
+    cur.executemany("INSERT INTO ModuloConfeccion (nombre, capacidad_maxima, ubicacion, estado) VALUES (?,?,?,?)", lineas)
 
 def horas(conn):
     cur = conn.cursor()
@@ -290,6 +290,8 @@ def simular_agosto(conn, ref_id, orden_ids):
     causas_np = [r[0] for r in cur.fetchall()]
     cur.execute("SELECT id FROM Usuario WHERE nombre_usuario IN ('carlos','diego','sofia')")
     usuarios = [r[0] for r in cur.fetchall()]
+    cur.execute("SELECT id FROM Empleados WHERE rol='Operador'")
+    operadores = [r[0] for r in cur.fetchall()]
     cur.execute("SELECT id, nombre FROM ModuloConfeccion")
     modulos = cur.fetchall()
 
@@ -344,9 +346,8 @@ def simular_agosto(conn, ref_id, orden_ids):
                 def_h = max(0, defectuosas)
                 if cant_h <= 0:
                     continue
-                modulo_sel = [m for m in modulos if m[0] == linea_op[op]]
-                mod_id = modulo_sel[0][0] if modulo_sel else modulos[0][0]
                 usuario_sel = usuarios[random.randint(0, len(usuarios)-1)]
+                operador_sel = operadores[random.randint(0, len(operadores)-1)]
 
                 # paradas: programada (desayuno 60%) o causa np (30%) o ninguna
                 paradas = []
@@ -358,17 +359,16 @@ def simular_agosto(conn, ref_id, orden_ids):
                     paradas.append({"id_pp": None, "causa": cp, "tiempo": random.randint(300, 1200)})
 
                 registros.append((
-                    dia.isoformat(), mod_id, oid, op, 1.0,
-                    random.randint(4, 8), cant_h, def_h, "", usuario_sel,
+                    dia.isoformat(), oid, op, operador_sel,
+                    cant_h, def_h, "", usuario_sel,
                 ))
                 reg_idx = len(registros) - 1  # índice 0-based en la lista
                 for par in paradas:
                     paradas_reg.append((reg_idx, par["id_pp"], par["causa"], par["tiempo"]))
 
     cur.executemany("""INSERT INTO RegistroProduccion
-        (fecha, id_modulo, id_orden, id_operacion, porcion_tiempo,
-         cantidad_operarios, cantidad_producida, cantidad_defectuosa, observaciones, id_usuario)
-        VALUES (?,?,?,?,?,?,?,?,?,?)""", registros)
+        (fecha, id_orden, id_operacion, id_operador, cantidad_producida, cantidad_defectuosa, observaciones, id_usuario)
+        VALUES (?,?,?,?,?,?,?,?)""", registros)
     # paradas: necesitamos mapear registros recién insertados con su id real.
     # Como INSERT no nos dio los ids, re-leemos en orden de inserción.
     cur.execute("SELECT id FROM RegistroProduccion ORDER BY id")
