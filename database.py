@@ -269,7 +269,7 @@ def inicializar_base_de_datos():
         # 3. Tabla Operacion
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Operacion (
-                id INTEGER PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre_operacion TEXT NOT NULL UNIQUE,
                 tiempo_segundos INTEGER NOT NULL,
                 id_maquina INTEGER,
