@@ -480,7 +480,11 @@ function paginarMaquinaria() {
       <td><strong>${m.nombre}</strong></td>
       <td>${m.descripcion || '-'}</td>
       <td>${m.nombre_modulo ? `<span class="badge badge-module">${m.nombre_modulo}</span>` : '<span style="color:var(--text-muted);">Sin línea</span>'}</td>
-      <td>${m.velocidad_tipica ? m.velocidad_tipica + ' uds/h' : '-'}</td>
+      <td>${m.marca || '-'}</td>
+      <td>${m.modelo || '-'}</td>
+      <td>${m.serial || '-'}</td>
+      <td>${m.codigo_inventario || '-'}</td>
+      <td>${m.ubicacion || '-'}</td>
       <td><span class="badge ${ec}">${m.estado}</span></td>
       <td><div class="actions-cell"><button class="btn-edit-sm" onclick="editarMaquina(${m.id})">Editar</button><button class="btn-delete-sm" onclick="eliminarMaquina(${m.id},'${m.nombre.replace(/'/g, "\\'")}')">Eliminar</button></div></td>
     </tr>`;
@@ -517,6 +521,11 @@ async function guardarMaquina() {
   const idModulo = document.getElementById('input-maquina-modulo').value;
   const velocidad = document.getElementById('input-maquina-vel').value;
   const estado = document.getElementById('input-maquina-estado').value;
+  const marca = document.getElementById('input-maquina-marca').value.trim();
+  const modelo = document.getElementById('input-maquina-modelo').value.trim();
+  const serial = document.getElementById('input-maquina-serial').value.trim();
+  const codigo_inventario = document.getElementById('input-maquina-inv').value.trim();
+  const ubicacion = document.getElementById('input-maquina-ubi').value.trim();
 
   if (!nombre) { showFieldError('input-maquina', 'Ingrese un nombre'); return; }
   clearFieldErrors('input-maquina');
@@ -530,7 +539,12 @@ async function guardarMaquina() {
       descripcion: descripcion || null,
       id_modulo: parseInt(idModulo),
       velocidad_tipica: velocidad ? parseInt(velocidad) : null,
-      estado
+      estado,
+      marca: marca || null,
+      modelo: modelo || null,
+      serial: serial || null,
+      codigo_inventario: codigo_inventario || null,
+      ubicacion: ubicacion || null
     }),
     _btn: event.target
   });
@@ -541,6 +555,11 @@ async function guardarMaquina() {
     document.getElementById('input-maquina-modulo').value = '';
     document.getElementById('input-maquina-vel').value = '';
     document.getElementById('input-maquina-estado').value = 'Activa';
+    document.getElementById('input-maquina-marca').value = '';
+    document.getElementById('input-maquina-modelo').value = '';
+    document.getElementById('input-maquina-serial').value = '';
+    document.getElementById('input-maquina-inv').value = '';
+    document.getElementById('input-maquina-ubi').value = '';
     Toast.success(data.mensaje || 'Máquina guardada');
     cargarMaquinaria();
   }
@@ -587,7 +606,12 @@ function editarMaquina(id) {
       <option value="Activa" ${m.estado==='Activa'?'selected':''}>Activa</option>
       <option value="Inactiva" ${m.estado==='Inactiva'?'selected':''}>Inactiva</option>
       <option value="Mantenimiento" ${m.estado==='Mantenimiento'?'selected':''}>Mantenimiento</option>
-    </select></div>`;
+    </select></div>
+    <div class="form-group"><label>Marca</label><input type="text" id="edit-maq-marca" value="${m.marca || ''}"></div>
+    <div class="form-group"><label>Modelo</label><input type="text" id="edit-maq-modelo" value="${m.modelo || ''}"></div>
+    <div class="form-group"><label>Serial</label><input type="text" id="edit-maq-serial" value="${m.serial || ''}"></div>
+    <div class="form-group"><label>Código Inventario</label><input type="text" id="edit-maq-inv" value="${m.codigo_inventario || ''}"></div>
+    <div class="form-group"><label>Ubicación</label><input type="text" id="edit-maq-ubi" value="${m.ubicacion || ''}"></div>`;
   abrirModalEdicion('Editar Máquina', fields, async () => {
     const nombre = document.getElementById('edit-maq-nombre').value.trim();
     if (!nombre) { Toast.warning('Nombre requerido'); return; }
@@ -598,7 +622,12 @@ function editarMaquina(id) {
         descripcion: document.getElementById('edit-maq-desc').value.trim() || null,
         id_modulo: document.getElementById('edit-maq-modulo').value ? parseInt(document.getElementById('edit-maq-modulo').value) : null,
         velocidad_tipica: document.getElementById('edit-maq-vel').value ? parseInt(document.getElementById('edit-maq-vel').value) : null,
-        estado: document.getElementById('edit-maq-estado').value
+        estado: document.getElementById('edit-maq-estado').value,
+        marca: document.getElementById('edit-maq-marca').value.trim() || null,
+        modelo: document.getElementById('edit-maq-modelo').value.trim() || null,
+        serial: document.getElementById('edit-maq-serial').value.trim() || null,
+        codigo_inventario: document.getElementById('edit-maq-inv').value.trim() || null,
+        ubicacion: document.getElementById('edit-maq-ubi').value.trim() || null
       })
     });
     Toast.success('Máquina actualizada');

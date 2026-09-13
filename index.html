@@ -172,6 +172,26 @@
                                         <option value="Mantenimiento">Mantenimiento</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label>Marca</label>
+                                    <input type="text" id="input-maquina-marca" placeholder="Ej: Brother, Juki">
+                                </div>
+                                <div class="form-group">
+                                    <label>Modelo</label>
+                                    <input type="text" id="input-maquina-modelo" placeholder="Ej: BS-100">
+                                </div>
+                                <div class="form-group">
+                                    <label>Serial</label>
+                                    <input type="text" id="input-maquina-serial" placeholder="Número de serie">
+                                </div>
+                                <div class="form-group">
+                                    <label>Código Inventario</label>
+                                    <input type="text" id="input-maquina-inv" placeholder="Código interno">
+                                </div>
+                                <div class="form-group">
+                                    <label>Ubicación</label>
+                                    <input type="text" id="input-maquina-ubi" placeholder="Planta, área, línea">
+                                </div>
                             </div>
                             <button class="btn-primary" onclick="guardarMaquina()" style="margin-top: 12px; max-width: 250px;">Guardar Máquina</button>
                         </div>
@@ -180,7 +200,7 @@
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
-                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Línea</th><th>Velocidad</th><th>Estado</th><th>Acciones</th></tr></thead>
+                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Línea</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Cód. Inventario</th><th>Ubicación</th><th>Estado</th><th>Acciones</th></tr></thead>
                                 <tbody id="lista-maquinaria"></tbody>
                             </table>
                             <div id="empty-maquinaria" class="empty-state" style="display: none;">No hay máquinas registradas.</div>
