@@ -2207,7 +2207,7 @@ async function procesarMaterial() {
 
   const payload = {
     nombre,
-    unidad: document.getElementById('input-mat-unidad').value.trim() || null,
+    unidad: document.getElementById('input-mat-unidad').value || null,
     costo_unitario: document.getElementById('input-mat-costo').value ? parseFloat(document.getElementById('input-mat-costo').value) : null,
     proveedor: document.getElementById('input-mat-proveedor').value.trim() || null,
     descripcion: sentenceCase(document.getElementById('input-mat-desc').value.trim()) || null
