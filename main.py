@@ -24,6 +24,7 @@ from database import (
     obtener_jornada_segundos,
     obtener_paradas,
     insertar_parada,
+    eliminar_parada,
     obtener_asignaciones,
     asignar_referencia_modulo,
     obtener_disponibilidad,
@@ -81,7 +82,14 @@ from database import (
     obtener_empleado,
     insertar_empleado,
     actualizar_empleado,
-    eliminar_empleado
+    eliminar_empleado,
+    obtener_unidades_medida,
+    insertar_unidad_medida,
+    eliminar_unidad_medida,
+    obtener_proveedores,
+    insertar_proveedor,
+    actualizar_proveedor,
+    eliminar_proveedor
 )
 from engine import calcular_balanceo_linea
 import os
@@ -307,6 +315,77 @@ def add_parada():
         datos.get('frecuencia', 'Diaria')
     )
     return jsonify({"mensaje": "Parada guardada con éxito"}), 201
+
+@app.route('/api/paradas/<int:id_parada>', methods=['DELETE'])
+def delete_parada(id_parada):
+    res = eliminar_parada(id_parada)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
+
+# --- UNIDADES DE MEDIDA ---
+
+@app.route('/api/unidades-medida', methods=['GET'])
+def get_unidades_medida():
+    return jsonify(obtener_unidades_medida())
+
+@app.route('/api/unidades-medida', methods=['POST'])
+def add_unidad_medida():
+    datos = request.json
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = insertar_unidad_medida(
+        datos['nombre'],
+        datos.get('descripcion')
+    )
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
+
+@app.route('/api/unidades-medida/<int:id_unidad>', methods=['DELETE'])
+def delete_unidad_medida(id_unidad):
+    res = eliminar_unidad_medida(id_unidad)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
+
+# --- PROVEEDORES ---
+
+@app.route('/api/proveedores', methods=['GET'])
+def get_proveedores():
+    return jsonify(obtener_proveedores())
+
+@app.route('/api/proveedores', methods=['POST'])
+def add_proveedor():
+    datos = request.json
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = insertar_proveedor(
+        datos['nombre'],
+        datos.get('descripcion'),
+        datos.get('telefono'),
+        datos.get('email')
+    )
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
+
+@app.route('/api/proveedores/<int:id_proveedor>', methods=['PUT'])
+def update_proveedor(id_proveedor):
+    datos = request.json
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = actualizar_proveedor(
+        id_proveedor,
+        datos['nombre'],
+        datos.get('descripcion'),
+        datos.get('telefono'),
+        datos.get('email')
+    )
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res)
+
+@app.route('/api/proveedores/<int:id_proveedor>', methods=['DELETE'])
+def delete_proveedor(id_proveedor):
+    res = eliminar_proveedor(id_proveedor)
+    return (jsonify(res), 400) if "error" in res else jsonify(res)
 
 # --- OPERACIONES ---
 
@@ -542,7 +621,9 @@ def add_material():
         datos.get('unidad'),
         datos.get('costo_unitario'),
         datos.get('proveedor'),
-        datos.get('descripcion')
+        datos.get('descripcion'),
+        datos.get('id_unidad'),
+        datos.get('id_proveedor')
     )
     if "error" in res:
         return jsonify(res), 400
@@ -559,7 +640,9 @@ def update_material_endpoint(id_material):
         datos.get('unidad'),
         datos.get('costo_unitario'),
         datos.get('proveedor'),
-        datos.get('descripcion')
+        datos.get('descripcion'),
+        datos.get('id_unidad'),
+        datos.get('id_proveedor')
     )
     if "error" in res:
         return jsonify(res), 400

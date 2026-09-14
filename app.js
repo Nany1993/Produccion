@@ -2157,7 +2157,28 @@ async function eliminarOrden(id) {
 
 let idMaterialEnEdicion = null;
 
+async function cargarSelectUnidades() {
+  const data = await api('/api/unidades-medida');
+  if (!data) return;
+  const select = document.getElementById('input-mat-unidad');
+  select.innerHTML = '<option value="">Seleccione...</option>';
+  data.forEach(u => {
+    select.innerHTML += `<option value="${u.id}">${u.nombre}</option>`;
+  });
+}
+
+async function cargarSelectProveedores() {
+  const data = await api('/api/proveedores');
+  if (!data) return;
+  const select = document.getElementById('input-mat-proveedor');
+  select.innerHTML = '<option value="">Seleccione...</option>';
+  data.forEach(p => {
+    select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+  });
+}
+
 async function cargarMateriales() {
+  await Promise.all([cargarSelectUnidades(), cargarSelectProveedores()]);
   const data = await api('/api/materiales');
   if (!data) return;
 
@@ -2175,9 +2196,9 @@ async function cargarMateriales() {
       tbody.innerHTML += `
         <tr>
           <td><strong>${m.nombre}</strong></td>
-          <td>${m.unidad || '-'}</td>
+          <td>${m.unidad_nombre || m.unidad || '-'}</td>
           <td>${m.costo_unitario ? '$' + m.costo_unitario.toLocaleString() : '-'}</td>
-          <td>${m.proveedor || '-'}</td>
+          <td>${m.proveedor_nombre || m.proveedor || '-'}</td>
           <td>${m.descripcion || '-'}</td>
           <td class="action-buttons">
             <button class="btn-icon btn-edit" onclick="iniciarEdicionMaterial(${objStr})">Editar</button>
@@ -2208,9 +2229,9 @@ async function procesarMaterial() {
 
   const payload = {
     nombre,
-    unidad: document.getElementById('input-mat-unidad').value || null,
+    id_unidad: document.getElementById('input-mat-unidad').value ? parseInt(document.getElementById('input-mat-unidad').value) : null,
     costo_unitario: document.getElementById('input-mat-costo').value ? parseFloat(document.getElementById('input-mat-costo').value) : null,
-    proveedor: document.getElementById('input-mat-proveedor').value.trim() || null,
+    id_proveedor: document.getElementById('input-mat-proveedor').value ? parseInt(document.getElementById('input-mat-proveedor').value) : null,
     descripcion: sentenceCase(document.getElementById('input-mat-desc').value.trim()) || null
   };
 
@@ -2234,9 +2255,9 @@ function iniciarEdicionMaterial(m) {
   abrirFormColapsable('form-nuevo-material', 'btn-nuevo-material');
   document.getElementById('material-id-edicion').value = m.id;
   document.getElementById('input-mat-nombre').value = m.nombre;
-  document.getElementById('input-mat-unidad').value = m.unidad || '';
+  document.getElementById('input-mat-unidad').value = m.id_unidad || '';
   document.getElementById('input-mat-costo').value = m.costo_unitario || '';
-  document.getElementById('input-mat-proveedor').value = m.proveedor || '';
+  document.getElementById('input-mat-proveedor').value = m.id_proveedor || '';
   document.getElementById('input-mat-desc').value = m.descripcion || '';
   const btn = document.getElementById('btn-material');
   if (btn) { btn.textContent = 'Actualizar Material'; btn.style.background = 'var(--accent-blue)'; }

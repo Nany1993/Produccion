@@ -207,6 +207,7 @@ def inicializar_base_de_datos():
                 id_registro INTEGER NOT NULL,
                 id_parada_programada INTEGER,
                 id_causa INTEGER,
+                id_parada INTEGER REFERENCES Paradas(id),
                 tiempo_segundos INTEGER NOT NULL,
                 descripcion TEXT,
                 FOREIGN KEY (id_registro) REFERENCES RegistroProduccion(id) ON DELETE CASCADE,
@@ -244,6 +245,7 @@ def inicializar_base_de_datos():
                 id_control INTEGER NOT NULL,
                 id_parada_programada INTEGER,
                 id_causa INTEGER,
+                id_parada INTEGER REFERENCES Paradas(id),
                 tiempo_segundos INTEGER NOT NULL,
                 descripcion TEXT,
                 FOREIGN KEY (id_control) REFERENCES ControlHoraHora(id) ON DELETE CASCADE,
@@ -345,7 +347,9 @@ def inicializar_base_de_datos():
                 unidad TEXT,
                 costo_unitario REAL,
                 proveedor TEXT,
-                descripcion TEXT
+                descripcion TEXT,
+                id_unidad INTEGER REFERENCES UnidadesMedida(id),
+                id_proveedor INTEGER REFERENCES Proveedores(id)
             );
         """)
         print("- Tabla 'Materiales' lista.")
@@ -364,6 +368,38 @@ def inicializar_base_de_datos():
             );
         """)
         print("- Tabla 'ReferenciaMaterial' lista.")
+
+        # 2j. Tabla UnidadesMedida (catálogo de unidades de medida)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS UnidadesMedida (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL UNIQUE,
+                descripcion TEXT
+            );
+        """)
+        print("- Tabla 'UnidadesMedida' lista.")
+
+        # 2k. Tabla Proveedores (catálogo de proveedores)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Proveedores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL UNIQUE,
+                descripcion TEXT,
+                telefono TEXT,
+                email TEXT
+            );
+        """)
+        print("- Tabla 'Proveedores' lista.")
+
+        # 2l. Tabla Paradas (catálogo unificado de paradas: programadas y no programadas)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Paradas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL UNIQUE,
+                descripcion TEXT
+            );
+        """)
+        print("- Tabla 'Paradas' lista.")
 
         # MIGRACIÓN: Agregar columnas nuevas si no existen
         migraciones = [
@@ -387,6 +423,10 @@ def inicializar_base_de_datos():
             ("Empleados", "id_maquina", "INTEGER"),
             ("Empleados", "rol", "TEXT DEFAULT 'Operador'"),
             ("RegistroProduccion", "id_operador", "INTEGER"),
+            ("Materiales", "id_unidad", "INTEGER"),
+            ("Materiales", "id_proveedor", "INTEGER"),
+            ("ParadaRegistro", "id_parada", "INTEGER"),
+            ("ParadaControlHora", "id_parada", "INTEGER"),
         ]
         
         for tabla, columna, tipo in migraciones:
@@ -705,18 +745,116 @@ def obtener_jornada_segundos():
 def obtener_paradas():
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("SELECT id, nombre, tiempo_segundos, tipo, frecuencia FROM ParadasProgramadas")
+    cursor.execute("SELECT id, nombre, descripcion FROM Paradas ORDER BY nombre")
     filas = cursor.fetchall()
     conexion.close()
-    return [{"id": f[0], "nombre": f[1], "tiempo": f[2], "tipo": f[3] or 'Opcional', "frecuencia": f[4] or 'Diaria'} for f in filas]
+    return [{"id": f[0], "nombre": f[1], "descripcion": f[2]} for f in filas]
 
-def insertar_parada(nombre, tiempo, tipo='Opcional', frecuencia='Diaria'):
+def insertar_parada(nombre, descripcion=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO ParadasProgramadas (nombre, tiempo_segundos, tipo, frecuencia) VALUES (?, ?, ?, ?)",
-                   (nombre, tiempo, tipo, frecuencia))
-    conexion.commit()
+    try:
+        cursor.execute("INSERT INTO Paradas (nombre, descripcion) VALUES (?, ?)", (nombre, descripcion))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Parada guardada", "id": cursor.lastrowid}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe una parada con ese nombre"}
+
+def eliminar_parada(id_parada):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("DELETE FROM Paradas WHERE id = ?", (id_parada,))
+        conexion.commit()
+        return {"mensaje": "Parada eliminada"}
+    except sqlite3.IntegrityError:
+        return {"error": "No se puede eliminar: la parada está registrada en producción."}
+    finally:
+        conexion.close()
+
+# --- UNIDADES DE MEDIDA ---
+
+def obtener_unidades_medida():
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("SELECT id, nombre, descripcion FROM UnidadesMedida ORDER BY nombre")
+    filas = cursor.fetchall()
     conexion.close()
+    return [{"id": f[0], "nombre": f[1], "descripcion": f[2]} for f in filas]
+
+def insertar_unidad_medida(nombre, descripcion=None):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("INSERT INTO UnidadesMedida (nombre, descripcion) VALUES (?, ?)", (nombre, descripcion))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Unidad de medida guardada", "id": cursor.lastrowid}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe una unidad de medida con ese nombre"}
+
+def eliminar_unidad_medida(id_unidad):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("DELETE FROM UnidadesMedida WHERE id = ?", (id_unidad,))
+        conexion.commit()
+        return {"mensaje": "Unidad de medida eliminada"}
+    except sqlite3.IntegrityError:
+        return {"error": "No se puede eliminar: la unidad de medida está en uso por uno o más materiales."}
+    finally:
+        conexion.close()
+
+# --- PROVEEDORES ---
+
+def obtener_proveedores():
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    cursor.execute("SELECT id, nombre, descripcion, telefono, email FROM Proveedores ORDER BY nombre")
+    filas = cursor.fetchall()
+    conexion.close()
+    return [{"id": f[0], "nombre": f[1], "descripcion": f[2], "telefono": f[3], "email": f[4]} for f in filas]
+
+def insertar_proveedor(nombre, descripcion=None, telefono=None, email=None):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("INSERT INTO Proveedores (nombre, descripcion, telefono, email) VALUES (?, ?, ?, ?)",
+                       (nombre, descripcion, telefono, email))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Proveedor guardado", "id": cursor.lastrowid}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe un proveedor con ese nombre"}
+
+def actualizar_proveedor(id_proveedor, nombre, descripcion=None, telefono=None, email=None):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("UPDATE Proveedores SET nombre=?, descripcion=?, telefono=?, email=? WHERE id=?",
+                       (nombre, descripcion, telefono, email, id_proveedor))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Proveedor actualizado"}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe un proveedor con ese nombre"}
+
+def eliminar_proveedor(id_proveedor):
+    conexion = _conexion()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("DELETE FROM Proveedores WHERE id = ?", (id_proveedor,))
+        conexion.commit()
+        return {"mensaje": "Proveedor eliminado"}
+    except sqlite3.IntegrityError:
+        return {"error": "No se puede eliminar: el proveedor está en uso por uno o más materiales."}
+    finally:
+        conexion.close()
 
 # --- ASIGNACIÓN DE REFERENCIAS ---
 
@@ -1044,7 +1182,15 @@ def eliminar_orden(id_orden):
 def obtener_materiales():
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("SELECT id, nombre, unidad, costo_unitario, proveedor, descripcion FROM Materiales ORDER BY nombre")
+    cursor.execute("""
+        SELECT m.id, m.nombre, m.unidad, m.costo_unitario, m.proveedor, m.descripcion,
+               m.id_unidad, m.id_proveedor,
+               um.nombre as unidad_nombre, p.nombre as proveedor_nombre
+        FROM Materiales m
+        LEFT JOIN UnidadesMedida um ON m.id_unidad = um.id
+        LEFT JOIN Proveedores p ON m.id_proveedor = p.id
+        ORDER BY m.nombre
+    """)
     filas = cursor.fetchall()
     conexion.close()
     return [{
@@ -1053,17 +1199,22 @@ def obtener_materiales():
         "unidad": f[2],
         "costo_unitario": f[3],
         "proveedor": f[4],
-        "descripcion": f[5]
+        "descripcion": f[5],
+        "id_unidad": f[6],
+        "id_proveedor": f[7],
+        "unidad_nombre": f[8],
+        "proveedor_nombre": f[9]
     } for f in filas]
 
-def insertar_material(nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None):
+def insertar_material(nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None,
+                      id_unidad=None, id_proveedor=None):
     conexion = _conexion()
     cursor = conexion.cursor()
     try:
         cursor.execute("""
-            INSERT INTO Materiales (nombre, unidad, costo_unitario, proveedor, descripcion)
-            VALUES (?, ?, ?, ?, ?)
-        """, (nombre, unidad, costo_unitario, proveedor, descripcion))
+            INSERT INTO Materiales (nombre, unidad, costo_unitario, proveedor, descripcion, id_unidad, id_proveedor)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (nombre, unidad, costo_unitario, proveedor, descripcion, id_unidad, id_proveedor))
         conexion.commit()
         conexion.close()
         return {"mensaje": "Material guardado", "id": cursor.lastrowid}
@@ -1071,22 +1222,22 @@ def insertar_material(nombre, unidad=None, costo_unitario=None, proveedor=None, 
         conexion.close()
         return {"error": "Ya existe un material con ese nombre"}
 
-def actualizar_material(id_material, nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None):
+def actualizar_material(id_material, nombre, unidad=None, costo_unitario=None, proveedor=None, descripcion=None,
+                        id_unidad=None, id_proveedor=None):
     conexion = _conexion()
     cursor = conexion.cursor()
     try:
         cursor.execute("""
             UPDATE Materiales
-            SET nombre=?, unidad=?, costo_unitario=?, proveedor=?, descripcion=?
+            SET nombre=?, unidad=?, costo_unitario=?, proveedor=?, descripcion=?, id_unidad=?, id_proveedor=?
             WHERE id=?
-        """, (nombre, unidad, costo_unitario, proveedor, descripcion, id_material))
+        """, (nombre, unidad, costo_unitario, proveedor, descripcion, id_unidad, id_proveedor, id_material))
         conexion.commit()
         conexion.close()
         return {"mensaje": "Material actualizado"}
     except sqlite3.IntegrityError:
         conexion.close()
         return {"error": "Ya existe un material con ese nombre"}
-    return {"mensaje": "Material actualizado"}
 
 def eliminar_material(id_material):
     conexion = _conexion()
@@ -1845,14 +1996,17 @@ def obtener_registros_dia(fecha_desde, fecha_hasta=None, id_usuario=None):
     paradas_dict = {}
     cursor.execute("""
         SELECT p.id_registro, p.tiempo_segundos,
-               pp.nombre, cp.nombre, p.descripcion
+               pp.nombre, cp.nombre, p.descripcion,
+               par.nombre
         FROM ParadaRegistro p
         LEFT JOIN ParadasProgramadas pp ON p.id_parada_programada = pp.id
         LEFT JOIN CausaParada cp ON p.id_causa = cp.id
+        LEFT JOIN Paradas par ON p.id_parada = par.id
     """)
     for f in cursor.fetchall():
         paradas_dict.setdefault(f[0], []).append({
-            "tiempo": f[1], "parada_programada": f[2], "causa": f[3], "descripcion": f[4]
+            "tiempo": f[1], "parada_programada": f[2], "causa": f[3], "descripcion": f[4],
+            "parada_nombre": f[5]
         })
     conexion.close()
 
@@ -2311,15 +2465,18 @@ def obtener_controles_hora(fecha_desde, fecha_hasta=None, id_hora=None):
         placeholders = ",".join("?" * len(ids_controles))
         cursor.execute(f"""
             SELECT pc.id_control, pc.tiempo_segundos,
-                   pp.nombre, cp.nombre, pc.descripcion
+                   pp.nombre, cp.nombre, pc.descripcion,
+                   par.nombre
             FROM ParadaControlHora pc
             LEFT JOIN ParadasProgramadas pp ON pc.id_parada_programada = pp.id
             LEFT JOIN CausaParada cp ON pc.id_causa = cp.id
+            LEFT JOIN Paradas par ON pc.id_parada = par.id
             WHERE pc.id_control IN ({placeholders})
         """, ids_controles)
         for f in cursor.fetchall():
             paradas_dict.setdefault(f[0], []).append({
-                "tiempo": f[1], "parada_programada": f[2], "causa": f[3], "descripcion": f[4]
+                "tiempo": f[1], "parada_programada": f[2], "causa": f[3], "descripcion": f[4],
+                "parada_nombre": f[5]
             })
     
     conexion.close()

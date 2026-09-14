@@ -83,8 +83,10 @@
                         <li><a href="#" class="nav-link" onclick="showModule('mod-usuarios')" id="link-usuarios">Usuarios</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-causas')" id="link-causas">Causas de Parada</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-materiales')" id="link-materiales">Materiales</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-unidades-medida')" id="link-unidades-medida">Unidades de Medida</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-proveedores')" id="link-proveedores">Proveedores</a></li>
+                        <li><a href="#" class="nav-link" onclick="showModule('mod-paradas')" id="link-paradas">Paradas</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-horas')" id="link-horas">Horas</a></li>
-                        <li><a href="#" class="nav-link" onclick="showModule('mod-paradas')" id="link-paradas">Paradas Programadas</a></li>
                         <li><a href="#" class="nav-link" onclick="showModule('mod-configuracion')" id="link-configuracion">Configuración de Registro</a></li>
                     </ul>
                 </div>
@@ -510,16 +512,6 @@
                                 <label>Unidad</label>
                                 <select id="input-mat-unidad">
                                     <option value="">Seleccione...</option>
-                                    <option value="Metro">Metro</option>
-                                    <option value="Unidad">Unidad</option>
-                                    <option value="Kilogramo">Kilogramo</option>
-                                    <option value="Litro">Litro</option>
-                                    <option value="Galón">Galón</option>
-                                    <option value="Rollo">Rollo</option>
-                                    <option value="Par">Par</option>
-                                    <option value="Docena">Docena</option>
-                                    <option value="Caja">Caja</option>
-                                    <option value="Bobina">Bobina</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -528,7 +520,9 @@
                             </div>
                             <div class="form-group">
                                 <label>Proveedor</label>
-                                <input type="text" id="input-mat-proveedor" placeholder="Opcional">
+                                <select id="input-mat-proveedor">
+                                    <option value="">Seleccione...</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>Descripción</label>
@@ -552,6 +546,120 @@
                                 <tbody id="lista-materiales"></tbody>
                             </table>
                             <div id="empty-materiales" class="empty-state" style="display: none;">No hay materiales registrados.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- UNIDADES DE MEDIDA -->
+                <div id="mod-unidades-medida" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Unidades de Medida</h1>
+                        <p class="page-subtitle">Unidades de medida para insumos y materiales</p>
+                    </div>
+                    <div class="catalog-card">
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Unidades de Medida</h2>
+                            <button class="btn-primary" id="btn-nueva-unidad" onclick="toggleFormColapsable('form-nueva-unidad','btn-nueva-unidad','+ Nueva Unidad')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Unidad</button>
+                        </div>
+
+                        <div id="form-nueva-unidad" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-unidad-nombre" placeholder="Ej: Metro, Kilogramo, Unidad">
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción</label>
+                                <input type="text" id="input-unidad-desc" placeholder="Opcional">
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarUnidadMedida()" style="margin-top: 12px; max-width: 250px;">Guardar</button>
+                        </div>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead>
+                                <tbody id="lista-unidades-medida"></tbody>
+                            </table>
+                            <div id="empty-unidades-medida" class="empty-state" style="display: none;">No hay unidades registradas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROVEEDORES -->
+                <div id="mod-proveedores" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Proveedores</h1>
+                        <p class="page-subtitle">Proveedores de insumos y materiales</p>
+                    </div>
+                    <div class="catalog-card">
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Proveedores</h2>
+                            <button class="btn-primary" id="btn-nuevo-proveedor" onclick="toggleFormColapsable('form-nuevo-proveedor','btn-nuevo-proveedor','+ Nuevo Proveedor')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Proveedor</button>
+                        </div>
+
+                        <div id="form-nuevo-proveedor" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                        <input type="hidden" id="proveedor-id-edicion">
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-proveedor-nombre" placeholder="Nombre del proveedor">
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción</label>
+                                <input type="text" id="input-proveedor-desc" placeholder="Opcional">
+                            </div>
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <input type="text" id="input-proveedor-tel" placeholder="Número de contacto">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="input-proveedor-email" placeholder="correo@proveedor.com">
+                            </div>
+                        </div>
+                        <button class="btn-primary" id="btn-proveedor" onclick="procesarProveedor()" style="margin-top: 12px; max-width: 250px;">Guardar Proveedor</button>
+                        </div>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Teléfono</th><th>Email</th><th>Acciones</th></tr></thead>
+                                <tbody id="lista-proveedores"></tbody>
+                            </table>
+                            <div id="empty-proveedores" class="empty-state" style="display: none;">No hay proveedores registrados.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PARADAS -->
+                <div id="mod-paradas" class="module-section">
+                    <div class="page-header">
+                        <h1 class="page-title">Paradas</h1>
+                        <p class="page-subtitle">Catálogo de paradas</p>
+                    </div>
+                    <div class="catalog-card">
+                        <div class="ref-header">
+                            <h2 class="form-title" style="margin:0;">Paradas</h2>
+                            <button class="btn-primary" id="btn-nueva-parada" onclick="toggleFormColapsable('form-nueva-parada','btn-nueva-parada','+ Nueva Parada')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Parada</button>
+                        </div>
+
+                        <div id="form-nueva-parada" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Nombre *</label>
+                                <input type="text" id="input-parada-nombre" placeholder="Nombre de la parada">
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción</label>
+                                <input type="text" id="input-parada-desc" placeholder="Opcional">
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="guardarParada()" style="margin-top: 12px; max-width: 250px;">Guardar</button>
+                        </div>
+                        <div class="data-table-container">
+                            <table class="data-table">
+                                <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead>
+                                <tbody id="lista-paradas"></tbody>
+                            </table>
+                            <div id="empty-paradas" class="empty-state" style="display: none;">No hay paradas registradas.</div>
                         </div>
                     </div>
                 </div>

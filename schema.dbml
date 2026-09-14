@@ -120,6 +120,28 @@ Table Materiales {
   costo_unitario REAL
   proveedor TEXT
   descripcion TEXT
+  id_unidad INTEGER [ref: > UnidadesMedida.id]
+  id_proveedor INTEGER [ref: > Proveedores.id]
+}
+
+Table UnidadesMedida {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  descripcion TEXT
+}
+
+Table Proveedores {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  descripcion TEXT
+  telefono TEXT
+  email TEXT
+}
+
+Table Paradas {
+  id INTEGER [pk]
+  nombre TEXT [not null]
+  descripcion TEXT
 }
 
 Table ReferenciaMaterial {
@@ -167,8 +189,9 @@ Table ControlHoraHora {
 Table ParadaControlHora {
   id INTEGER [pk]
   id_control INTEGER [not null, ref: > ControlHoraHora.id]
-  id_parada_programada INTEGER [ref: > ParadasProgramadas.id]
-  id_causa INTEGER [ref: > CausaParada.id]
+  id_parada INTEGER [ref: > Paradas.id]
+  id_parada_programada INTEGER
+  id_causa INTEGER
   tiempo_segundos INTEGER [not null]
   descripcion TEXT
 }
@@ -176,8 +199,9 @@ Table ParadaControlHora {
 Table ParadaRegistro {
   id INTEGER [pk]
   id_registro INTEGER [not null, ref: > RegistroProduccion.id]
-  id_parada_programada INTEGER [ref: > ParadasProgramadas.id]
-  id_causa INTEGER [ref: > CausaParada.id]
+  id_parada INTEGER [ref: > Paradas.id]
+  id_parada_programada INTEGER
+  id_causa INTEGER
   tiempo_segundos INTEGER [not null]
   descripcion TEXT
 }

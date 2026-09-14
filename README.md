@@ -137,21 +137,15 @@ Franjas horarias del turno de producción. Cada registro representa una hora del
 
 ---
 
-#### `ParadasProgramadas`
+#### `Paradas`
 
-Paradas oficiales de la jornada: refrigerios, almuerzo, limpieza, etc.
+Catálogo unificado de paradas (tanto programadas como no programadas). La duración se registra en `ParadaRegistro` o `ParadaControlHora`.
 
 | Columna | Tipo | Restricción | Descripción |
 |---------|------|-------------|-------------|
 | `id` | INTEGER | PK | Identificador único |
-| `nombre` | TEXT | NOT NULL | Nombre de la parada (ej: "Refrigerio") |
-| `tiempo_segundos` | INTEGER | NOT NULL | Duración en segundos |
-| `tipo` | TEXT | | "programada" / "extraordinaria" |
-| `frecuencia` | TEXT | | "diaria", "semanal", etc. |
-
-**Relaciones:**
-- El control por hora (`ControlHoraHora.id_parada_programada`) registra cuál parada se aplicó.
-- `ParadaRegistro` también apunta aquí si la parada fue programada.
+| `nombre` | TEXT | NOT NULL, UNIQUE | Nombre de la parada (ej: "Refrigerio", "Avería") |
+| `descripcion` | TEXT | | Descripción |
 
 ---
 
@@ -299,15 +293,43 @@ Catálogo de insumos: telas, hebillas, etiquetas, hilos, etc.
 |---------|------|-------------|-------------|
 | `id` | INTEGER | PK | Identificador único |
 | `nombre` | TEXT | NOT NULL | Nombre del material |
-| `unidad` | TEXT | | Unidad de medida: "metros", "unidades", "kg" |
 | `costo_unitario` | REAL | | Costo por unidad de medida |
-| `proveedor` | TEXT | | Proveedor |
 | `descripcion` | TEXT | | Descripción del material |
+| `id_unidad` | INTEGER | FK → UnidadesMedida | Unidad de medida |
+| `id_proveedor` | INTEGER | FK → Proveedores | Proveedor |
 
 **Relaciones:**
 - Se usa en BOM (`ReferenciaMaterial.id_material`).
+- La unidad de medida se selecciona del catálogo `UnidadesMedida`.
+- El proveedor se selecciona del catálogo `Proveedores`.
 
 **Restricción FK:** No se puede eliminar un material que esté en una o más referencias (BOM).
+
+---
+
+#### `UnidadesMedida`
+
+Catálogo de unidades de medida estándar.
+
+| Columna | Tipo | Restricción | Descripción |
+|---------|------|-------------|-------------|
+| `id` | INTEGER | PK | Identificador único |
+| `nombre` | TEXT | NOT NULL, UNIQUE | Nombre (ej: "Metro", "Unidad", "Kilogramo") |
+| `descripcion` | TEXT | | Descripción |
+
+---
+
+#### `Proveedores`
+
+Catálogo de proveedores.
+
+| Columna | Tipo | Restricción | Descripción |
+|---------|------|-------------|-------------|
+| `id` | INTEGER | PK | Identificador único |
+| `nombre` | TEXT | NOT NULL, UNIQUE | Nombre del proveedor |
+| `descripcion` | TEXT | | Descripción |
+| `telefono` | TEXT | | Teléfono de contacto |
+| `email` | TEXT | | Correo electrónico |
 
 ---
 
@@ -404,14 +426,13 @@ Registro diario de producción. El supervisor registra para cada operario: canti
 
 #### `ParadaRegistro`
 
-Parada real ocurrida durante la producción. Puede ser programada (refrigerio) o no programada (falla de máquina).
+Parada real ocurrida durante la producción. La duración se registra aquí, el tipo de parada en `Paradas`.
 
 | Columna | Tipo | Restricción | Descripción |
 |---------|------|-------------|-------------|
 | `id` | INTEGER | PK | Identificador único |
 | `id_registro` | INTEGER | NOT NULL, FK → RegistroProduccion | Registro de producción asociado |
-| `id_parada_programada` | INTEGER | FK → ParadasProgramadas | Parada programada (si aplica) |
-| `id_causa` | INTEGER | FK → CausaParada | Causa de la parada |
+| `id_parada` | INTEGER | FK → Paradas | Parada occurred |
 | `tiempo_segundos` | INTEGER | NOT NULL | Duración de la parada |
 | `descripcion` | TEXT | | Descripción de lo que pasó |
 
@@ -473,8 +494,7 @@ Paradas asociadas a un registro de control por hora. Puede tener cero o varias p
 |---------|------|-------------|-------------|
 | `id` | INTEGER | PK | Identificador único |
 | `id_control` | INTEGER | NOT NULL, FK → ControlHoraHora | Registro de control |
-| `id_parada_programada` | INTEGER | FK → ParadasProgramadas | Parada programada |
-| `id_causa` | INTEGER | FK → CausaParada | Causa de la parada |
+| `id_parada` | INTEGER | FK → Paradas | Parada occurred |
 | `tiempo_segundos` | INTEGER | NOT NULL | Duración de la parada (seg) |
 | `descripcion` | TEXT | | Descripción de la parada |
 
@@ -515,6 +535,8 @@ Operacion ◄── ReferenciaDetalle (id_operacion)
 Operacion ◄── RegistroProduccion (id_operacion)
 
 Materiales ◄── ReferenciaMaterial (id_material)
+UnidadesMedida ◄── Materiales (id_unidad)
+Proveedores ◄── Materiales (id_proveedor)
 
 OrdenProduccion ◄── AsignacionModulo (id_orden)
 OrdenProduccion ◄── RegistroProduccion (id_orden)
@@ -525,11 +547,8 @@ OrdenProduccion ◄── ControlHoraHora (id_orden)
 HorasProduccion ◄── ControlHoraHora (id_hora)
 Empleados ◄── ControlHoraHora (id_operador)
 
-ParadasProgramadas ◄── ParadaRegistro (id_parada_programada)
-ParadasProgramadas ◄── ParadaControlHora (id_parada_programada)
-
-CausaParada ◄── ParadaRegistro (id_causa)
-CausaParada ◄── ParadaControlHora (id_causa)
+Paradas ◄── ParadaRegistro (id_parada)
+Paradas ◄── ParadaControlHora (id_parada)
 
 RegistroProduccion ◄── ParadaRegistro (id_registro)  [ON DELETE CASCADE]
 ControlHoraHora ◄── ParadaControlHora (id_control)  [ON DELETE CASCADE]
