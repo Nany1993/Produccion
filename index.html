@@ -703,56 +703,6 @@
                     </div>
                 </div>
 
-                <!-- PARADAS -->
-                <div id="mod-paradas" class="module-section">
-                    <div class="page-header">
-                        <h1 class="page-title">Catálogo de Paradas Programadas</h1>
-                        <p class="page-subtitle">Paradas que ocurren de forma planificada (con tiempo fijo)</p>
-                    </div>
-                    <div class="catalog-card">
-                        <div class="ref-header">
-                            <h2 class="form-title" style="margin:0;">Paradas Programadas</h2>
-                            <button class="btn-primary" id="btn-nueva-parada" onclick="toggleFormColapsable('form-nueva-parada','btn-nueva-parada','+ Nueva Parada')" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nueva Parada</button>
-                        </div>
-
-                        <div id="form-nueva-parada" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
-                        <div class="form-grid-compact">
-                            <div class="form-group">
-                                <label>Descripción *</label>
-                                <input type="text" id="input-parada-nombre" placeholder="Ej: Pausa Activa">
-                            </div>
-                            <div class="form-group">
-                                <label>Tiempo (seg) *</label>
-                                <input type="number" id="input-parada-tiempo" placeholder="300">
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo</label>
-                                <select id="input-parada-tipo">
-                                    <option value="Obligatoria">Obligatoria</option>
-                                    <option value="Opcional">Opcional</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Frecuencia</label>
-                                <select id="input-parada-frec">
-                                    <option value="Diaria">Diaria</option>
-                                    <option value="Por cambio de ref">Por cambio de ref</option>
-                                    <option value="Semanal">Semanal</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button class="btn-primary" onclick="guardarParada()" style="margin-top: 12px; max-width: 250px;">Guardar Parada</button>
-                        </div>
-                        <div class="data-table-container">
-                            <table class="data-table">
-                                <thead><tr><th>ID</th><th>Descripción</th><th>Tiempo</th><th>Tipo</th><th>Frecuencia</th></tr></thead>
-                                <tbody id="lista-paradas"></tbody>
-                            </table>
-                            <div id="empty-paradas" class="empty-state" style="display: none;">No hay paradas registradas.</div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- CONFIGURACIÓN DE REGISTRO -->
                 <div id="mod-configuracion" class="module-section">
                     <div class="page-header">

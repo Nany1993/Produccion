@@ -391,6 +391,9 @@ function showModule(moduleId) {
     cargarUsuarioModulosSupervisor();
   }
   if (moduleId === 'mod-causas') cargarCausas();
+  if (moduleId === 'mod-unidades-medida') cargarUnidadesMedida();
+  if (moduleId === 'mod-proveedores') cargarProveedores();
+  if (moduleId === 'mod-paradas') cargarParadas();
   if (moduleId === 'mod-maquinaria') {
     cargarMaquinaria();
     cargarSelectMaquinaModulo();
@@ -918,14 +921,12 @@ async function cargarParadas() {
   } else {
     empty.style.display = 'none';
     datos.forEach(p => {
-      const tipoClass = p.tipo === 'Obligatoria' ? 'badge-module' : 'badge-machine';
       tbody.innerHTML += `
         <tr>
           <td>${p.id}</td>
           <td><strong>${p.nombre}</strong></td>
-          <td>${formatTime(p.tiempo)}</td>
-          <td><span class="badge ${tipoClass}">${p.tipo}</span></td>
-          <td>${p.frecuencia}</td>
+          <td>${p.descripcion || '-'}</td>
+          <td><div class="actions-cell"><button class="btn-delete-sm" onclick="eliminarParada(${p.id})">Eliminar</button></div></td>
         </tr>
       `;
     });
@@ -934,37 +935,191 @@ async function cargarParadas() {
 
 async function guardarParada() {
   const nombre = document.getElementById('input-parada-nombre').value.trim();
-  const tiempo = document.getElementById('input-parada-tiempo').value;
-  const tipo = document.getElementById('input-parada-tipo').value;
-  const frecuencia = document.getElementById('input-parada-frec').value;
+  const descripcion = sentenceCase(document.getElementById('input-parada-desc').value.trim());
 
-  let valid = true;
-  if (!nombre) { showFieldError('input-parada-nombre', 'Ingrese un nombre'); valid = false; }
-  else { clearFieldErrors('input-parada-nombre'); }
-
-  if (!tiempo || isNaN(tiempo)) { showFieldError('input-parada-tiempo', 'Ingrese un tiempo válido'); valid = false; }
-  else { clearFieldErrors('input-parada-tiempo'); }
-
-  if (!valid) return;
+  if (!nombre) { showFieldError('input-parada-nombre', 'Ingrese un nombre'); return; }
+  clearFieldErrors('input-parada-nombre');
 
   const data = await api('/api/paradas', {
     method: 'POST',
     body: JSON.stringify({
       nombre,
-      tiempo: parseInt(tiempo),
-      tipo,
-      frecuencia
+      descripcion: descripcion || null
     }),
     _btn: event.target
   });
 
   if (data) {
     document.getElementById('input-parada-nombre').value = '';
-    document.getElementById('input-parada-tiempo').value = '';
-    document.getElementById('input-parada-tipo').value = 'Opcional';
-    document.getElementById('input-parada-frec').value = 'Diaria';
+    document.getElementById('input-parada-desc').value = '';
     Toast.success(data.mensaje || 'Parada guardada');
     cargarParadas();
+  }
+}
+
+async function eliminarParada(id) {
+  const ok = await Modal.confirm('Eliminar Parada', '¿Eliminar esta parada?');
+  if (!ok) return;
+  const data = await api(`/api/paradas/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Parada eliminada');
+    cargarParadas();
+  }
+}
+
+// ============================================================
+// UNIDADES DE MEDIDA
+// ============================================================
+
+async function cargarUnidadesMedida() {
+  const datos = await api('/api/unidades-medida');
+  if (!datos) return;
+
+  const tbody = document.getElementById('lista-unidades-medida');
+  const empty = document.getElementById('empty-unidades-medida');
+
+  tbody.innerHTML = '';
+  if (datos.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    datos.forEach(u => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${u.id}</td>
+          <td><strong>${u.nombre}</strong></td>
+          <td>${u.descripcion || '-'}</td>
+          <td><div class="actions-cell"><button class="btn-delete-sm" onclick="eliminarUnidadMedida(${u.id})">Eliminar</button></div></td>
+        </tr>
+      `;
+    });
+  }
+}
+
+async function guardarUnidadMedida() {
+  const nombre = document.getElementById('input-unidad-nombre').value.trim();
+  const descripcion = sentenceCase(document.getElementById('input-unidad-desc').value.trim());
+
+  if (!nombre) { showFieldError('input-unidad-nombre', 'Ingrese un nombre'); return; }
+  clearFieldErrors('input-unidad-nombre');
+
+  const data = await api('/api/unidades-medida', {
+    method: 'POST',
+    body: JSON.stringify({
+      nombre,
+      descripcion: descripcion || null
+    }),
+    _btn: event.target
+  });
+
+  if (data) {
+    document.getElementById('input-unidad-nombre').value = '';
+    document.getElementById('input-unidad-desc').value = '';
+    Toast.success(data.mensaje || 'Unidad guardada');
+    cargarUnidadesMedida();
+  }
+}
+
+async function eliminarUnidadMedida(id) {
+  const ok = await Modal.confirm('Eliminar Unidad', '¿Eliminar esta unidad de medida?');
+  if (!ok) return;
+  const data = await api(`/api/unidades-medida/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Unidad eliminada');
+    cargarUnidadesMedida();
+  }
+}
+
+// ============================================================
+// PROVEEDORES
+// ============================================================
+
+let idProveedorEnEdicion = null;
+
+async function cargarProveedores() {
+  const datos = await api('/api/proveedores');
+  if (!datos) return;
+
+  const tbody = document.getElementById('lista-proveedores');
+  const empty = document.getElementById('empty-proveedores');
+
+  tbody.innerHTML = '';
+  if (datos.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    datos.forEach(p => {
+      const objStr = JSON.stringify(p).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${p.nombre}</strong></td>
+          <td>${p.descripcion || '-'}</td>
+          <td>${p.telefono || '-'}</td>
+          <td>${p.email || '-'}</td>
+          <td><div class="actions-cell"><button class="btn-edit-sm" onclick="iniciarEdicionProveedor(${objStr})">Editar</button><button class="btn-delete-sm" onclick="eliminarProveedor(${p.id})">Eliminar</button></div></td>
+        </tr>
+      `;
+    });
+  }
+}
+
+function limpiarFormProveedor() {
+  idProveedorEnEdicion = null;
+  document.getElementById('proveedor-id-edicion').value = '';
+  document.getElementById('input-proveedor-nombre').value = '';
+  document.getElementById('input-proveedor-desc').value = '';
+  document.getElementById('input-proveedor-tel').value = '';
+  document.getElementById('input-proveedor-email').value = '';
+  const btn = document.getElementById('btn-proveedor');
+  if (btn) { btn.textContent = 'Guardar Proveedor'; btn.style.background = ''; }
+}
+
+async function procesarProveedor() {
+  const nombre = document.getElementById('input-proveedor-nombre').value.trim();
+  if (!nombre) { showFieldError('input-proveedor-nombre', 'Campo requerido'); return; }
+  clearFieldErrors('input-proveedor-nombre');
+
+  const payload = {
+    nombre,
+    descripcion: sentenceCase(document.getElementById('input-proveedor-desc').value.trim()) || null,
+    telefono: document.getElementById('input-proveedor-tel').value.trim() || null,
+    email: document.getElementById('input-proveedor-email').value.trim().toLowerCase() || null
+  };
+
+  let url = '/api/proveedores';
+  let method = 'POST';
+  if (idProveedorEnEdicion) {
+    url = `/api/proveedores/${idProveedorEnEdicion}`;
+    method = 'PUT';
+  }
+
+  const data = await api(url, { method, body: JSON.stringify(payload), _btn: event.target });
+  if (data) {
+    Toast.success(data.mensaje || 'Proveedor guardado');
+    limpiarFormProveedor();
+    cargarProveedores();
+  }
+}
+
+function iniciarEdicionProveedor(p) {
+  idProveedorEnEdicion = p.id;
+  abrirFormColapsable('form-nuevo-proveedor', 'btn-nuevo-proveedor');
+  document.getElementById('proveedor-id-edicion').value = p.id;
+  document.getElementById('input-proveedor-nombre').value = p.nombre;
+  document.getElementById('input-proveedor-desc').value = p.descripcion || '';
+  document.getElementById('input-proveedor-tel').value = p.telefono || '';
+  document.getElementById('input-proveedor-email').value = p.email || '';
+  const btn = document.getElementById('btn-proveedor');
+  if (btn) { btn.textContent = 'Actualizar Proveedor'; btn.style.background = 'var(--accent-blue)'; }
+}
+
+async function eliminarProveedor(id) {
+  const ok = await Modal.confirm('Eliminar Proveedor', '¿Eliminar este proveedor?');
+  if (!ok) return;
+  const data = await api(`/api/proveedores/${id}`, { method: 'DELETE' });
+  if (data) {
+    Toast.success('Proveedor eliminado');
+    cargarProveedores();
   }
 }
 
