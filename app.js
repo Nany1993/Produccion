@@ -2178,6 +2178,7 @@ async function cargarMateriales() {
           <td>${m.unidad || '-'}</td>
           <td>${m.costo_unitario ? '$' + m.costo_unitario.toLocaleString() : '-'}</td>
           <td>${m.proveedor || '-'}</td>
+          <td>${m.descripcion || '-'}</td>
           <td class="action-buttons">
             <button class="btn-icon btn-edit" onclick="iniciarEdicionMaterial(${objStr})">Editar</button>
             <button class="btn-icon btn-delete" onclick="eliminarMaterial(${m.id})">Eliminar</button>
