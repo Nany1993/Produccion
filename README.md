@@ -183,7 +183,7 @@ Personal de la planta. Un empleado puede tener un rol (operador, supervisor, etc
 - Un empleado se asigna a una **máquina** (`id_maquina`).
 - El **módulo** se deduce automáticamente de la máquina (`modulo_asignado` = `Maquinas.id_modulo`).
 - La cadena es: **Empleado → Máquina → Módulo**.
-- Tanto **operadores** como **supervisores** pueden tener máquina asignada.
+- Solo los **operadores** pueden tener máquina asignada. Los **supervisores** no tienen máquina.
 - Un empleado tiene un usuario (`Usuario.id_empleado`).
 - Un empleado puede tener registros de producción (`RegistroProduccion.id_operador`).
 
@@ -206,7 +206,7 @@ Credenciales de acceso al sistema. Cada usuario pertenece a un empleado y tiene 
 
 **Relaciones:**
 - Solo usuarios con rol **supervisor** tienen asignaciones de línea (`AsignacionUsuarioLinea`).
-- Un supervisor puede tener máquina asignada (`id_maquina`) si también produce.
+- Los supervisores **no** tienen máquina asignada; solo los operadores.
 - Un usuario registra producción (`RegistroProduccion.id_usuario`).
 
 **Restricción FK:** No se puede eliminar un usuario que tenga registros de producción.
