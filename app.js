@@ -37,6 +37,11 @@ const Toast = {
   info(msg) { this.show(msg, 'info'); }
 };
 
+function sentenceCase(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
 const Modal = {
   overlay: null,
 
@@ -517,7 +522,7 @@ async function cargarMaquinaria() {
 
 async function guardarMaquina() {
   const nombre = document.getElementById('input-maquina').value.trim();
-  const descripcion = document.getElementById('input-maquina-desc').value.trim();
+  const descripcion = sentenceCase(document.getElementById('input-maquina-desc').value.trim());
   const idModulo = document.getElementById('input-maquina-modulo').value;
   const velocidad = document.getElementById('input-maquina-vel').value;
   const estado = document.getElementById('input-maquina-estado').value;
@@ -619,7 +624,7 @@ function editarMaquina(id) {
       method: 'PUT',
       body: JSON.stringify({
         nombre,
-        descripcion: document.getElementById('edit-maq-desc').value.trim() || null,
+        descripcion: sentenceCase(document.getElementById('edit-maq-desc').value.trim()) || null,
         id_modulo: document.getElementById('edit-maq-modulo').value ? parseInt(document.getElementById('edit-maq-modulo').value) : null,
         velocidad_tipica: document.getElementById('edit-maq-vel').value ? parseInt(document.getElementById('edit-maq-vel').value) : null,
         estado: document.getElementById('edit-maq-estado').value,
@@ -750,7 +755,7 @@ async function cargarSecciones() {
 
 async function guardarSeccion() {
   const nombre = document.getElementById('input-seccion').value.trim();
-  const descripcion = document.getElementById('input-seccion-desc').value.trim();
+  const descripcion = sentenceCase(document.getElementById('input-seccion-desc').value.trim());
   const orden = document.getElementById('input-seccion-orden').value;
 
   if (!nombre) { showFieldError('input-seccion', 'Ingrese un nombre'); return; }
@@ -1049,7 +1054,7 @@ async function procesarEmpleado() {
   const fecha_ingreso = document.getElementById('input-emp-fecha').value;
   const estado = document.getElementById('input-emp-estado').value;
   const telefono = document.getElementById('input-emp-tel').value.trim();
-  const email = document.getElementById('input-emp-email').value.trim();
+  const email = document.getElementById('input-emp-email').value.trim().toLowerCase();
   const id_maquina = document.getElementById('input-emp-maquina').value;
 
   let valid = true;
@@ -2205,7 +2210,7 @@ async function procesarMaterial() {
     unidad: document.getElementById('input-mat-unidad').value.trim() || null,
     costo_unitario: document.getElementById('input-mat-costo').value ? parseFloat(document.getElementById('input-mat-costo').value) : null,
     proveedor: document.getElementById('input-mat-proveedor').value.trim() || null,
-    descripcion: document.getElementById('input-mat-desc').value.trim() || null
+    descripcion: sentenceCase(document.getElementById('input-mat-desc').value.trim()) || null
   };
 
   let url = '/api/materiales';
@@ -2846,7 +2851,7 @@ function recolectarParadas(contIdP, contIdNP) {
     const tiempo = fila.querySelector('.parada-tiempo').value;
     const texto = sel && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
     const esOtro = texto === 'Otro';
-    const descripcion = fila.querySelector('.parada-desc').value.trim();
+    const descripcion = sentenceCase(fila.querySelector('.parada-desc').value.trim());
     if (!valor || !tiempo || parseInt(tiempo) <= 0) return;
     paradas.push({ id_causa: parseInt(valor), tiempo_segundos: parseInt(tiempo), descripcion: esOtro ? (descripcion || '') : null });
   });

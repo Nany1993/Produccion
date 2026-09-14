@@ -734,6 +734,14 @@ textarea {
     text-transform: capitalize;
 }
 
+input[type="email"] {
+    text-transform: lowercase;
+}
+
+textarea {
+    text-transform: none;
+}
+
 textarea {
     resize: vertical;
     min-height: 70px;
