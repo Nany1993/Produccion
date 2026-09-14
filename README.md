@@ -208,6 +208,7 @@ Credenciales de acceso al sistema. Cada usuario pertenece a un empleado y tiene 
 - Solo usuarios con rol **supervisor** tienen asignaciones de línea (`AsignacionUsuarioLinea`).
 - Los supervisores **no** tienen máquina asignada; solo los operadores.
 - Un usuario registra producción (`RegistroProduccion.id_usuario`).
+- Al crear un usuario, solo aparecen empleados con rol **supervisor** en el selector.
 
 **Restricción FK:** No se puede eliminar un usuario que tenga registros de producción.
 

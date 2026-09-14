@@ -1165,7 +1165,7 @@ async function cargarSelectUsuarioEmpleado() {
   if (!emp) return;
   const select = document.getElementById('input-usuario-empleado');
   select.innerHTML = '<option value="">Seleccione empleado...</option>';
-  emp.forEach(e => {
+  emp.filter(e => e.rol === 'Supervisor').forEach(e => {
     select.innerHTML += `<option value="${e.id}">${e.nombre} (${e.numero_documento})</option>`;
   });
 }
