@@ -195,7 +195,7 @@
                                     <input type="text" id="input-maquina-ubi" placeholder="Planta, área, línea">
                                 </div>
                             </div>
-                            <button class="btn-primary" onclick="guardarMaquina()" style="margin-top: 12px; max-width: 250px;">Guardar Máquina</button>
+                            <button class="btn-primary" onclick="guardarMaquina(this)" style="margin-top: 12px; max-width: 250px;">Guardar Máquina</button>
                         </div>
                         <div class="toolbar-search">
                             <input type="text" id="search-maquinaria" placeholder="Buscar máquina..." oninput="paginarMaquinaria()">
@@ -238,7 +238,7 @@
                                     <input type="number" id="input-seccion-orden" placeholder="1">
                                 </div>
                             </div>
-                            <button class="btn-primary" onclick="guardarSeccion()" style="margin-top: 12px; max-width: 250px;">Guardar Sección</button>
+                            <button class="btn-primary" onclick="guardarSeccion(this)" style="margin-top: 12px; max-width: 250px;">Guardar Sección</button>
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
@@ -287,7 +287,7 @@
                                     </select>
                                 </div>
                             </div>
-                            <button class="btn-primary" onclick="guardarModulo()" style="margin-top: 12px; max-width: 250px;">Guardar Módulo</button>
+                            <button class="btn-primary" onclick="guardarModulo(this)" style="margin-top: 12px; max-width: 250px;">Guardar Módulo</button>
                         </div>
                         <div class="toolbar-search">
                             <input type="text" id="search-modulos" placeholder="Buscar módulo..." oninput="paginarModulos()">
@@ -319,7 +319,6 @@
                         </div>
 
                         <div id="form-nuevo-empleado" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
-                        <input type="hidden" id="empleado-id-edicion">
                         <div class="form-grid-compact">
                             <div class="form-group">
                                 <label>Nombre completo *</label>
@@ -368,7 +367,7 @@
                                 <input type="email" id="input-emp-email" placeholder="correo@empresa.com">
                             </div>
                         </div>
-                        <button class="btn-primary" id="btn-empleado" onclick="procesarEmpleado()" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
+                        <button class="btn-primary" id="btn-empleado" onclick="procesarEmpleado(this)" style="margin-top: 12px; max-width: 250px;">Guardar Empleado</button>
                         </div>
                         <div class="toolbar-search">
                             <input type="text" id="search-empleados" placeholder="Buscar empleado por nombre, documento, cargo, máquina..." oninput="paginarEmpleados()">
@@ -409,8 +408,7 @@
                                 <button class="btn-primary" id="btn-nuevo-usuario" onclick="toggleFormNuevoUsuario()" style="width:auto; padding:8px 14px; background: var(--accent-blue);">+ Nuevo Usuario</button>
                             </div>
 
-                            <input type="hidden" id="usuario-id-edicion">
-
+                            
                             <div id="form-nuevo-usuario" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
                                 <div class="ref-grid-4" style="width:100%;">
                                     <div class="form-group">
@@ -438,7 +436,7 @@
                                     <label>Líneas a supervisar *</label>
                                     <div id="usuario-modulos-supervisor" class="module-check-list"></div>
                                 </div>
-                                <button class="btn-primary" id="btn-usuario" onclick="procesarUsuario()" style="max-width:280px;">Crear Usuario</button>
+                                <button class="btn-primary" id="btn-usuario" onclick="procesarUsuario(this)" style="max-width:280px;">Crear Usuario</button>
                             </div>
 
                             <div class="data-table-container" style="margin-top:16px;">
@@ -485,6 +483,7 @@
                                 <thead><tr><th>ID</th><th>Causa</th><th>Acción</th></tr></thead>
                                 <tbody id="lista-causas"></tbody>
                             </table>
+                            <div id="empty-causas" class="empty-state" style="display: none;">No hay causas registradas.</div>
                         </div>
                     </div>
                 </div>
@@ -502,7 +501,6 @@
                         </div>
 
                         <div id="form-nuevo-material" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
-                        <input type="hidden" id="material-id-edicion">
                         <div class="form-grid-compact">
                             <div class="form-group">
                                 <label>Nombre *</label>
@@ -529,7 +527,7 @@
                                 <input type="text" id="input-mat-desc" placeholder="Opcional">
                             </div>
                         </div>
-                        <button class="btn-primary" id="btn-material" onclick="procesarMaterial()" style="margin-top: 12px; max-width: 250px;">Guardar Material</button>
+                        <button class="btn-primary" id="btn-material" onclick="procesarMaterial(this)" style="margin-top: 12px; max-width: 250px;">Guardar Material</button>
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
@@ -573,7 +571,7 @@
                                 <input type="text" id="input-unidad-desc" placeholder="Opcional">
                             </div>
                         </div>
-                        <button class="btn-primary" onclick="guardarUnidadMedida()" style="margin-top: 12px; max-width: 250px;">Guardar</button>
+                        <button class="btn-primary" onclick="guardarUnidadMedida(this)" style="margin-top: 12px; max-width: 250px;">Guardar</button>
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
@@ -598,7 +596,6 @@
                         </div>
 
                         <div id="form-nuevo-proveedor" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
-                        <input type="hidden" id="proveedor-id-edicion">
                         <div class="form-grid-compact">
                             <div class="form-group">
                                 <label>Nombre *</label>
@@ -617,7 +614,7 @@
                                 <input type="email" id="input-proveedor-email" placeholder="correo@proveedor.com">
                             </div>
                         </div>
-                        <button class="btn-primary" id="btn-proveedor" onclick="procesarProveedor()" style="margin-top: 12px; max-width: 250px;">Guardar Proveedor</button>
+                        <button class="btn-primary" id="btn-proveedor" onclick="procesarProveedor(this)" style="margin-top: 12px; max-width: 250px;">Guardar Proveedor</button>
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
@@ -652,7 +649,7 @@
                                 <input type="text" id="input-parada-desc" placeholder="Opcional">
                             </div>
                         </div>
-                        <button class="btn-primary" onclick="guardarParada()" style="margin-top: 12px; max-width: 250px;">Guardar</button>
+                        <button class="btn-primary" onclick="guardarParada(this)" style="margin-top: 12px; max-width: 250px;">Guardar</button>
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
@@ -691,7 +688,7 @@
                                 <input type="time" id="input-hora-fin">
                             </div>
                         </div>
-                        <button class="btn-primary" onclick="guardarHora()" style="margin-top: 12px; max-width: 250px;">Guardar Hora</button>
+                        <button class="btn-primary" onclick="guardarHora(this)" style="margin-top: 12px; max-width: 250px;">Guardar Hora</button>
                         </div>
                         <div class="data-table-container">
                             <table class="data-table">
@@ -756,7 +753,7 @@
                                 </select>
                             </div>
                         </div>
-                        <button id="btn-operacion" class="btn-primary" onclick="procesarOperacion()" style="margin-top: 12px; max-width: 300px;">Guardar Operación</button>
+                        <button id="btn-operacion" class="btn-primary" onclick="procesarOperacion(this)" style="margin-top: 12px; max-width: 300px;">Guardar Operación</button>
                         </div>
                         <div class="data-table-container" style="margin-top: 24px;">
                             <table class="data-table">
@@ -790,7 +787,6 @@
                         </div>
 
                         <div id="form-nueva-orden" style="display:none; width:100%; margin-top:16px; padding:16px; border:1px solid var(--card-border); border-radius:8px; background:var(--bg-deep);">
-                            <input type="hidden" id="orden-id-edicion">
                             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
                                 <div class="form-group">
                                     <label>Referencia (modelo) *</label>
@@ -805,7 +801,7 @@
                                     <input type="number" id="input-orden-cantidad" placeholder="Ej: 2000">
                                 </div>
                             </div>
-                            <button class="btn-primary" id="btn-orden" onclick="procesarOrden()" style="margin-top: 10px; max-width:220px;">Crear Orden</button>
+                            <button class="btn-primary" id="btn-orden" onclick="procesarOrden(this)" style="margin-top: 10px; max-width:220px;">Crear Orden</button>
                         </div>
 
                         <div class="data-table-container" style="margin-top: 0;">
@@ -1152,7 +1148,7 @@
                                 <input type="number" id="sim-operarios" value="9" min="1">
                             </div>
                             <div>
-                                <button class="btn-primary" onclick="ejecutarSimulacion()">Calcular Balanceo</button>
+                                <button class="btn-primary" onclick="ejecutarSimulacion(this)">Calcular Balanceo</button>
                             </div>
                         </div>
                     </div>

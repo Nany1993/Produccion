@@ -352,7 +352,7 @@ function abrirFormColapsable(formId, btnId) {
 
 function toggleNavSection(sectionId) {
   const section = document.getElementById(sectionId);
-  section.classList.toggle('expanded');
+  if (section) section.classList.toggle('expanded');
 }
 
 function expandParentSection(linkId) {
@@ -369,7 +369,8 @@ function showModule(moduleId) {
   document.querySelectorAll('.module-section').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
-  document.getElementById(moduleId).classList.add('active');
+  const module = document.getElementById(moduleId);
+  if (module) module.classList.add('active');
   const linkId = moduleId.replace('mod-', 'link-');
   const link = document.getElementById(linkId);
   if (link) link.classList.add('active');
@@ -523,7 +524,7 @@ async function cargarMaquinaria() {
   paginarMaquinaria();
 }
 
-async function guardarMaquina() {
+async function guardarMaquina(btn) {
   const nombre = document.getElementById('input-maquina').value.trim();
   const descripcion = sentenceCase(document.getElementById('input-maquina-desc').value.trim());
   const idModulo = document.getElementById('input-maquina-modulo').value;
@@ -554,7 +555,7 @@ async function guardarMaquina() {
       codigo_inventario: codigo_inventario || null,
       ubicacion: ubicacion || null
     }),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -756,7 +757,7 @@ async function cargarSecciones() {
   if (valActual) select.value = valActual;
 }
 
-async function guardarSeccion() {
+async function guardarSeccion(btn) {
   const nombre = document.getElementById('input-seccion').value.trim();
   const descripcion = sentenceCase(document.getElementById('input-seccion-desc').value.trim());
   const orden = document.getElementById('input-seccion-orden').value;
@@ -771,7 +772,7 @@ async function guardarSeccion() {
       descripcion: descripcion || null,
       orden_proceso: orden ? parseInt(orden) : null
     }),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -825,7 +826,7 @@ async function cargarModulos() {
   paginarModulos();
 }
 
-async function guardarModulo() {
+async function guardarModulo(btn) {
   const nombre = document.getElementById('input-modulo').value.trim();
   const capacidad = document.getElementById('input-modulo-cap').value;
   const ubicacion = document.getElementById('input-modulo-ubic').value.trim();
@@ -842,7 +843,7 @@ async function guardarModulo() {
       ubicacion: ubicacion || null,
       estado
     }),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -881,7 +882,7 @@ async function cargarHoras() {
   }
 }
 
-async function guardarHora() {
+async function guardarHora(btn) {
   const nombre = document.getElementById('input-hora').value.trim();
   const horaInicio = document.getElementById('input-hora-inicio').value;
   const horaFin = document.getElementById('input-hora-fin').value;
@@ -896,7 +897,7 @@ async function guardarHora() {
       hora_inicio: horaInicio || null,
       hora_fin: horaFin || null
     }),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -933,7 +934,7 @@ async function cargarParadas() {
   }
 }
 
-async function guardarParada() {
+async function guardarParada(btn) {
   const nombre = document.getElementById('input-parada-nombre').value.trim();
   const descripcion = sentenceCase(document.getElementById('input-parada-desc').value.trim());
 
@@ -946,7 +947,7 @@ async function guardarParada() {
       nombre,
       descripcion: descripcion || null
     }),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -996,7 +997,7 @@ async function cargarUnidadesMedida() {
   }
 }
 
-async function guardarUnidadMedida() {
+async function guardarUnidadMedida(btn) {
   const nombre = document.getElementById('input-unidad-nombre').value.trim();
   const descripcion = sentenceCase(document.getElementById('input-unidad-desc').value.trim());
 
@@ -1009,7 +1010,7 @@ async function guardarUnidadMedida() {
       nombre,
       descripcion: descripcion || null
     }),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -1065,7 +1066,6 @@ async function cargarProveedores() {
 
 function limpiarFormProveedor() {
   idProveedorEnEdicion = null;
-  document.getElementById('proveedor-id-edicion').value = '';
   document.getElementById('input-proveedor-nombre').value = '';
   document.getElementById('input-proveedor-desc').value = '';
   document.getElementById('input-proveedor-tel').value = '';
@@ -1074,7 +1074,7 @@ function limpiarFormProveedor() {
   if (btn) { btn.textContent = 'Guardar Proveedor'; btn.style.background = ''; }
 }
 
-async function procesarProveedor() {
+async function procesarProveedor(btn) {
   const nombre = document.getElementById('input-proveedor-nombre').value.trim();
   if (!nombre) { showFieldError('input-proveedor-nombre', 'Campo requerido'); return; }
   clearFieldErrors('input-proveedor-nombre');
@@ -1093,7 +1093,7 @@ async function procesarProveedor() {
     method = 'PUT';
   }
 
-  const data = await api(url, { method, body: JSON.stringify(payload), _btn: event.target });
+  const data = await api(url, { method, body: JSON.stringify(payload), _btn: btn });
   if (data) {
     Toast.success(data.mensaje || 'Proveedor guardado');
     limpiarFormProveedor();
@@ -1104,7 +1104,6 @@ async function procesarProveedor() {
 function iniciarEdicionProveedor(p) {
   idProveedorEnEdicion = p.id;
   abrirFormColapsable('form-nuevo-proveedor', 'btn-nuevo-proveedor');
-  document.getElementById('proveedor-id-edicion').value = p.id;
   document.getElementById('input-proveedor-nombre').value = p.nombre;
   document.getElementById('input-proveedor-desc').value = p.descripcion || '';
   document.getElementById('input-proveedor-tel').value = p.telefono || '';
@@ -1185,7 +1184,6 @@ function toggleRolEmpleado() {
 
 function limpiarFormEmpleado() {
   idEmpleadoEnEdicion = null;
-  document.getElementById('empleado-id-edicion').value = '';
   document.getElementById('input-emp-nombre').value = '';
   document.getElementById('input-emp-doc').value = '';
   document.getElementById('input-emp-cargo').value = '';
@@ -1201,7 +1199,7 @@ function limpiarFormEmpleado() {
   btn.style.background = '';
 }
 
-async function procesarEmpleado() {
+async function procesarEmpleado(btn) {
   const nombre = document.getElementById('input-emp-nombre').value.trim();
   const numero_documento = document.getElementById('input-emp-doc').value.trim();
   const cargo = document.getElementById('input-emp-cargo').value.trim();
@@ -1250,7 +1248,7 @@ async function procesarEmpleado() {
   const data = await api(url, {
     method,
     body: JSON.stringify(payload),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -1265,7 +1263,6 @@ async function procesarEmpleado() {
 function iniciarEdicionEmpleado(e) {
   idEmpleadoEnEdicion = e.id;
   abrirFormColapsable('form-nuevo-empleado', 'btn-nuevo-empleado');
-  document.getElementById('empleado-id-edicion').value = e.id;
   document.getElementById('input-emp-nombre').value = e.nombre;
   document.getElementById('input-emp-doc').value = e.numero_documento;
   document.getElementById('input-emp-cargo').value = e.cargo;
@@ -1356,7 +1353,6 @@ async function cargarUsuarios() {
 
 function limpiarFormUsuario() {
   idUsuarioEnEdicion = null;
-  document.getElementById('usuario-id-edicion').value = '';
   document.getElementById('input-usuario-nombre').value = '';
   document.getElementById('input-usuario-pass').value = '';
   document.getElementById('input-usuario-rol').value = 'Supervisor';
@@ -1410,7 +1406,7 @@ async function sincronizarLineasUsuario(idUsuario, rol) {
   });
 }
 
-async function procesarUsuario() {
+async function procesarUsuario(btn) {
   const nombre = document.getElementById('input-usuario-nombre').value.trim();
   const password = document.getElementById('input-usuario-pass').value;
   const rol = document.getElementById('input-usuario-rol').value;
@@ -1438,7 +1434,7 @@ async function procesarUsuario() {
     method = 'PUT';
   }
 
-  const data = await api(url, { method, body: JSON.stringify(payload), _btn: event.target });
+  const data = await api(url, { method, body: JSON.stringify(payload), _btn: btn });
   if (data) {
     const nuevoId = data.id || idUsuarioEnEdicion;
     if (nuevoId) await sincronizarLineasUsuario(nuevoId, rol);
@@ -1457,7 +1453,6 @@ async function iniciarEdicionUsuario(u) {
     const btnNuevo = document.getElementById('btn-nuevo-usuario');
     if (btnNuevo) btnNuevo.textContent = '− Cerrar';
   }
-  document.getElementById('usuario-id-edicion').value = u.id;
   document.getElementById('input-usuario-nombre').value = u.nombre_usuario;
   document.getElementById('input-usuario-pass').value = 'cambiar';
   document.getElementById('input-usuario-rol').value = u.rol;
@@ -1499,15 +1494,21 @@ async function cargarCausas() {
   const data = await api('/api/causas-parada');
   if (!data) return;
   const tbody = document.getElementById('lista-causas');
+  const empty = document.getElementById('empty-causas');
   tbody.innerHTML = '';
-  data.forEach(c => {
-    tbody.innerHTML += `
-      <tr>
-        <td>${c.id}</td>
-        <td>${c.nombre}</td>
-        <td><button class="btn-icon btn-delete" onclick="eliminarCausaData(${c.id})">✕</button></td>
-      </tr>`;
-  });
+  if (data.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    data.forEach(c => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${c.id}</td>
+          <td>${c.nombre}</td>
+          <td><button class="btn-icon btn-delete" onclick="eliminarCausaData(${c.id})">✕</button></td>
+        </tr>`;
+    });
+  }
 }
 
 async function guardarCausa() {
@@ -1587,7 +1588,7 @@ function iniciarEdicionOperacion(operacion) {
   if (mod) mod.scrollIntoView({ behavior: 'smooth' });
 }
 
-async function procesarOperacion() {
+async function procesarOperacion(btn) {
   const nombre = document.getElementById('op-nombre').value.trim();
   const tiempo = document.getElementById('op-tiempo').value;
   const id_maquina = document.getElementById('op-maquina').value;
@@ -1620,7 +1621,7 @@ async function procesarOperacion() {
   const data = await api(url, {
     method,
     body: JSON.stringify(payload),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -1920,7 +1921,7 @@ async function verDetalleReferencia(id, nombre) {
           <input type="text" id="cm-seq-pred" placeholder="N/A o A,C">
         </div>
         <div>
-          <button class="btn-primary" onclick="agregarDetalle()">Agregar</button>
+          <button class="btn-primary" onclick="agregarDetalle(this)">Agregar</button>
         </div>
       </div>
       <div class="data-table-container">
@@ -2045,7 +2046,7 @@ async function cargarOperacionesSelectModal() {
   });
 }
 
-async function agregarDetalle() {
+async function agregarDetalle(btn) {
   if (!referenciaActivaId) return;
 
   const id_operacion = document.getElementById('cm-seq-operacion').value;
@@ -2062,7 +2063,7 @@ async function agregarDetalle() {
       predecesoras,
       orden: secuenciaActualLength + 1
     }),
-    _btn: document.getElementById('cm-panel-secuencia') ? event.target : null
+    _btn: document.getElementById('cm-panel-secuencia') ? btn : null
   });
 
   if (data) {
@@ -2220,7 +2221,6 @@ async function cargarOrdenes() {
 
 function limpiarFormOrden() {
   idOrdenEnEdicion = null;
-  document.getElementById('orden-id-edicion').value = '';
   document.getElementById('input-orden-nombre').value = '';
   document.getElementById('input-orden-cantidad').value = '';
   document.getElementById('input-orden-ref').value = '';
@@ -2228,7 +2228,7 @@ function limpiarFormOrden() {
   if (btn) { btn.textContent = 'Crear Orden'; btn.style.background = ''; }
 }
 
-async function procesarOrden() {
+async function procesarOrden(btn) {
   const idReferencia = document.getElementById('input-orden-ref').value;
   const nombreOrden = document.getElementById('input-orden-nombre').value.trim();
   const cantidad = document.getElementById('input-orden-cantidad').value;
@@ -2256,7 +2256,7 @@ async function procesarOrden() {
   const data = await api(url, {
     method,
     body: JSON.stringify(payload),
-    _btn: event.target
+    _btn: btn
   });
 
   if (data) {
@@ -2270,7 +2270,6 @@ async function procesarOrden() {
 function iniciarEdicionOrden(o) {
   idOrdenEnEdicion = o.id;
   abrirFormColapsable('form-nueva-orden', 'btn-nueva-orden');
-  document.getElementById('orden-id-edicion').value = o.id;
   document.getElementById('input-orden-nombre').value = o.nombre_orden;
   document.getElementById('input-orden-ref').value = o.id_referencia;
   document.getElementById('input-orden-cantidad').value = o.cantidad_lote;
@@ -2367,7 +2366,6 @@ async function cargarMateriales() {
 
 function limpiarFormMaterial() {
   idMaterialEnEdicion = null;
-  document.getElementById('material-id-edicion').value = '';
   document.getElementById('input-mat-nombre').value = '';
   document.getElementById('input-mat-unidad').value = '';
   document.getElementById('input-mat-costo').value = '';
@@ -2377,7 +2375,7 @@ function limpiarFormMaterial() {
   if (btn) { btn.textContent = 'Guardar Material'; btn.style.background = ''; }
 }
 
-async function procesarMaterial() {
+async function procesarMaterial(btn) {
   const nombre = document.getElementById('input-mat-nombre').value.trim();
   if (!nombre) { showFieldError('input-mat-nombre', 'Campo requerido'); return; }
   clearFieldErrors('input-mat-nombre');
@@ -2397,7 +2395,7 @@ async function procesarMaterial() {
     method = 'PUT';
   }
 
-  const data = await api(url, { method, body: JSON.stringify(payload), _btn: event.target });
+  const data = await api(url, { method, body: JSON.stringify(payload), _btn: btn });
   if (data) {
     Toast.success(data.mensaje || 'Material guardado');
     limpiarFormMaterial();
@@ -2408,7 +2406,6 @@ async function procesarMaterial() {
 function iniciarEdicionMaterial(m) {
   idMaterialEnEdicion = m.id;
   abrirFormColapsable('form-nuevo-material', 'btn-nuevo-material');
-  document.getElementById('material-id-edicion').value = m.id;
   document.getElementById('input-mat-nombre').value = m.nombre;
   document.getElementById('input-mat-unidad').value = m.id_unidad || '';
   document.getElementById('input-mat-costo').value = m.costo_unitario || '';
@@ -2571,8 +2568,8 @@ async function guardarAsignacion() {
     const data = await api(`/api/asignaciones/${idAsignacionEnEdicion}`, {
       method: 'PUT',
       body: JSON.stringify({ cantidad: lineas[0].cantidad }),
-      _btn: event.target
-    });
+    _btn: btn
+  });
     if (data) {
       Toast.success('Asignación actualizada');
       cancelarEdicionAsignacion();
@@ -2645,7 +2642,7 @@ async function cargarAsignaciones() {
       tbody.innerHTML += `
         <tr>
           <td><span class="badge badge-hour">${a.orden}</span></td>
-          <td>${a.referencia}</td>
+          <td>${refSafe}</td>
           <td><span class="badge badge-module">${a.modulo}</span></td>
           <td class="text-accent">${a.cantidad}</td>
           <td class="action-buttons">
@@ -2754,9 +2751,9 @@ function cancelarEdicionAsignacion() {
 // ============================================================
 
 let catalogoParadasCache = [
-  { id: 1, nombre: 'Desayuno', tiempo: 900 },
-  { id: 2, nombre: 'Almuerzo', tiempo: 1800 },
-  { id: 3, nombre: 'Ninguna', tiempo: 0 }
+  { id: 1, nombre: 'Desayuno' },
+  { id: 2, nombre: 'Almuerzo' },
+  { id: 3, nombre: 'Ninguna' }
 ];
 
 let causasParadaCache = [];
@@ -3589,7 +3586,7 @@ async function mostrarMinimoOperarios() {
   if (parseInt(input.value) < minimo) input.value = minimo;
 }
 
-async function ejecutarSimulacion() {
+async function ejecutarSimulacion(btn) {
   const idRef = document.getElementById('sim-referencia').value;
   const numOps = document.getElementById('sim-operarios').value;
 
@@ -3599,7 +3596,7 @@ async function ejecutarSimulacion() {
   const data = await api('/api/balanceo/calcular', {
     method: 'POST',
     body: JSON.stringify({ id_referencia: parseInt(idRef), num_operarios: parseInt(numOps) }),
-    _btn: event.target
+    _btn: btn
   });
 
   if (!data) return;
