@@ -291,12 +291,14 @@ def add_horas():
     datos = request.json
     if not datos or 'nombre' not in datos:
         return jsonify({"error": "Falta nombre"}), 400
-    insertar_hora(
+    res = insertar_hora(
         datos['nombre'],
         datos.get('hora_inicio'),
         datos.get('hora_fin')
     )
-    return jsonify({"mensaje": "Hora guardada con éxito"}), 201
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
 
 # --- NUEVO: PARADAS ---
 @app.route('/api/paradas', methods=['GET'])
@@ -306,15 +308,15 @@ def get_paradas():
 @app.route('/api/paradas', methods=['POST'])
 def add_parada():
     datos = request.json
-    if not datos or 'nombre' not in datos or 'tiempo' not in datos:
-        return jsonify({"error": "Faltan datos"}), 400
-    insertar_parada(
+    if not datos or 'nombre' not in datos:
+        return jsonify({"error": "Nombre requerido"}), 400
+    res = insertar_parada(
         datos['nombre'],
-        int(datos['tiempo']),
-        datos.get('tipo', 'Opcional'),
-        datos.get('frecuencia', 'Diaria')
+        datos.get('descripcion')
     )
-    return jsonify({"mensaje": "Parada guardada con éxito"}), 201
+    if "error" in res:
+        return jsonify(res), 400
+    return jsonify(res), 201
 
 @app.route('/api/paradas/<int:id_parada>', methods=['DELETE'])
 def delete_parada(id_parada):

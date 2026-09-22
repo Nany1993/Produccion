@@ -716,10 +716,15 @@ def obtener_horas():
 def insertar_hora(nombre, hora_inicio=None, hora_fin=None):
     conexion = _conexion()
     cursor = conexion.cursor()
-    cursor.execute("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)",
-                   (nombre, hora_inicio, hora_fin))
-    conexion.commit()
-    conexion.close()
+    try:
+        cursor.execute("INSERT INTO HorasProduccion (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)",
+                       (nombre, hora_inicio, hora_fin))
+        conexion.commit()
+        conexion.close()
+        return {"mensaje": "Hora guardada", "id": cursor.lastrowid}
+    except sqlite3.IntegrityError:
+        conexion.close()
+        return {"error": "Ya existe una hora con ese nombre"}
 
 def obtener_jornada_segundos():
     """Duración de la jornada (en segundos) según el catálogo de horas.
@@ -2144,9 +2149,9 @@ def insertar_registro_produccion(datos, id_usuario):
     # Paradas
     for par in (datos.get('paradas') or []):
         cursor.execute("""
-            INSERT INTO ParadaRegistro (id_registro, id_parada_programada, id_causa, tiempo_segundos, descripcion)
-            VALUES (?, ?, ?, ?, ?)
-        """, (registro_id, par.get('id_parada_programada'), par.get('id_causa'),
+            INSERT INTO ParadaRegistro (id_registro, id_parada, id_parada_programada, id_causa, tiempo_segundos, descripcion)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (registro_id, par.get('id_parada'), par.get('id_parada_programada'), par.get('id_causa'),
               par.get('tiempo_segundos', 0), par.get('descripcion')))
 
     # Si con este registro la producción real alcanza el lote, cierra la orden
@@ -2217,9 +2222,9 @@ def insertar_registros_masivo(datos, id_usuario):
             paradas_reg = paradas_linea
         for par in paradas_reg:
             cursor.execute("""
-                INSERT INTO ParadaRegistro (id_registro, id_parada_programada, id_causa, tiempo_segundos, descripcion)
-                VALUES (?, ?, ?, ?, ?)
-            """, (registro_id, par.get('id_parada_programada'), par.get('id_causa'),
+                INSERT INTO ParadaRegistro (id_registro, id_parada, id_parada_programada, id_causa, tiempo_segundos, descripcion)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (registro_id, par.get('id_parada'), par.get('id_parada_programada'), par.get('id_causa'),
                   par.get('tiempo_segundos', 0), par.get('descripcion')))
 
     _cerrar_orden_si_completa(cursor, datos['id_orden'])
@@ -2416,9 +2421,9 @@ def insertar_control_hora(datos, id_usuario):
     # Paradas
     for par in (datos.get('paradas') or []):
         cursor.execute("""
-            INSERT INTO ParadaControlHora (id_control, id_parada_programada, id_causa, tiempo_segundos, descripcion)
-            VALUES (?, ?, ?, ?, ?)
-        """, (control_id, par.get('id_parada_programada'), par.get('id_causa'),
+            INSERT INTO ParadaControlHora (id_control, id_parada, id_parada_programada, id_causa, tiempo_segundos, descripcion)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (control_id, par.get('id_parada'), par.get('id_parada_programada'), par.get('id_causa'),
               par.get('tiempo_segundos', 0), par.get('descripcion')))
     
     conexion.commit()
